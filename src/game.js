@@ -10,7 +10,7 @@ import {
     STATE_TRAINING_CONFIG,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
@@ -58,6 +58,7 @@ export class Game {
         this.enemies = [];
         this.projectiles = [];
         this.pickups = [];
+        this.hazards = [];
         this.door = null;
         this.grid = null;
         this.controlsHintTimer = 0;
@@ -210,6 +211,7 @@ export class Game {
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this._spawnEnemies(grid, spawnPos, doorPos);
+        this.hazards = generateHazards(grid, spawnPos, doorPos, this.stage);
         this.pickups = [];
         this.particles.clear();
     }
@@ -221,6 +223,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
+        this.hazards = [];
 
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
         this.enemies = spawns.map(p => new Enemy(
@@ -242,6 +245,7 @@ export class Game {
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
         this.pickups = [];
+        this.hazards = [];
         this.particles.clear();
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
@@ -352,6 +356,7 @@ export class Game {
             grid: this.grid,
             projectiles: this.projectiles,
             pickups: this.pickups,
+            hazards: this.hazards,
         };
         this._openTrainingConfig(true);
     }
@@ -379,6 +384,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.pickups = [];
+        this.hazards = [];
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
         this.state = STATE_PLAYING;
@@ -398,6 +404,7 @@ export class Game {
         this.grid = this._savedGame.grid;
         this.projectiles = this._savedGame.projectiles || [];
         this.pickups = this._savedGame.pickups || [];
+        this.hazards = this._savedGame.hazards || [];
         this.trainingMode = false;
         this._savedGame = null;
 
@@ -416,6 +423,7 @@ export class Game {
         this._savedGame = null;
         this.projectiles = [];
         this.pickups = [];
+        this.hazards = [];
         this.particles.clear();
     }
 
@@ -575,6 +583,8 @@ export class Game {
         }
 
         const movement = getMovement();
+        // Reset lava slow flag each frame (hazards will set it if player is on lava)
+        this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
 
         // Attack
@@ -656,6 +666,14 @@ export class Game {
             }
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
+
+        // Hazards — update (damage, projectile spawning)
+        for (const h of this.hazards) {
+            h.update(dt, this.player, this.projectiles, this.grid, noDamage);
+            if (h.justFired) {
+                Audio.playArrowTrap();
+            }
+        }
 
         // Detect player damage
         if (this.player.hp < hpBefore) {
@@ -889,6 +907,7 @@ export class Game {
                     this.door = this._savedGame.door;
                     this.grid = this._savedGame.grid;
                     this.projectiles = this._savedGame.projectiles || [];
+                    this.hazards = this._savedGame.hazards || [];
                     this._savedGame = null;
                 }
                 this.state = STATE_PLAYING;
@@ -945,6 +964,7 @@ export class Game {
         }
 
         renderRoom(ctx, this.grid);
+        for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
         for (const p of this.projectiles) p.render(ctx);

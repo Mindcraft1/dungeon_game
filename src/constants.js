@@ -129,6 +129,39 @@ export const BUFF_IRON_SKIN_REDUCE = 0.5;        // -50% damage taken
 // Max simultaneous buffs
 export const MAX_ACTIVE_BUFFS = 3;
 
+// ── Hazards ──
+export const HAZARD_TYPE_SPIKES = 'spikes';
+export const HAZARD_TYPE_LAVA   = 'lava';
+export const HAZARD_TYPE_ARROW  = 'arrow';
+
+// Intro stages (progressive difficulty)
+export const HAZARD_SPIKE_INTRO_STAGE = 3;
+export const HAZARD_LAVA_INTRO_STAGE  = 5;
+export const HAZARD_ARROW_INTRO_STAGE = 7;
+
+// Spike hazard
+export const HAZARD_SPIKE_DAMAGE   = 8;
+export const HAZARD_SPIKE_CYCLE    = 2500;   // ms full cycle
+export const HAZARD_SPIKE_ACTIVE   = 700;    // ms spikes are out (damaging)
+export const HAZARD_SPIKE_WARN     = 500;    // ms warning before active
+
+// Lava hazard
+export const HAZARD_LAVA_DAMAGE    = 4;      // per tick
+export const HAZARD_LAVA_TICK      = 400;    // ms between ticks
+export const HAZARD_LAVA_SLOW      = 0.55;   // speed multiplier
+
+// Arrow trap hazard
+export const HAZARD_ARROW_DAMAGE   = 8;
+export const HAZARD_ARROW_COOLDOWN = 3500;   // ms between shots
+export const HAZARD_ARROW_SPEED    = 160;
+export const HAZARD_ARROW_RADIUS   = 3;
+
+// Hazard colors
+export const HAZARD_SPIKE_COLOR    = '#8e8e8e';
+export const HAZARD_LAVA_COLOR     = '#e25822';
+export const HAZARD_LAVA_COLOR2    = '#ff6b35';
+export const HAZARD_ARROW_COLOR    = '#ff6b35';
+
 // Pickup type keys
 export const PICKUP_RAGE_SHARD = 'rage_shard';
 export const PICKUP_HEART_FRAGMENT = 'heart_fragment';

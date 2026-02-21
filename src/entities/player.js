@@ -12,6 +12,7 @@ import {
     PICKUP_PIERCING_SHOT, PICKUP_PHASE_SHIELD,
     PICKUP_SPEED_SURGE, PICKUP_SWIFT_BOOTS,
     PICKUP_CRUSHING_BLOW, PICKUP_IRON_SKIN,
+    HAZARD_LAVA_SLOW,
 } from '../constants.js';
 import { resolveWalls } from '../collision.js';
 
@@ -44,6 +45,7 @@ export class Player {
         this.activeBuffs = [];
         this.phaseShieldActive = false;   // blocks next hit
         this.crushingBlowReady = false;   // next attack = 3× damage
+        this.onLava = false;              // set per frame by hazard system
     }
 
     update(dt, movement, grid) {
@@ -231,9 +233,11 @@ export class Player {
         return this.activeBuffs.some(b => b.type === type);
     }
 
-    /** Effective move speed accounting for Swift Boots buff. */
+    /** Effective move speed accounting for Swift Boots buff and lava slow. */
     getEffectiveSpeed() {
-        return this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
+        let spd = this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
+        if (this.onLava) spd *= HAZARD_LAVA_SLOW;
+        return spd;
     }
 
     /** Clear all buffs (e.g. on death/restart). */

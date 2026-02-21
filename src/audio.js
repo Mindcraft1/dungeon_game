@@ -538,6 +538,32 @@ export function playDash() {
     o.stop(t + 0.09);
 }
 
+// ── Hazard Sounds ────────────────────────────────────────────
+
+/** Arrow trap fires — short mechanical twang */
+export function playArrowTrap() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Twang: high freq descending
+    const g = _gain(0.08);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.setValueAtTime(800, t);
+    o.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+    o.connect(g);
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.start(t);
+    o.stop(t + 0.12);
+
+    // Mechanical click
+    _noiseBurst(2000, 3, 0.04, 0.06, t);
+}
+
 // ── Mute / Volume ────────────────────────────────────────────
 
 export function toggleMute() {
