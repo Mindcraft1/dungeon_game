@@ -115,7 +115,7 @@ export function processBossKill(stage, bossNumberInRun) {
     _runRewards.bossesDefeatedThisRun++;
     state.stats.bossesKilledTotal++;
 
-    // 3) Maybe drop a relic (10% if any locked)
+    // 3) Maybe drop a relic (5% if any locked)
     const lockedRelics = getLockedRelicIds();
     if (lockedRelics.length > 0 && Math.random() < RELIC_DROP_CHANCE) {
         const idx = Math.floor(Math.random() * lockedRelics.length);

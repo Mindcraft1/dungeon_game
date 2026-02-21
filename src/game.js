@@ -1599,9 +1599,9 @@ export class Game {
             Audio.playMenuNav();
         }
 
-        // Confirm with Space, Enter, or number keys
+        // Confirm with Enter or number keys
         let choiceIdx = null;
-        if (wasPressed('Space') || wasPressed('Enter')) {
+        if (wasPressed('Enter')) {
             choiceIdx = this.upgradeIndex;
         } else if (wasPressed('Digit1')) { choiceIdx = 0; }
         else if (wasPressed('Digit2')) { choiceIdx = 1; }
@@ -1764,7 +1764,7 @@ export class Game {
     }
 
     _updateGameOver() {
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter')) {
             Audio.playMenuSelect();
             this.restart();
         }
@@ -1788,7 +1788,7 @@ export class Game {
         }
 
         let choice = null;
-        if (wasPressed('Space') || wasPressed('Enter')) {
+        if (wasPressed('Enter')) {
             choice = choices[this.bossRewardIndex];
         } else if (wasPressed('Digit1')) { choice = 'hp'; }
         else if (wasPressed('Digit2')) { choice = 'damage'; }

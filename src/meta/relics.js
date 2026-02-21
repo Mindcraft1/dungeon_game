@@ -73,7 +73,7 @@ export const RELIC_IDS = Object.keys(RELIC_DEFINITIONS);
 export const RELIC_COUNT = RELIC_IDS.length;
 
 /** Drop chance per boss kill (if relics remain locked) */
-export const RELIC_DROP_CHANCE = 0.10;
+export const RELIC_DROP_CHANCE = 0.05;
 
 // ── Queries ──
 
