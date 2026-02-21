@@ -264,3 +264,5 @@ export const BOSS_PHANTOM_NAME = 'The Phantom';
 
 // Game state
 export const STATE_BOSS_VICTORY = 'BOSS_VICTORY';
+export const STATE_META_MENU = 'META_MENU';
+export const STATE_SETTINGS = 'SETTINGS';

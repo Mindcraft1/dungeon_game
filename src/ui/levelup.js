@@ -2,14 +2,16 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE 
 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
+ * @param {Array} [choices] – dynamic choices array from game.js, or null for default
  */
-export function renderLevelUpOverlay(ctx, player, selectedIndex = 0) {
+export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    const bw = 340;
-    const bh = 260;
+    const optCount = choices ? choices.length : 3;
+    const bw = 380;
+    const bh = 220 + (optCount > 3 ? 40 : 0);
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -31,14 +33,17 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0) {
     ctx.font = '14px monospace';
     ctx.fillText(`Level ${player.level} → ${player.level + 1}`, CANVAS_WIDTH / 2, by + 65);
 
-    // Options
-    const opts = [
-        { key: '1', text: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50' },
-        { key: '2', text: `+${UPGRADE_SPEED} Speed`, color: '#2196f3' },
-        { key: '3', text: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336' },
-    ];
+    // Options — use dynamic choices if provided, else base options
+    const opts = choices
+        ? choices.map((c, i) => ({ key: `${i + 1}`, text: c.label, color: c.color }))
+        : [
+            { key: '1', text: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50' },
+            { key: '2', text: `+${UPGRADE_SPEED} Speed`, color: '#2196f3' },
+            { key: '3', text: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336' },
+        ];
+
     const startY = by + 100;
-    const rowH = 40;
+    const rowH = 38;
     opts.forEach((o, i) => {
         const oy = startY + i * rowH;
         const selected = i === selectedIndex;
@@ -71,8 +76,9 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0) {
 
 /**
  * Draw the Game-Over overlay.
+ * @param {object|null} runRewards - meta progression run rewards summary
  */
-export function renderGameOverOverlay(ctx, stage, level) {
+export function renderGameOverOverlay(ctx, stage, level, runRewards = null) {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -80,15 +86,43 @@ export function renderGameOverOverlay(ctx, stage, level) {
 
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 36px monospace';
-    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
     ctx.fillStyle = '#aaa';
     ctx.font = '16px monospace';
-    ctx.fillText(`Stage ${stage}  ·  Level ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 5);
+    ctx.fillText(`Stage ${stage}  ·  Level ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 25);
+
+    // Run summary (meta rewards)
+    if (runRewards) {
+        let summaryY = CANVAS_HEIGHT / 2 + 5;
+        ctx.font = '12px monospace';
+
+        if (runRewards.bossesDefeatedThisRun > 0) {
+            ctx.fillStyle = '#ff5722';
+            ctx.fillText(`Bosses Defeated: ${runRewards.bossesDefeatedThisRun}`, CANVAS_WIDTH / 2, summaryY);
+            summaryY += 18;
+        }
+
+        if (runRewards.coreShardsGainedThisRun > 0) {
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(`◆ Core Shards Gained: +${runRewards.coreShardsGainedThisRun}`, CANVAS_WIDTH / 2, summaryY);
+            summaryY += 18;
+        }
+
+        if (runRewards.relicUnlockedThisRun) {
+            ctx.fillStyle = '#bb86fc';
+            ctx.fillText(`Relic Unlocked!`, CANVAS_WIDTH / 2, summaryY);
+            summaryY += 18;
+        }
+    }
 
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER or SPACE for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 45);
+    ctx.fillText('Press ENTER or SPACE for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 70);
+
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('G = Meta Progress', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 92);
 
     ctx.textAlign = 'left';
 }

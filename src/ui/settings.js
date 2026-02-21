@@ -1,0 +1,161 @@
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+
+/**
+ * Draw the settings screen.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cursor – currently selected option index
+ * @param {boolean} sfxMuted – whether SFX are muted
+ * @param {boolean} musicEnabled – whether music is enabled
+ */
+export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
+    // Background
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Decorative grid
+    ctx.strokeStyle = 'rgba(79,195,247,0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < CANVAS_WIDTH; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_HEIGHT); ctx.stroke();
+    }
+    for (let y = 0; y < CANVAS_HEIGHT; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke();
+    }
+
+    ctx.textAlign = 'center';
+
+    // Title
+    const now = Date.now();
+    const glow = 0.7 + Math.sin(now * 0.003) * 0.3;
+    ctx.save();
+    ctx.shadowColor = '#e0e0e0';
+    ctx.shadowBlur = 15 * glow;
+    ctx.fillStyle = '#e0e0e0';
+    ctx.font = 'bold 36px monospace';
+    ctx.fillText('SETTINGS', CANVAS_WIDTH / 2, 130);
+    ctx.restore();
+
+    // Subtitle
+    ctx.fillStyle = '#666';
+    ctx.font = '13px monospace';
+    ctx.fillText('Configure audio and view controls', CANVAS_WIDTH / 2, 160);
+
+    // ── Settings items ──
+    const items = [
+        {
+            label: 'SOUND EFFECTS',
+            value: sfxMuted ? 'OFF' : 'ON',
+            valueColor: sfxMuted ? '#e74c3c' : '#4caf50',
+            color: '#4fc3f7',
+            desc: 'Toggle game sound effects',
+        },
+        {
+            label: 'MUSIC',
+            value: musicEnabled ? 'ON' : 'OFF',
+            valueColor: musicEnabled ? '#4caf50' : '#e74c3c',
+            color: '#bb86fc',
+            desc: 'Toggle background music',
+        },
+        {
+            label: 'BACK',
+            value: '',
+            valueColor: '',
+            color: '#888',
+            desc: 'Return to main menu',
+        },
+    ];
+
+    const startY = 210;
+    const spacing = 58;
+
+    items.forEach((item, i) => {
+        const y = startY + i * spacing;
+        const selected = i === cursor;
+
+        // Selection box
+        if (selected) {
+            const boxW = 360;
+            const boxH = 54;
+            ctx.fillStyle = 'rgba(79,195,247,0.08)';
+            ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+            ctx.strokeStyle = item.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+
+            // Arrow indicator
+            ctx.fillStyle = item.color;
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('▸', CANVAS_WIDTH / 2 - 155, y + 2);
+            ctx.textAlign = 'center';
+        }
+
+        // Label
+        ctx.fillStyle = selected ? item.color : '#555';
+        ctx.font = 'bold 20px monospace';
+        if (item.value) {
+            // Label on left, value on right
+            ctx.textAlign = 'left';
+            ctx.fillText(item.label, CANVAS_WIDTH / 2 - 120, y);
+            ctx.textAlign = 'right';
+            ctx.fillStyle = selected ? item.valueColor : '#555';
+            ctx.font = 'bold 20px monospace';
+            ctx.fillText(item.value, CANVAS_WIDTH / 2 + 140, y);
+            ctx.textAlign = 'center';
+        } else {
+            ctx.fillText(item.label, CANVAS_WIDTH / 2, y);
+        }
+
+        // Description
+        ctx.fillStyle = selected ? '#888' : '#444';
+        ctx.font = '11px monospace';
+        ctx.fillText(item.desc, CANVAS_WIDTH / 2, y + 18);
+    });
+
+    // ── Key bindings reference ──
+    const keysY = startY + items.length * spacing + 18;
+
+    ctx.fillStyle = '#555';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('─── KEY BINDINGS ───', CANVAS_WIDTH / 2, keysY);
+
+    const bindings = [
+        ['WASD / Arrows', 'Move'],
+        ['SPACE', 'Melee Attack'],
+        ['M', 'Dash / Dodge Roll'],
+        ['N', 'Ranged Attack (Dagger)'],
+        ['T', 'Teleport to Training'],
+        ['P / ESC', 'Pause'],
+    ];
+
+    ctx.font = '11px monospace';
+    const bindStartY = keysY + 20;
+    const bindSpacing = 18;
+
+    bindings.forEach(([key, action], i) => {
+        const by = bindStartY + i * bindSpacing;
+
+        // Key
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillText(key, CANVAS_WIDTH / 2 - 20, by);
+
+        // Separator
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#444';
+        ctx.fillText('—', CANVAS_WIDTH / 2, by);
+
+        // Action
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(action, CANVAS_WIDTH / 2 + 20, by);
+    });
+
+    // Bottom hint
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#444';
+    ctx.font = '12px monospace';
+    ctx.fillText('W/S to navigate  ·  ENTER to toggle/confirm  ·  ESC to go back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+
+    ctx.textAlign = 'left';
+}

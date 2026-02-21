@@ -38,6 +38,7 @@ export class Boss {
         this.stage = stage;
         this.dead = false;
         this.xpGiven = false;
+        this.isBoss = true;
 
         // ── Stat scaling ──
         const hpScale  = 1 + encounter * BOSS_HP_SCALE;

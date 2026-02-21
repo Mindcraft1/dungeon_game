@@ -109,7 +109,11 @@ export class Hazard {
 
         // Damage check (only when fully active)
         if (this.active && !noDamage && this._isPlayerOnTile(player)) {
-            const dmg = Math.floor(HAZARD_SPIKE_DAMAGE * this.damageScale);
+            let dmg = Math.floor(HAZARD_SPIKE_DAMAGE * this.damageScale);
+            // Meta relic: spike damage reduction
+            if (player.metaSpikeDamageMultiplier && player.metaSpikeDamageMultiplier < 1) {
+                dmg = Math.max(1, Math.floor(dmg * player.metaSpikeDamageMultiplier));
+            }
             player.takeDamage(dmg);
         }
     }
@@ -125,7 +129,11 @@ export class Hazard {
                 this.tickTimer += ms;
                 if (this.tickTimer >= HAZARD_LAVA_TICK) {
                     this.tickTimer -= HAZARD_LAVA_TICK;
-                    const dmg = Math.floor(HAZARD_LAVA_DAMAGE * this.damageScale);
+                    let dmg = Math.floor(HAZARD_LAVA_DAMAGE * this.damageScale);
+                    // Meta relic: lava damage reduction
+                    if (player.metaLavaDotMultiplier && player.metaLavaDotMultiplier < 1) {
+                        dmg = Math.max(1, Math.floor(dmg * player.metaLavaDotMultiplier));
+                    }
                     player.takeDamage(dmg);
                 }
             }

@@ -882,6 +882,105 @@ export function playBossVictory() {
     oSub.stop(t + 0.62);
 }
 
+// ── Meta Progression Sounds ──────────────────────────────
+
+/** Core Shard gain — crystalline chime */
+export function playShardGain() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Bright ascending sparkle
+    const notes = [880, 1175, 1760];
+    notes.forEach((freq, i) => {
+        const start = t + i * 0.06;
+        const g = _gain(0.12);
+        if (!g) return;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.connect(g);
+        g.gain.setValueAtTime(0.12, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+        o.start(start);
+        o.stop(start + 0.22);
+    });
+
+    _noiseBurst(6000, 2, 0.02, 0.08, t);
+}
+
+/** Relic unlock — magical discovery sound */
+export function playRelicUnlock() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Mystical ascending arpeggio
+    const notes = [440, 554, 659, 880, 1108];
+    notes.forEach((freq, i) => {
+        const start = t + i * 0.1;
+        const g = _gain(0.15);
+        if (!g) return;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.connect(g);
+        g.gain.setValueAtTime(0.15, start);
+        g.gain.setValueAtTime(0.15, start + 0.08);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+        o.start(start);
+        o.stop(start + 0.37);
+
+        // Shimmer overtone
+        const g2 = _gain(0.06);
+        if (!g2) return;
+        const o2 = ctx.createOscillator();
+        o2.type = 'triangle';
+        o2.frequency.value = freq * 2;
+        o2.connect(g2);
+        g2.gain.setValueAtTime(0.06, start);
+        g2.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+        o2.start(start);
+        o2.stop(start + 0.32);
+    });
+
+    // Sub bass for gravitas
+    const gSub = _gain(0.08);
+    if (!gSub) return;
+    const oSub = ctx.createOscillator();
+    oSub.type = 'sine';
+    oSub.frequency.value = 110;
+    oSub.connect(gSub);
+    gSub.gain.setValueAtTime(0.08, t);
+    gSub.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    oSub.start(t);
+    oSub.stop(t + 0.52);
+}
+
+/** Perk purchased — satisfying upgrade sound */
+export function playPerkUpgrade() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    const g = _gain(0.18);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(400, t);
+    o.frequency.exponentialRampToValueAtTime(800, t + 0.15);
+    o.connect(g);
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.start(t);
+    o.stop(t + 0.32);
+
+    _noiseBurst(4000, 2, 0.03, 0.1, t + 0.05);
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

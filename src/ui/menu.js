@@ -2,10 +2,11 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 /**
  * Draw the main menu screen.
- * @param {number} selectedIndex – 0 = Play, 1 = Training, 2 = Characters
+ * @param {number} selectedIndex – 0 = Play, 1 = Training, 2 = Characters, 3 = Settings, 4 = Meta Progress
  * @param {string|null} profileName – name of active character
+ * @param {number} coreShards – available core shards
  */
-export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null) {
+export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null, coreShards = 0) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -56,10 +57,12 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
         { label: 'START GAME', desc: 'Fight through dungeon rooms', color: '#4fc3f7' },
         { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
         { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
+        { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
+        { label: 'META PROGRESS', desc: `Perks, Relics & Stats  ·  ◆ ${coreShards}`, color: '#bb86fc' },
     ];
 
-    const startY = 290;
-    const spacing = 64;
+    const startY = 295;
+    const spacing = 48;
 
     options.forEach((opt, i) => {
         const y = startY + i * spacing;

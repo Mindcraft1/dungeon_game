@@ -58,6 +58,13 @@ export class Player {
         this.crushingBlowReady = false;   // next attack = 3× damage
         this.onLava = false;              // set per frame by hazard system
         this.biomeSpeedMult = 1.0;        // set per room by biome system
+        this.attackRangeMultiplier = 1.0;  // set by run upgrades (aoe_swing)
+
+        // ── Meta Progression modifiers (set by game.js at run start) ──
+        this.metaBossDamageMultiplier = 1;
+        this.metaDamageTakenMultiplier = 1;
+        this.metaSpikeDamageMultiplier = 1;
+        this.metaLavaDotMultiplier = 1;
     }
 
     update(dt, movement, grid) {
@@ -150,7 +157,7 @@ export class Player {
 
         // Range (may be extended by Piercing Shot buff)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
-        const effectiveRange = ATTACK_RANGE * rangeMult;
+        const effectiveRange = ATTACK_RANGE * rangeMult * (this.attackRangeMultiplier || 1);
 
         // Damage calculation
         let dmg = this.damage;
@@ -184,7 +191,14 @@ export class Player {
 
             const kbX = dist > 0 ? (dx / dist) * ATTACK_KNOCKBACK * kbMult : 0;
             const kbY = dist > 0 ? (dy / dist) * ATTACK_KNOCKBACK * kbMult : 0;
-            enemy.takeDamage(dmg, kbX, kbY);
+
+            // Meta relic: Boss Hunter — extra damage vs bosses
+            let finalDmg = dmg;
+            if (enemy.isBoss && this.metaBossDamageMultiplier > 1) {
+                finalDmg = Math.floor(finalDmg * this.metaBossDamageMultiplier);
+            }
+
+            enemy.takeDamage(finalDmg, kbX, kbY);
             hitCount++;
         }
         return hitCount;
@@ -257,7 +271,12 @@ export class Player {
         // Iron Skin: reduce damage by 50%
         let finalAmount = amount;
         if (this.hasBuff(PICKUP_IRON_SKIN)) {
-            finalAmount = Math.max(1, Math.floor(amount * BUFF_IRON_SKIN_REDUCE));
+            finalAmount = Math.max(1, Math.floor(finalAmount * BUFF_IRON_SKIN_REDUCE));
+        }
+
+        // Meta: global damage taken reduction (relic: Tough Skin)
+        if (this.metaDamageTakenMultiplier < 1) {
+            finalAmount = Math.max(1, Math.floor(finalAmount * this.metaDamageTakenMultiplier));
         }
 
         this.hp = Math.max(0, this.hp - finalAmount);

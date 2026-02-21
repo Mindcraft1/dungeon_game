@@ -92,6 +92,7 @@ export class PlayerProjectile {
         this.knockback = knockback;
         this.dead = false;
         this.hitTarget = null; // set when hitting an enemy (for particles)
+        this.bossDamageMultiplier = 1; // meta relic: Boss Hunter
     }
 
     update(dt, enemies, boss, grid) {
@@ -140,7 +141,10 @@ export class PlayerProjectile {
                 const dist = Math.sqrt(bx * bx + by * by) || 1;
                 const kbX = (bx / dist) * this.knockback;
                 const kbY = (by / dist) * this.knockback;
-                boss.takeDamage(this.damage, kbX, kbY);
+                const bossDmg = this.bossDamageMultiplier > 1
+                    ? Math.floor(this.damage * this.bossDamageMultiplier)
+                    : this.damage;
+                boss.takeDamage(bossDmg, kbX, kbY);
                 this.hitTarget = { x: boss.x, y: boss.y, dirX: this.dirX, dirY: this.dirY };
                 this.dead = true;
                 return;

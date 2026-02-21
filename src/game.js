@@ -6,8 +6,9 @@ import {
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
     ATTACK_RANGE, DASH_COOLDOWN, DAGGER_COOLDOWN,
+    UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
-    STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY,
+    STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
@@ -29,9 +30,20 @@ import { renderLevelUpOverlay, renderGameOverOverlay, renderBossVictoryOverlay }
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
+import { renderSettings } from './ui/settings.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
 import { getBiomeForStage } from './biomes.js';
+
+// ── Meta Progression ──
+import * as MetaStore from './meta/metaStore.js';
+import * as RewardSystem from './meta/rewardSystem.js';
+import { RELIC_DEFINITIONS } from './meta/relics.js';
+import { RUN_UPGRADE_DEFINITIONS, getUnlockedRunUpgradeIds } from './meta/rewardSystem.js';
+import { PERK_IDS, upgradePerk, canUpgrade } from './meta/metaPerks.js';
+import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
+import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from './meta/uiRewardsToast.js';
+import { getAvailableShards } from './meta/metaState.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -77,6 +89,7 @@ export class Game {
 
         // Level-up selection
         this.upgradeIndex = 0;
+        this._cachedLevelUpChoices = null; // cached to avoid different random choices between update & render
 
         // Pause menu selection
         this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
@@ -95,6 +108,9 @@ export class Game {
 
         // ── Audio ──
         this.muted = Audio.isMuted();
+
+        // ── Settings screen ──
+        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Back
 
         // ── Particles ──
         this.particles = new ParticleSystem();
@@ -116,6 +132,18 @@ export class Game {
         // ── Biome system ──
         this.currentBiome = null;          // biome object for current stage
         this.biomeAnnounceTimer = 0;       // ms remaining for biome banner
+
+        // ── Meta Progression ──
+        this.metaModifiers = null;         // combined perk+relic modifiers for current run
+        this.metaTab = META_TAB_PERKS;     // meta menu active tab
+        this.metaPerkCursor = 0;           // selected perk in meta menu
+        this.metaFromGameOver = false;     // opened meta menu from game over screen
+        this.bossesKilledThisRun = 0;      // track boss count for first-boss bonus
+
+        // ── Run upgrade tracking (chosen during level-up) ──
+        this.runUpgradesActive = {};       // Record<upgradeId, true> — picked this run
+        this.shieldCharges = 0;            // from upgrade_shield
+        this.regenTimer = 0;               // from upgrade_regen
 
         // ── Cheat codes ──
         this.cheats = {
@@ -251,7 +279,7 @@ export class Game {
     // ── Menu ───────────────────────────────────────────────
 
     _updateMenu() {
-        const count = 3; // Play, Training, Characters
+        const count = 5; // Play, Training, Characters, Settings, Meta Progress
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.menuIndex = (this.menuIndex - 1 + count) % count;
             Audio.playMenuNav();
@@ -266,11 +294,16 @@ export class Game {
                 this._startGame();
             } else if (this.menuIndex === 1) {
                 this._openTrainingConfig(false);
-            } else {
+            } else if (this.menuIndex === 2) {
                 this.profileCursor = 0;
                 this.profileCreating = false;
                 this.profileDeleting = false;
                 this.state = STATE_PROFILES;
+            } else if (this.menuIndex === 3) {
+                this.settingsCursor = 0;
+                this.state = STATE_SETTINGS;
+            } else if (this.menuIndex === 4) {
+                this._openMetaMenu(false);
             }
         }
     }
@@ -291,6 +324,15 @@ export class Game {
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
         this.loadRoom(0);
+
+        // ── Meta Progression: apply modifiers at run start ──
+        this.metaModifiers = RewardSystem.onRunStart();
+        this.bossesKilledThisRun = 0;
+        this.runUpgradesActive = {};
+        this.shieldCharges = 0;
+        this.regenTimer = 0;
+        this._applyMetaModifiers();
+
         this.state = STATE_PLAYING;
     }
 
@@ -337,6 +379,12 @@ export class Game {
         this.pickups = [];
         this.playerProjectiles = [];
         this.particles.clear();
+
+        // Run upgrade: shield — grant shield charge as invuln at room start
+        if (this.runUpgradesActive && this.runUpgradesActive.upgrade_shield && this.shieldCharges > 0) {
+            this.player.invulnTimer = Math.max(this.player.invulnTimer, 1500);
+            this.shieldCharges--;
+        }
     }
 
     _loadTrainingRoom() {
@@ -581,6 +629,20 @@ export class Game {
         this._saveHighscore();
         this._updateBiome();
 
+        // Meta: rare 1% shard from normal room clear
+        if (!this._isBossStage(this.stage - 1)) {
+            const rareShards = RewardSystem.processRoomClear();
+            if (rareShards > 0) {
+                showToast('+1 Core Shard (rare!)', '#ffd700', '◆');
+                Audio.playShardGain();
+            }
+        }
+
+        // Shield charge regen from run upgrade
+        if (this.runUpgradesActive.upgrade_shield) {
+            this.shieldCharges = Math.min(this.shieldCharges + 1, 3);
+        }
+
         // Announce biome change
         if (this.currentBiome && (!oldBiome || oldBiome.id !== this.currentBiome.id)) {
             this.biomeAnnounceTimer = 3000;
@@ -722,6 +784,90 @@ export class Game {
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
+        clearToasts();
+    }
+
+    // ── Meta Progression helpers ──────────────────────────────
+
+    /** Apply meta perk + relic modifiers to the player at run start. */
+    _applyMetaModifiers() {
+        if (!this.player || !this.metaModifiers) return;
+        const m = this.metaModifiers;
+
+        // HP multiplier (perk)
+        this.player.maxHp = Math.floor(this.player.maxHp * m.hpMultiplier);
+        this.player.hp = this.player.maxHp;
+
+        // Damage multiplier (perk only, not relic general damage)
+        this.player.damage = Math.floor(this.player.damage * m.damageMultiplier);
+
+        // Speed multiplier (perk + relic)
+        this.player.speed = Math.floor(this.player.speed * m.speedMultiplier);
+
+        // Starting XP bonus (relic)
+        if (m.startingXpBonus > 0) {
+            this.player.addXp(m.startingXpBonus);
+        }
+
+        // Store modifiers on player for runtime use
+        this.player.metaBossDamageMultiplier = m.bossDamageMultiplier;
+        this.player.metaDamageTakenMultiplier = m.damageTakenMultiplier;
+        this.player.metaSpikeDamageMultiplier = m.spikeDamageMultiplier;
+        this.player.metaLavaDotMultiplier = m.lavaDotMultiplier;
+    }
+
+    /** Open meta menu from any screen. */
+    _openMetaMenu(fromGameOver) {
+        this.metaFromGameOver = fromGameOver;
+        this.metaTab = META_TAB_PERKS;
+        this.metaPerkCursor = 0;
+        this.state = STATE_META_MENU;
+    }
+
+    /** Update meta menu input. */
+    _updateMetaMenu() {
+        // Tab switching (A/D or Left/Right)
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.metaTab = (this.metaTab - 1 + META_TAB_COUNT) % META_TAB_COUNT;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.metaTab = (this.metaTab + 1) % META_TAB_COUNT;
+            Audio.playMenuNav();
+        }
+
+        // Perk selection (W/S) — only on perks tab
+        if (this.metaTab === META_TAB_PERKS) {
+            if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+                this.metaPerkCursor = (this.metaPerkCursor - 1 + PERK_IDS.length) % PERK_IDS.length;
+                Audio.playMenuNav();
+            }
+            if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+                this.metaPerkCursor = (this.metaPerkCursor + 1) % PERK_IDS.length;
+                Audio.playMenuNav();
+            }
+
+            // Buy perk
+            if (wasPressed('Enter') || wasPressed('Space')) {
+                const perkId = PERK_IDS[this.metaPerkCursor];
+                if (canUpgrade(perkId)) {
+                    upgradePerk(perkId);
+                    Audio.playPerkUpgrade();
+                } else {
+                    // Can't afford or maxed — do nothing
+                }
+            }
+        }
+
+        // Back
+        if (wasPressed('Escape')) {
+            if (this.metaFromGameOver) {
+                this.state = STATE_GAME_OVER;
+            } else {
+                this.state = STATE_MENU;
+                this.menuIndex = 0;
+            }
+        }
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -736,13 +882,13 @@ export class Game {
             Music.startMusic();
             Music.setMusicMuted(this.muted);
         }
-        if (wasPressed('KeyM')) {
-            this.muted = Audio.toggleMute();
-            Music.setMusicMuted(this.muted);
-        }
+
 
         // Always update particles (they should animate even on overlays)
         this.particles.update(dt);
+
+        // Always update toasts
+        updateToasts(dt);
 
         // ── Cheat code processing ──
         this._processCheatCodes();
@@ -759,6 +905,8 @@ export class Game {
             case STATE_GAME_OVER:       this._updateGameOver();       break;
             case STATE_TRAINING_CONFIG: this._updateTrainingConfig(); break;
             case STATE_BOSS_VICTORY:    this._updateBossVictory();   break;
+            case STATE_META_MENU:       this._updateMetaMenu();      break;
+            case STATE_SETTINGS:        this._updateSettings();      break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -944,11 +1092,20 @@ export class Game {
             this.particles.biomeAmbient(this.currentBiome);
         }
 
-        // Dash / Dodge Roll (N key)
-        if (wasPressed('KeyN')) {
+        // Dash / Dodge Roll (M key)
+        if (wasPressed('KeyM')) {
             if (this.player.tryDash(movement)) {
                 Audio.playPlayerDash();
                 this.particles.dashBurst(this.player.x, this.player.y);
+            }
+        }
+
+        // ── Run upgrade: Regeneration (heal 1 HP every 3s) ──
+        if (this.runUpgradesActive.upgrade_regen && this.player.hp < this.player.maxHp) {
+            this.regenTimer += dt * 1000;
+            if (this.regenTimer >= 3000) {
+                this.regenTimer -= 3000;
+                this.player.hp = Math.min(this.player.hp + 1, this.player.maxHp);
             }
         }
 
@@ -988,6 +1145,11 @@ export class Game {
                 );
                 if (hitCount > 0) {
                     Audio.playHit();
+                    // Run upgrade: lifesteal — heal 1% of damage dealt per hit
+                    if (this.runUpgradesActive.upgrade_lifesteal && hitCount > 0) {
+                        const healAmt = Math.max(1, Math.floor(this.player.damage * 0.01 * hitCount));
+                        this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                    }
                     // Hit sparks on each damaged enemy
                     for (const e of this.enemies) {
                         if (!e.dead && e.damageFlashTimer > 100) {
@@ -1008,8 +1170,8 @@ export class Game {
             }
         }
 
-        // Ranged Attack (B key) — throw dagger
-        if (wasPressed('KeyB')) {
+        // Ranged Attack (N key) — throw dagger
+        if (wasPressed('KeyN')) {
             const throwData = this.player.tryThrow();
             if (throwData) {
                 const dagger = new PlayerProjectile(
@@ -1019,6 +1181,10 @@ export class Game {
                     throwData.radius, throwData.color,
                     throwData.maxDist, throwData.knockback,
                 );
+                // Meta relic: Boss Hunter — extra damage vs bosses
+                if (this.metaModifiers && this.metaModifiers.bossDamageMultiplier > 1) {
+                    dagger.bossDamageMultiplier = this.metaModifiers.bossDamageMultiplier;
+                }
                 this.playerProjectiles.push(dagger);
                 Audio.playDaggerThrow();
                 // Throw particles
@@ -1032,7 +1198,11 @@ export class Game {
         // Track player HP to detect damage
         const hpBefore = this.player.hp;
         const shieldBefore = this.player.phaseShieldActive;
+        const shieldChargesBefore = this.shieldCharges;
         const projCountBefore = this.projectiles.length;
+
+        // Run upgrade: shield — if player is about to take damage, store pre-invuln state
+        // (shield charges are checked after enemy updates by comparing HP)
 
         // Track door lock state
         const doorWasLocked = this.door.locked;
@@ -1063,13 +1233,21 @@ export class Game {
                 }
 
                 if (!this.trainingMode) {
-                    // Apply combo XP multiplier + cheat XP boost
+                    // Apply combo XP multiplier + cheat XP boost + meta XP multiplier
                     const xpMult = this.cheats.xpboost ? 10 : 1;
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult);
+                    const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
+                    const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
                         this.particles.levelUp(this.player.x, this.player.y);
+                        // Relic: heal on level-up
+                        if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
+                            const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
+                            this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                        }
+                        this._cachedLevelUpChoices = this._getLevelUpChoices();
                         this.state = STATE_LEVEL_UP;
                         return;
                     }
@@ -1140,6 +1318,27 @@ export class Game {
             Audio.playBossDeath();
             this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
             triggerShake(15, 0.92);
+
+            // ── Meta Progression: boss kill rewards ──
+            this.bossesKilledThisRun++;
+            const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
+            // Toast for shards
+            if (reward.shardsGained > 0) {
+                showToast(`+${reward.shardsGained} Core Shards`, '#ffd700', '◆');
+                Audio.playShardGain();
+            }
+            // Toast for relic
+            if (reward.relicId) {
+                const relic = RELIC_DEFINITIONS[reward.relicId];
+                showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
+                Audio.playRelicUnlock();
+            }
+            // Toast for run upgrade unlock
+            if (reward.runUpgradeId) {
+                const upg = RUN_UPGRADE_DEFINITIONS[reward.runUpgradeId];
+                showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
+            }
+
             this.bossVictoryDelay = 1200; // 1.2s freeze before victory overlay
             return;
         }
@@ -1179,11 +1378,26 @@ export class Game {
             }
         }
 
-        // Detect player damage
+        // Detect player damage — apply meta damage reduction
         if (this.player.hp < hpBefore) {
             Audio.playPlayerHurt();
             this.particles.playerDamage(this.player.x, this.player.y);
             triggerShake(6, 0.86);
+            // Run upgrade: thorns — 10% chance reflect 5 dmg to nearest enemy
+            if (this.runUpgradesActive.upgrade_thorns) {
+                if (Math.random() < 0.10) {
+                    let nearest = null;
+                    let minDist = Infinity;
+                    for (const e of this.enemies) {
+                        if (e.dead) continue;
+                        const dx = e.x - this.player.x;
+                        const dy = e.y - this.player.y;
+                        const d = dx * dx + dy * dy;
+                        if (d < minDist) { minDist = d; nearest = e; }
+                    }
+                    if (nearest) nearest.takeDamage(5, 0, 0);
+                }
+            }
         } else if (shieldBefore && !this.player.phaseShieldActive) {
             Audio.playShieldBlock();
             this.particles.shieldBlock(this.player.x, this.player.y);
@@ -1254,6 +1468,8 @@ export class Game {
             this._comboReset();
             Audio.playGameOver();
             triggerShake(10, 0.9);
+            // Meta: finalize run
+            RewardSystem.onRunEnd(this.stage);
             this.state = STATE_GAME_OVER;
         }
 
@@ -1317,36 +1533,145 @@ export class Game {
         }
     }
 
-    _updateLevelUp() {
-        const choices = ['hp', 'speed', 'damage'];
+    _updateSettings() {
+        const count = 3; // 0=SFX, 1=Music, 2=Back
 
-        // Navigate with W/S or arrows
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
-            this.upgradeIndex = (this.upgradeIndex - 1 + 3) % 3;
+            this.settingsCursor = (this.settingsCursor - 1 + count) % count;
             Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
-            this.upgradeIndex = (this.upgradeIndex + 1) % 3;
+            this.settingsCursor = (this.settingsCursor + 1) % count;
+            Audio.playMenuNav();
+        }
+
+        if (wasPressed('Escape')) {
+            Audio.playMenuSelect();
+            this.state = STATE_MENU;
+            return;
+        }
+
+        // Toggle with Enter/Space or Left/Right arrows on SFX/Music rows
+        const toggle = wasPressed('Enter') || wasPressed('Space');
+        const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
+                       || wasPressed('KeyA') || wasPressed('KeyD');
+
+        if (toggle || (leftRight && this.settingsCursor < 2)) {
+            Audio.playMenuSelect();
+            if (this.settingsCursor === 0) {
+                // Toggle SFX mute
+                this.muted = Audio.toggleMute();
+                Music.setMusicMuted(this.muted);
+            } else if (this.settingsCursor === 1) {
+                // Toggle music
+                Music.toggleMusicEnabled();
+            } else if (this.settingsCursor === 2) {
+                // Back to menu
+                this.state = STATE_MENU;
+            }
+        }
+    }
+
+    _updateLevelUp() {
+        // Use cached choices (computed at state transition to avoid random mismatch with render)
+        const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
+        const count = choices.length;
+
+        // Navigate with W/S or arrows
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.upgradeIndex = (this.upgradeIndex - 1 + count) % count;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.upgradeIndex = (this.upgradeIndex + 1) % count;
             Audio.playMenuNav();
         }
 
         // Confirm with Space, Enter, or number keys
-        let choice = null;
+        let choiceIdx = null;
         if (wasPressed('Space') || wasPressed('Enter')) {
-            choice = choices[this.upgradeIndex];
-        } else if (wasPressed('Digit1')) { choice = 'hp'; }
-        else if (wasPressed('Digit2')) { choice = 'speed'; }
-        else if (wasPressed('Digit3')) { choice = 'damage'; }
+            choiceIdx = this.upgradeIndex;
+        } else if (wasPressed('Digit1')) { choiceIdx = 0; }
+        else if (wasPressed('Digit2')) { choiceIdx = 1; }
+        else if (wasPressed('Digit3')) { choiceIdx = 2; }
+        else if (wasPressed('Digit4') && count > 3) { choiceIdx = 3; }
 
-        if (!choice) return;
+        if (choiceIdx === null || choiceIdx >= count) return;
         Audio.playMenuSelect();
-        this.player.levelUp(choice);
+
+        const chosen = choices[choiceIdx];
+        if (chosen.type === 'base') {
+            this.player.levelUp(chosen.id);
+        } else if (chosen.type === 'runUpgrade') {
+            // Activate run upgrade
+            this.runUpgradesActive[chosen.id] = true;
+            // Apply immediate effects
+            this._applyRunUpgrade(chosen.id);
+            // Still do the level-up stat bookkeeping (level counter, xp)
+            this.player.level++;
+            this.player.xp -= this.player.xpToNext;
+            this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
+        }
+
         this.upgradeIndex = 0;
 
         // Chain level-ups
-        this.state = this.player.xp >= this.player.xpToNext
-            ? STATE_LEVEL_UP
-            : STATE_PLAYING;
+        if (this.player.xp >= this.player.xpToNext) {
+            this._cachedLevelUpChoices = this._getLevelUpChoices();
+            this.state = STATE_LEVEL_UP;
+        } else {
+            this._cachedLevelUpChoices = null;
+            this.state = STATE_PLAYING;
+        }
+    }
+
+    /**
+     * Build array of level-up choices: 3 base + optionally 1 run upgrade.
+     * Each: { type: 'base'|'runUpgrade', id, label, color, key }
+     */
+    _getLevelUpChoices() {
+        const choices = [
+            { type: 'base', id: 'hp',     label: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50', key: '1' },
+            { type: 'base', id: 'speed',  label: `+${UPGRADE_SPEED} Speed`, color: '#2196f3', key: '2' },
+            { type: 'base', id: 'damage', label: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336', key: '3' },
+        ];
+
+        // Add an unlocked run upgrade if available and not yet picked this run
+        const unlocked = getUnlockedRunUpgradeIds();
+        const available = unlocked.filter(id => !this.runUpgradesActive[id]);
+        if (available.length > 0) {
+            // Pick one random available upgrade to offer
+            const id = available[Math.floor(Math.random() * available.length)];
+            const def = RUN_UPGRADE_DEFINITIONS[id];
+            if (def) {
+                choices.push({
+                    type: 'runUpgrade',
+                    id,
+                    label: `${def.icon} ${def.name}: ${def.desc}`,
+                    color: def.color,
+                    key: '4',
+                });
+            }
+        }
+
+        return choices;
+    }
+
+    /** Apply a chosen run upgrade's immediate effects. */
+    _applyRunUpgrade(upgradeId) {
+        switch (upgradeId) {
+            case 'upgrade_aoe_swing':
+                // Increase player's attack range multiplier for this run
+                this.player.attackRangeMultiplier = (this.player.attackRangeMultiplier || 1) * 1.10;
+                break;
+            case 'upgrade_shield':
+                this.shieldCharges = 1;
+                break;
+            case 'upgrade_regen':
+                this.regenTimer = 0;
+                break;
+            // lifesteal, thorns, xp_magnet — checked dynamically via runUpgradesActive
+        }
     }
 
     // ── Training Config Screen ──────────────────────────────
@@ -1431,6 +1756,11 @@ export class Game {
             Audio.playMenuSelect();
             this.restart();
         }
+        // Open meta menu from game over (KeyG for Meta Progress)
+        if (wasPressed('KeyG')) {
+            Audio.playMenuSelect();
+            this._openMetaMenu(true);
+        }
     }
 
     _updateBossVictory() {
@@ -1473,16 +1803,25 @@ export class Game {
 
         // Award boss XP (may trigger level-up chain)
         const bossXpMult = this.cheats.xpboost ? 10 : 1;
-        const xp = Math.floor(this.boss.xpValue * bossXpMult);
+        const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
+        const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
+        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult);
         if (this.player.addXp(xp)) {
             Audio.playLevelUp();
             this.particles.levelUp(this.player.x, this.player.y);
+            // Relic: heal on level-up
+            if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
+                const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
+                this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+            }
             this.upgradeIndex = 0;
+            this._cachedLevelUpChoices = this._getLevelUpChoices();
             this.state = STATE_LEVEL_UP;
             return;
         }
 
         // No level-up → back to playing (door is unlocked, walk through to continue)
+        this._cachedLevelUpChoices = null;
         this.state = STATE_PLAYING;
     }
 
@@ -1502,8 +1841,9 @@ export class Game {
             case STATE_GAME_OVER:
                 Music.setDanger(0.18);
                 break;
+            case STATE_SETTINGS:
             default:
-                // Menu/profiles: silent
+                // Menu/profiles/meta/settings: silent
                 Music.setDanger(0);
                 break;
         }
@@ -1561,7 +1901,8 @@ export class Game {
 
         if (this.state === STATE_MENU) {
             const profileName = this.activeProfile ? this.activeProfile.name : null;
-            renderMenu(ctx, this.menuIndex, this.highscore, profileName);
+            const shards = getAvailableShards(MetaStore.getState());
+            renderMenu(ctx, this.menuIndex, this.highscore, profileName, shards);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -1590,6 +1931,19 @@ export class Game {
                 this.trainingDrops,
                 this._trainingFromGame,
             );
+            this._renderCheatNotifications(ctx);
+            return;
+        }
+
+        if (this.state === STATE_META_MENU) {
+            const runRewards = this.metaFromGameOver ? RewardSystem.getRunRewards() : null;
+            renderMetaMenu(ctx, this.metaTab, this.metaPerkCursor, this.metaFromGameOver, runRewards);
+            this._renderCheatNotifications(ctx);
+            return;
+        }
+
+        if (this.state === STATE_SETTINGS) {
+            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled());
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -1697,13 +2051,18 @@ export class Game {
         // ── Cheat indicators + notifications ──
         this._renderCheatOverlay(ctx);
 
+        // ── Meta rewards toasts ──
+        renderToasts(ctx);
+
         // Overlays
         if (this.state === STATE_PAUSED) {
             this._renderPauseOverlay(ctx);
         } else if (this.state === STATE_LEVEL_UP) {
-            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex);
+            const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
+            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices);
         } else if (this.state === STATE_GAME_OVER) {
-            renderGameOverOverlay(ctx, this.stage, this.player.level);
+            const runRewards = RewardSystem.getRunRewards();
+            renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards);
         } else if (this.state === STATE_BOSS_VICTORY) {
             renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
                 this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED);
@@ -1869,8 +2228,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   B = Throw   N = Dash   M = Mute   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   B = Throw   N = Dash   M = Mute   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();
