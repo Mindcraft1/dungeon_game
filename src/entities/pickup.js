@@ -6,6 +6,7 @@ import {
     PICKUP_SPEED_SURGE, PICKUP_SWIFT_BOOTS,
     PICKUP_CRUSHING_BLOW, PICKUP_IRON_SKIN,
     DROP_CHANCE,
+    COIN_DROP_LIFETIME, COIN_DROP_RADIUS, COIN_DROP_BOBBLE_SPEED, COIN_MAGNET_RANGE,
 } from '../constants.js';
 
 // ── Drop tables per enemy type ──
@@ -255,5 +256,113 @@ export class Pickup {
                 ctx.stroke();
                 break;
         }
+    }
+}
+
+// ── Coin Pickup ────────────────────────────────────────────
+
+/**
+ * Physical coin drop from a killed enemy.
+ * Player must walk over it to collect. Disappears after COIN_DROP_LIFETIME ms.
+ * Gently drifts toward the player when within COIN_MAGNET_RANGE.
+ */
+export class CoinPickup {
+    constructor(x, y, value = 1) {
+        this.x = x;
+        this.y = y;
+        this.value = value;
+        this.radius = COIN_DROP_RADIUS;
+        this.lifetime = COIN_DROP_LIFETIME;
+        this.dead = false;
+        this.spawnTime = Date.now();
+
+        // Initial scatter: toss the coin randomly away from death spot
+        const angle = Math.random() * Math.PI * 2;
+        const tossSpeed = 60 + Math.random() * 40;
+        this.vx = Math.cos(angle) * tossSpeed;
+        this.vy = Math.sin(angle) * tossSpeed;
+        this.friction = 0.92;
+    }
+
+    update(dt, player) {
+        if (this.dead) return;
+        this.lifetime -= dt * 1000;
+        if (this.lifetime <= 0) {
+            this.dead = true;
+            return;
+        }
+
+        // Apply initial toss velocity with friction
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vx *= this.friction;
+        this.vy *= this.friction;
+
+        // Magnet: gently drift toward player when close
+        if (player) {
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < COIN_MAGNET_RANGE && dist > 1) {
+                const pull = 180 * dt; // px/s attraction
+                this.x += (dx / dist) * pull;
+                this.y += (dy / dist) * pull;
+            }
+        }
+    }
+
+    checkCollection(player) {
+        if (this.dead) return false;
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        return dist < this.radius + player.radius;
+    }
+
+    render(ctx) {
+        if (this.dead) return;
+
+        const elapsed = Date.now() - this.spawnTime;
+        const bob = Math.sin(elapsed * COIN_DROP_BOBBLE_SPEED) * 2;
+        const drawY = this.y + bob;
+        const r = this.radius;
+
+        // Fade out + blink in last 3 seconds
+        const fadeStart = 3000;
+        let alpha = 1;
+        if (this.lifetime < fadeStart) {
+            const blink = Math.sin(this.lifetime * 0.012) > 0 ? 1 : 0.3;
+            alpha = (this.lifetime / fadeStart) * blink;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Glow
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 6 + Math.sin(elapsed * 0.006) * 2;
+
+        // Coin body (golden circle)
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.ellipse(this.x, drawY, r, r * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner ring
+        ctx.strokeStyle = '#b8860b';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(this.x, drawY, r * 0.6, r * 0.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // "¢" symbol
+        ctx.fillStyle = '#b8860b';
+        ctx.font = `bold ${Math.round(r * 1.1)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('$', this.x, drawY + 0.5);
+
+        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 }

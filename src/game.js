@@ -18,6 +18,8 @@ import {
     META_BOOSTERS, META_BOOSTER_IDS,
     RUN_SHOP_ITEMS, RUN_SHOP_ITEM_IDS,
     PLAYER_INVULN_TIME,
+    BOMB_RADIUS, BOMB_DAMAGE_MULT, BOMB_STUN_DURATION, BOMB_KNOCKBACK,
+    COIN_DROP_LIFETIME,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
@@ -27,7 +29,7 @@ import { Enemy } from './entities/enemy.js';
 import { Projectile, PlayerProjectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
 import { Boss } from './entities/boss.js';
-import { trySpawnPickup, PICKUP_INFO } from './entities/pickup.js';
+import { trySpawnPickup, PICKUP_INFO, CoinPickup } from './entities/pickup.js';
 import { ParticleSystem } from './entities/particle.js';
 import { triggerShake } from './shake.js';
 import { renderHUD, renderBossHPBar } from './ui/hud.js';
@@ -88,6 +90,7 @@ export class Game {
         this.projectiles = [];
         this.playerProjectiles = [];  // player-fired daggers
         this.pickups = [];
+        this.coinPickups = [];        // physical coin drops from enemies
         this.hazards = [];
         this.door = null;
         this.grid = null;
@@ -345,6 +348,7 @@ export class Game {
         this.stage = 1;
         this.player = null;
         this.pickups = [];
+        this.coinPickups = [];
         this.playerProjectiles = [];
         this.controlsHintTimer = 5000;
         this._comboReset();
@@ -422,6 +426,7 @@ export class Game {
         const hazardWeights = this.currentBiome ? this.currentBiome.hazardWeights : null;
         this.hazards = generateHazards(grid, spawnPos, doorPos, this.stage, hazardWeights);
         this.pickups = [];
+        this.coinPickups = [];
         this.playerProjectiles = [];
         this.particles.clear();
 
@@ -462,6 +467,7 @@ export class Game {
         this.projectiles = [];
         this.playerProjectiles = [];
         this.pickups = [];
+        this.coinPickups = [];
         this.hazards = [];
         this.particles.clear();
 
@@ -716,6 +722,7 @@ export class Game {
         this.playerProjectiles = [];
         this.hazards = [];
         this.pickups = [];
+        this.coinPickups = [];
         this.particles.clear();
         this.bossVictoryDelay = 0;
 
@@ -740,6 +747,7 @@ export class Game {
             projectiles: this.projectiles,
             playerProjectiles: this.playerProjectiles,
             pickups: this.pickups,
+            coinPickups: this.coinPickups,
             hazards: this.hazards,
             boss: this.boss,
         };
@@ -772,6 +780,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.pickups = [];
+        this.coinPickups = [];
         this.hazards = [];
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
@@ -793,6 +802,7 @@ export class Game {
         this.projectiles = this._savedGame.projectiles || [];
         this.playerProjectiles = this._savedGame.playerProjectiles || [];
         this.pickups = this._savedGame.pickups || [];
+        this.coinPickups = this._savedGame.coinPickups || [];
         this.hazards = this._savedGame.hazards || [];
         this.boss = this._savedGame.boss || null;
         this.trainingMode = false;
@@ -820,6 +830,7 @@ export class Game {
         this.projectiles = [];
         this.playerProjectiles = [];
         this.pickups = [];
+        this.coinPickups = [];
         this.hazards = [];
         this.particles.clear();
         this._comboReset();
@@ -1095,10 +1106,10 @@ export class Game {
         Audio.playMenuSelect();
 
         switch (id) {
-            case 'run_item_small_heal':
+            case 'run_item_max_hp_boost':
                 if (this.player) {
-                    const heal = Math.floor(this.player.maxHp * 0.25);
-                    this.player.hp = Math.min(this.player.hp + heal, this.player.maxHp);
+                    this.player.maxHp += 15;
+                    this.player.hp = Math.min(this.player.hp + 15, this.player.maxHp);
                 }
                 break;
             case 'run_item_repair_armor':
@@ -1132,32 +1143,36 @@ export class Game {
         this.state = STATE_PLAYING;
     }
 
-    /** Activate bomb (B key) — AoE damage around player. */
+    /** Activate bomb (B key) — Big AoE damage + stun around player. */
     _activateBomb() {
         if (this.bombCharges <= 0) return;
         this.bombCharges--;
         Audio.playBossSlam();
-        triggerShake(8, 0.88);
-        this.particles.bossSlam(this.player.x, this.player.y, 120, '#ff9800');
+        triggerShake(12, 0.85);
+        this.particles.bossSlam(this.player.x, this.player.y, BOMB_RADIUS, '#ff9800');
 
-        // Deal damage to all enemies within radius 120
-        const bombRadius = 120;
-        const bombDamage = Math.floor(this.player.damage * 1.5);
+        const bombDamage = Math.floor(this.player.damage * BOMB_DAMAGE_MULT);
         for (const e of this.enemies) {
             if (e.dead) continue;
             const dx = e.x - this.player.x;
             const dy = e.y - this.player.y;
-            if (Math.sqrt(dx * dx + dy * dy) < bombRadius + e.radius) {
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                e.takeDamage(bombDamage, (dx / dist) * 15, (dy / dist) * 15);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < BOMB_RADIUS + e.radius) {
+                const d = dist || 1;
+                e.takeDamage(bombDamage, (dx / d) * BOMB_KNOCKBACK, (dy / d) * BOMB_KNOCKBACK);
+                // Stun: freeze enemy movement
+                e.stunTimer = BOMB_STUN_DURATION;
             }
         }
-        // Also damage boss if present
+        // Also damage + stun boss if present
         if (this.boss && !this.boss.dead) {
             const dx = this.boss.x - this.player.x;
             const dy = this.boss.y - this.player.y;
-            if (Math.sqrt(dx * dx + dy * dy) < bombRadius + this.boss.radius) {
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < BOMB_RADIUS + this.boss.radius) {
                 this.boss.takeDamage(bombDamage);
+                // Bosses get a shorter stun
+                this.boss.stunTimer = Math.floor(BOMB_STUN_DURATION * 0.5);
             }
         }
         showToast('💣 BOOM!', '#ff9800', '💣');
@@ -1554,11 +1569,11 @@ export class Game {
                     this._comboRegisterKill(e.x, e.y);
                 }
 
-                // Coin reward (real game only)
+                // Coin drop (real game only) — physical coin the player must collect
                 if (!this.trainingMode) {
                     const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
-                    const coinReward = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
-                    this.runCoins += coinReward;
+                    const coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
+                    this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
                 }
 
                 if (!this.trainingMode) {
@@ -1768,6 +1783,18 @@ export class Game {
         }
         this.pickups = this.pickups.filter(pk => !pk.dead);
 
+        // Coin pickups: update + magnet + collect
+        for (const coin of this.coinPickups) {
+            coin.update(dt, this.player);
+            if (!coin.dead && coin.checkCollection(this.player)) {
+                this.runCoins += coin.value;
+                Audio.playPickup();
+                this.particles.pickupCollect(coin.x, coin.y, '#ffd700', '#ffe082');
+                coin.dead = true;
+            }
+        }
+        this.coinPickups = this.coinPickups.filter(c => !c.dead);
+
         // Training: respawn enemies when all dead
         if (this.trainingMode) {
             const alive = this.enemies.filter(e => !e.dead).length;
@@ -1844,6 +1871,7 @@ export class Game {
             this.projectiles = [];
             this.playerProjectiles = [];
             this.pickups = [];
+            this.coinPickups = [];
             this._respawnTrainingEnemies();
         }
     }
@@ -2190,20 +2218,15 @@ export class Game {
             }
             this.upgradeIndex = 0;
             this._cachedLevelUpChoices = this._getLevelUpChoices();
-            // If shop should open after this boss, flag it for after level-up chain
-            if (this.bossesKilledThisRun >= 2 && this.bossesKilledThisRun % 2 === 0) {
-                this._pendingRunShop = true;
-            }
+            // Open shop after every boss, flag it for after level-up chain
+            this._pendingRunShop = true;
             this.state = STATE_LEVEL_UP;
             return;
         }
 
-        // Check if in-run shop should open (every 2nd boss: boss 2, 4, 6, ...)
-        if (this.bossesKilledThisRun >= 2 && this.bossesKilledThisRun % 2 === 0) {
-            this.runShopCursor = 0;
-            this.state = STATE_SHOP_RUN;
-            return;
-        }
+        // Open in-run shop after every boss
+        this.runShopCursor = 0;
+        this.state = STATE_SHOP_RUN;
 
         // No level-up, no shop → back to playing (door is unlocked, walk through to continue)
         this._cachedLevelUpChoices = null;
@@ -2352,6 +2375,7 @@ export class Game {
         for (const p of this.projectiles) p.render(ctx);
         for (const d of this.playerProjectiles) d.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
+        for (const coin of this.coinPickups) coin.render(ctx);
         this.particles.render(ctx);
         this.player.render(ctx);
 

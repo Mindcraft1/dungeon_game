@@ -112,6 +112,9 @@ export class Boss {
         // ── Events (consumed by game.js each frame) ──
         this._events = [];
 
+        // ── Stun state (from bomb) ──
+        this.stunTimer = 0;
+
         // ── Pending spawns (consumed by game.js each frame) ──
         this.pendingSpawns = [];
     }
@@ -127,6 +130,13 @@ export class Boss {
         if (this.dead) return;
 
         const ms = dt * 1000;
+
+        // Stun: skip AI while stunned
+        if (this.stunTimer > 0) {
+            this.stunTimer -= ms;
+            if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+            return;
+        }
 
         // ── Phase transition ──
         if (this.phase === 1 && this.hp <= this.maxHp * 0.5) {
@@ -562,6 +572,24 @@ export class Boss {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius + 6, 0, Math.PI * 2);
             ctx.stroke();
+            ctx.restore();
+        }
+
+        // Stun indicator — spinning stars
+        if (this.stunTimer > 0) {
+            ctx.save();
+            const elapsed = Date.now();
+            const alpha = Math.min(1, this.stunTimer / 300);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < 5; i++) {
+                const angle = (elapsed * 0.004) + (i * Math.PI * 2 / 5);
+                const sx = this.x + Math.cos(angle) * (this.radius + 8);
+                const sy = this.y - this.radius - 8 + Math.sin(angle * 2) * 3;
+                ctx.fillText('✦', sx, sy);
+            }
             ctx.restore();
         }
     }

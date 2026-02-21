@@ -317,14 +317,26 @@ export const META_BOOSTERS = {
 export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);
 
 // ── In-Run Shop Items (Coins) ──
+// ── Coin Drop Economy ──
+export const COIN_DROP_LIFETIME = 8000;      // 8s before disappearing
+export const COIN_DROP_RADIUS = 8;
+export const COIN_DROP_BOBBLE_SPEED = 0.005;
+export const COIN_MAGNET_RANGE = 50;          // auto-attract range in px
+
+// ── Bomb ──
+export const BOMB_RADIUS = 180;              // AoE radius
+export const BOMB_DAMAGE_MULT = 2.5;         // × player damage
+export const BOMB_STUN_DURATION = 1200;      // ms enemies are stunned
+export const BOMB_KNOCKBACK = 22;
+
 export const RUN_SHOP_ITEMS = {
-    run_item_small_heal: {
-        id:    'run_item_small_heal',
-        name:  'Small Heal',
-        desc:  'Heal 25% HP instantly',
-        icon:  '❤️',
+    run_item_max_hp_boost: {
+        id:    'run_item_max_hp_boost',
+        name:  'Vitality Shard',
+        desc:  '+15 Max HP permanently',
+        icon:  '💎',
         color: '#4caf50',
-        cost:  8,
+        cost:  10,
     },
     run_item_repair_armor: {
         id:    'run_item_repair_armor',
@@ -353,7 +365,7 @@ export const RUN_SHOP_ITEMS = {
     run_item_bomb: {
         id:    'run_item_bomb',
         name:  'Bomb',
-        desc:  '1 charge: AoE damage around you (B key)',
+        desc:  '1 charge: Big AoE + stun (B key)',
         icon:  '💣',
         color: '#ff9800',
         cost:  10,

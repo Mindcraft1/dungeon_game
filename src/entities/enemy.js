@@ -69,6 +69,9 @@ export class Enemy {
 
         this.hp = this.maxHp;
 
+        // ── Stun state (from bomb) ──
+        this.stunTimer = 0;
+
         // ── Shooter state ──
         this.shootTimer = SHOOTER_FIRE_COOLDOWN * (0.3 + Math.random() * 0.5);
         this.strafeDir = Math.random() < 0.5 ? 1 : -1;
@@ -95,6 +98,13 @@ export class Enemy {
         if (this.dead) return;
 
         const ms = dt * 1000;
+
+        // Stun: skip all AI/movement while stunned
+        if (this.stunTimer > 0) {
+            this.stunTimer -= ms;
+            if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+            return;
+        }
 
         // Type-specific movement & abilities
         switch (this.type) {
@@ -319,6 +329,24 @@ export class Enemy {
         }
 
         this._renderHpBar(ctx);
+
+        // Stun indicator — spinning stars above enemy
+        if (this.stunTimer > 0) {
+            ctx.save();
+            const elapsed = Date.now();
+            const alpha = Math.min(1, this.stunTimer / 300);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < 3; i++) {
+                const angle = (elapsed * 0.004) + (i * Math.PI * 2 / 3);
+                const sx = this.x + Math.cos(angle) * (this.radius + 4);
+                const sy = this.y - this.radius - 6 + Math.sin(angle * 2) * 2;
+                ctx.fillText('✦', sx, sy);
+            }
+            ctx.restore();
+        }
     }
 
     _renderBasic(ctx, flash) {
