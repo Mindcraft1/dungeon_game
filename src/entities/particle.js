@@ -732,4 +732,210 @@ export class ParticleSystem {
             this.particles.push(p);
         }
     }
+
+    // ── Combat ability / proc effects ───────────────────────
+
+    /**
+     * Shockwave — expanding orange ring burst.
+     */
+    abilityShockwave(x, y, radius) {
+        const count = 28;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 120 + Math.random() * 80;
+            const r = radius * (0.3 + Math.random() * 0.7);
+            this.particles.push(new Particle(
+                x + Math.cos(angle) * 10,
+                y + Math.sin(angle) * 10,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2.5 + Math.random() * 2, '#ff9800',
+                250 + Math.random() * 200,
+                { friction: 0.9, glow: true, glowColor: '#ff6d00', shape: 'spark' },
+            ));
+        }
+        // White core flash
+        for (let i = 0; i < 6; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 20 + Math.random() * 40;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + Math.random() * 2, '#ffffff',
+                150 + Math.random() * 100,
+                { friction: 0.9, glow: true, glowColor: '#ff9800', shrink: true },
+            ));
+        }
+    }
+
+    /**
+     * Blade Storm — spinning purple blade sparks.
+     */
+    abilityBladeStorm(x, y, radius, angle) {
+        const bladeCount = 3;
+        for (let i = 0; i < bladeCount; i++) {
+            const a = angle + (Math.PI * 2 / bladeCount) * i;
+            const bx = x + Math.cos(a) * radius * 0.8;
+            const by = y + Math.sin(a) * radius * 0.8;
+            this.particles.push(new Particle(
+                bx, by,
+                -Math.sin(a) * 30 + (Math.random() - 0.5) * 20,
+                Math.cos(a) * 30 + (Math.random() - 0.5) * 20,
+                1.5 + Math.random() * 1.5, '#e040fb',
+                120 + Math.random() * 80,
+                { friction: 0.92, glow: true, glowColor: '#aa00ff', shape: 'spark' },
+            ));
+        }
+    }
+
+    /**
+     * Gravity Pull — purple inward lines.
+     */
+    abilityGravityPull(x, y, radius) {
+        const count = 4;
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = radius * (0.5 + Math.random() * 0.5);
+            const px = x + Math.cos(angle) * dist;
+            const py = y + Math.sin(angle) * dist;
+            // Move inward toward center
+            const speed = 60 + Math.random() * 40;
+            this.particles.push(new Particle(
+                px, py,
+                -Math.cos(angle) * speed,
+                -Math.sin(angle) * speed,
+                1.5 + Math.random() * 1, '#7c4dff',
+                200 + Math.random() * 150,
+                { friction: 0.95, glow: true, glowColor: '#b388ff', shape: 'spark' },
+            ));
+        }
+    }
+
+    /**
+     * Freeze Pulse — blue-white expanding ring.
+     */
+    abilityFreezePulse(x, y, radius) {
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 80 + Math.random() * 60;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 2, '#80d8ff',
+                300 + Math.random() * 200,
+                { friction: 0.92, glow: true, glowColor: '#40c4ff' },
+            ));
+        }
+        // Snowflake-like central burst
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 15 + Math.random() * 30;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + Math.random() * 2, '#ffffff',
+                200 + Math.random() * 150,
+                { friction: 0.9, glow: true, glowColor: '#80d8ff', shrink: true },
+            ));
+        }
+    }
+
+    /**
+     * Proc: Explosive Strikes — orange/red AoE burst at target.
+     */
+    procExplosion(x, y, radius) {
+        const count = 16;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+            const speed = 60 + Math.random() * 80;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 6,
+                y + (Math.random() - 0.5) * 6,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 2,
+                Math.random() > 0.5 ? '#ff6d00' : '#ff9800',
+                200 + Math.random() * 200,
+                { friction: 0.91, glow: true, glowColor: '#ff3d00', shape: 'spark' },
+            ));
+        }
+        // Core flash
+        this.particles.push(new Particle(
+            x, y, 0, 0, 8, '#ffffff', 120,
+            { shrink: true, glow: true, glowColor: '#ff6d00' },
+        ));
+    }
+
+    /**
+     * Proc: Chain Lightning — bright lines between positions.
+     * @param {Array<{x,y}>} positions
+     */
+    procChainLightning(positions) {
+        for (let i = 0; i < positions.length - 1; i++) {
+            const a = positions[i];
+            const b = positions[i + 1];
+            const count = 5;
+            for (let j = 0; j < count; j++) {
+                const t = j / count;
+                const px = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 12;
+                const py = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 12;
+                this.particles.push(new Particle(
+                    px, py,
+                    (Math.random() - 0.5) * 30,
+                    (Math.random() - 0.5) * 30,
+                    1.5 + Math.random() * 1.5,
+                    Math.random() > 0.3 ? '#ffeb3b' : '#ffffff',
+                    120 + Math.random() * 100,
+                    { friction: 0.9, glow: true, glowColor: '#fdd835', shape: 'spark' },
+                ));
+            }
+        }
+    }
+
+    /**
+     * Proc: Heavy Crit — big red/white impact burst.
+     */
+    procCritImpact(x, y) {
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 80 + Math.random() * 60;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2.5 + Math.random() * 2,
+                Math.random() > 0.5 ? '#ff1744' : '#ffffff',
+                200 + Math.random() * 150,
+                { friction: 0.91, glow: true, glowColor: '#d50000', shape: 'spark' },
+            ));
+        }
+        // Big central flash
+        this.particles.push(new Particle(
+            x, y, 0, 0, 10, '#ffffff', 100,
+            { shrink: true, glow: true, glowColor: '#ff1744' },
+        ));
+    }
+
+    /**
+     * Dash impact trail (for improved dash feedback).
+     */
+    dashImpactTrail(x, y, dirX, dirY) {
+        const count = 4;
+        for (let i = 0; i < count; i++) {
+            this.particles.push(new Particle(
+                x - dirX * (8 + i * 6) + (Math.random() - 0.5) * 6,
+                y - dirY * (8 + i * 6) + (Math.random() - 0.5) * 6,
+                (-dirX + (Math.random() - 0.5) * 0.5) * 30,
+                (-dirY + (Math.random() - 0.5) * 0.5) * 30,
+                2 + Math.random() * 1.5, '#4fc3f7',
+                100 + Math.random() * 80,
+                { friction: 0.88, shrink: true, glow: true, glowColor: '#03a9f4' },
+            ));
+        }
+    }
 }

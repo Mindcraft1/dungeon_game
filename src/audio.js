@@ -1020,6 +1020,118 @@ export function playAchievementUnlock() {
     _noiseBurst(6000, 3, 0.05, 0.06, t + 0.2);
 }
 
+// ── Combat Ability SFX ──────────────────────────────────────
+
+/** Shockwave — deep bass explosion. */
+export function playShockwave() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.28);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(100, t);
+    o.frequency.exponentialRampToValueAtTime(30, t + 0.35);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    o.start(t);
+    o.stop(t + 0.4);
+    _noiseBurst(4000, 5, 0.12, 0.35, t);
+}
+
+/** Blade Storm — whirring spin. */
+export function playBladeStorm() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.18);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(250, t);
+    o.frequency.linearRampToValueAtTime(400, t + 0.15);
+    o.frequency.linearRampToValueAtTime(250, t + 0.3);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.start(t);
+    o.stop(t + 0.35);
+}
+
+/** Gravity Pull — low rumble sucking. */
+export function playGravityPull() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.2);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(60, t);
+    o.frequency.exponentialRampToValueAtTime(120, t + 0.3);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.5);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    o.start(t);
+    o.stop(t + 0.55);
+}
+
+/** Freeze Pulse — icy crystalline burst. */
+export function playFreezePulse() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.22);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(800, t);
+    o.frequency.exponentialRampToValueAtTime(2000, t + 0.08);
+    o.frequency.exponentialRampToValueAtTime(400, t + 0.3);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.start(t);
+    o.stop(t + 0.35);
+    _noiseBurst(8000, 2, 0.06, 0.15, t);
+}
+
+/** Proc: Explosion — short bass thump. */
+export function playProcExplosion() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.2);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(80, t);
+    o.frequency.exponentialRampToValueAtTime(25, t + 0.2);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(t);
+    o.stop(t + 0.25);
+}
+
+/** Proc: Chain Lightning — zappy crackle. */
+export function playChainLightning() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    _noiseBurst(6000, 2, 0.15, 0.12, t);
+    _noiseBurst(8000, 1.5, 0.1, 0.08, t + 0.06);
+}
+
+/** Proc: Heavy Crit — meaty impact. */
+export function playCritImpact() {
+    const ctx = _ensureCtx(); if (!ctx) return; _resume();
+    const t = ctx.currentTime;
+    const g = _gain(0.25);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.2);
+    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(t);
+    o.stop(t + 0.25);
+    _noiseBurst(3000, 4, 0.12, 0.15, t);
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

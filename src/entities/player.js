@@ -16,6 +16,7 @@ import {
     PICKUP_SPEED_SURGE, PICKUP_SWIFT_BOOTS,
     PICKUP_CRUSHING_BLOW, PICKUP_IRON_SKIN,
     HAZARD_LAVA_SLOW,
+    PLAYER_BASE_CRIT_CHANCE,
 } from '../constants.js';
 import { resolveWalls } from '../collision.js';
 
@@ -65,6 +66,9 @@ export class Player {
         this.metaDamageTakenMultiplier = 1;
         this.metaSpikeDamageMultiplier = 1;
         this.metaLavaDotMultiplier = 1;
+
+        // ── Crit Chance (base, can be upgraded) ──
+        this.critChance = PLAYER_BASE_CRIT_CHANCE;
 
         // ── Shop modifiers (set by game.js) ──
         this.shopTrapResistMult = 1;   // from run_item_trap_resist

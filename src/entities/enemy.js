@@ -15,6 +15,7 @@ import {
 import { resolveWalls } from '../collision.js';
 import { hasLineOfSight, findPath } from '../pathfinding.js';
 import { Projectile } from './projectile.js';
+import { updateStatus, initStatus, renderStatusEffects } from '../combat/statusEffects.js';
 
 export class Enemy {
     /**
@@ -106,11 +107,33 @@ export class Enemy {
 
         const ms = dt * 1000;
 
+        // ── Status effects (freeze/slow/burn) ──
+        initStatus(this);
+        const statusResult = updateStatus(this, ms);
+
+        // Burn damage
+        if (statusResult.burnDamage > 0) {
+            this.hp -= statusResult.burnDamage;
+            if (this.hp <= 0) { this.hp = 0; this.dead = true; return; }
+        }
+
+        // Frozen: skip all AI/movement
+        if (statusResult.frozen) {
+            if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+            return;
+        }
+
         // Stun: skip all AI/movement while stunned
         if (this.stunTimer > 0) {
             this.stunTimer -= ms;
             if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
             return;
+        }
+
+        // Apply slow speed multiplier from status effects
+        const savedSpeed = this.speed;
+        if (statusResult.speedMult < 1) {
+            this.speed *= statusResult.speedMult;
         }
 
         // Type-specific movement & abilities
@@ -143,6 +166,9 @@ export class Enemy {
         }
 
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+
+        // Restore original speed after status-effect slowdown
+        this.speed = savedSpeed;
     }
 
     // ── Basic AI: seek player (with pathfinding) ──
@@ -405,6 +431,9 @@ export class Enemy {
             }
             ctx.restore();
         }
+
+        // Status effect overlays (freeze/slow/burn)
+        renderStatusEffects(ctx, this);
     }
 
     _renderBasic(ctx, flash) {

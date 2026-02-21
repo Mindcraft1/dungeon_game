@@ -67,6 +67,14 @@ import * as AchievementEngine from './achievements/achievementEngine.js';
 import { renderAchievements } from './achievements/uiAchievements.js';
 import { ACHIEVEMENTS, TIER_ORDER } from './achievements/achievementsList.js';
 
+// ── Combat System ──
+import { AbilitySystem } from './combat/abilitySystem.js';
+import { ProcSystem } from './combat/procSystem.js';
+import * as Impact from './combat/impactSystem.js';
+import { ABILITY_IDS } from './combat/abilities.js';
+import { PROC_IDS } from './combat/procs.js';
+import { renderAbilityBar } from './ui/uiAbilityBar.js';
+
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
     [ENEMY_TYPE_BASIC]:   ENEMY_COLOR,
@@ -205,6 +213,13 @@ export class Game {
         this.metaShopCursor = 0;               // UI cursor for meta shop
         this.runShopCursor = 0;                // UI cursor for in-run shop
         this._pendingRunShop = false;          // true if shop should open after level-up chain
+
+        // ── Combat System ──
+        this.abilitySystem = new AbilitySystem();
+        this.procSystem = new ProcSystem();
+        // Default starting loadout: shockwave + explosive strikes
+        this.abilitySystem.equip(0, 'shockwave');
+        this.procSystem.equip(0, 'explosive_strikes');
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -419,6 +434,13 @@ export class Game {
         this.activeMetaBoosterId = this.purchasedMetaBoosterId;
         this.purchasedMetaBoosterId = null;  // consumed
         this._applyMetaBooster();
+
+        // ── Combat System: reset for new run ──
+        this.abilitySystem.reset();
+        this.procSystem.reset();
+        // Default loadout
+        this.abilitySystem.equip(0, 'shockwave');
+        this.procSystem.equip(0, 'explosive_strikes');
 
         // ── Achievement event: run start ──
         achEmit('run_start', { metaBoosterActive: !!this.activeMetaBoosterId });
@@ -923,6 +945,12 @@ export class Game {
         this.bombCharges = 0;
         this._pendingRunShop = false;
         clearToasts();
+
+        // Combat system reset
+        this.abilitySystem.reset();
+        this.procSystem.reset();
+        this.abilitySystem.equip(0, 'shockwave');
+        this.procSystem.equip(0, 'explosive_strikes');
     }
 
     // ── Meta Progression helpers ──────────────────────────────
@@ -1542,6 +1570,17 @@ export class Game {
         this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
 
+        // ── Impact System: update hit-stop + time scale ──
+        Impact.update(dt * 1000);
+        const timeScale = Impact.getTimeScale();
+        const effectiveDt = dt * timeScale;
+
+        // Consume trail spawns from impact system
+        const trails = Impact.consumeTrails();
+        for (const t of trails) {
+            this.particles.dashImpactTrail(t.x, t.y, t.vx, t.vy, t.color);
+        }
+
         // ── Cheat: God Mode — keep player invulnerable ──
         if (this.cheats.godmode && this.player) {
             this.player.invulnTimer = 999;
@@ -1599,6 +1638,30 @@ export class Game {
             );
         }
 
+        // ── Ability Q/E input ──
+        const combatContext = {
+            player: this.player,
+            enemies: this.enemies,
+            boss: this.boss && !this.boss.dead ? this.boss : null,
+            projectiles: this.projectiles,
+            particles: this.particles,
+            procSystem: this.procSystem,
+        };
+        if (wasPressed('KeyQ')) {
+            if (this.abilitySystem.use(0, combatContext)) {
+                const info = this.abilitySystem.getSlotInfo(0);
+                if (info) this._playAbilitySFX(info.id);
+            }
+        }
+        if (wasPressed('KeyE')) {
+            if (this.abilitySystem.use(1, combatContext)) {
+                const info = this.abilitySystem.getSlotInfo(1);
+                if (info) this._playAbilitySFX(info.id);
+            }
+        }
+        // Update active persistent abilities (blade_storm, gravity_pull)
+        this.abilitySystem.update(effectiveDt, combatContext);
+
         // Attack
         if (isDown('Space')) {
             const targets = this.boss && !this.boss.dead
@@ -1653,6 +1716,26 @@ export class Game {
                         const bd = Math.sqrt(bx * bx + by * by) || 1;
                         this.particles.hitSparks(this.boss.x, this.boss.y, bx / bd, by / bd);
                     }
+
+                    // ── Proc dispatch on melee hits ──
+                    const isCrit = Math.random() < this.player.critChance;
+                    // Fire procs for each enemy that was just hit (flash timer indicates recent hit)
+                    for (const e of this.enemies) {
+                        if (!e.dead && e.damageFlashTimer > 100) {
+                            this.procSystem.handleHit(
+                                { source: this.player, target: e, damage: this.player.damage, isCrit, attackType: 'melee' },
+                                { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                            );
+                        }
+                    }
+                    if (this.boss && !this.boss.dead && this.boss.damageFlashTimer > 100) {
+                        this.procSystem.handleHit(
+                            { source: this.player, target: this.boss, damage: this.player.damage, isCrit, attackType: 'melee' },
+                            { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                        );
+                    }
+                    // Small impact on melee hits (screen shake + flash)
+                    Impact.shake(1.5, 0.85);
                 }
             }
         }
@@ -1725,6 +1808,12 @@ export class Game {
                 // Death explosion particles
                 const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
                 this.particles.enemyDeath(e.x, e.y, eColor, e.radius);
+
+                // Proc dispatch: on kill
+                this.procSystem.handleKill(
+                    { source: this.player, target: e, attackType: 'melee' },
+                    { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                );
 
                 // Try to spawn a pickup drop
                 if (dropsEnabled) {
@@ -1891,6 +1980,15 @@ export class Game {
                     d.hitTarget.x, d.hitTarget.y,
                     d.hitTarget.dirX, d.hitTarget.dirY,
                 );
+                // Proc dispatch on dagger hit
+                const daggerCrit = Math.random() < this.player.critChance;
+                const hitEntity = d.hitTarget.entity || d.hitTarget;
+                if (hitEntity && !hitEntity.dead) {
+                    this.procSystem.handleHit(
+                        { source: this.player, target: hitEntity, damage: d.damage || this.player.damage, isCrit: daggerCrit, attackType: 'dagger' },
+                        { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                    );
+                }
             }
         }
         this.playerProjectiles = this.playerProjectiles.filter(d => !d.dead);
@@ -2676,6 +2774,9 @@ export class Game {
         // Stat modifier summary (net buffs/nerfs from all sources)
         renderBuffSummary(ctx, this._computeNetModifiers());
 
+        // ── Ability / Proc bar ──
+        renderAbilityBar(ctx, this.abilitySystem, this.procSystem);
+
         // Boss HP bar
         if (this.boss && !this.boss.dead) {
             renderBossHPBar(ctx, this.boss);
@@ -2909,6 +3010,16 @@ export class Game {
         ctx.textAlign = 'left';
     }
 
+    /** Play the correct SFX for an ability activation. */
+    _playAbilitySFX(abilityId) {
+        switch (abilityId) {
+            case 'shockwave':    Audio.playShockwave();    break;
+            case 'blade_storm':  Audio.playBladeStorm();   break;
+            case 'gravity_pull': Audio.playGravityPull();  break;
+            case 'freeze_pulse': Audio.playFreezePulse();  break;
+        }
+    }
+
     _renderControlsHint(ctx) {
         const alpha = Math.min(1, this.controlsHintTimer / 1000);
         ctx.save();
@@ -2920,8 +3031,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   Q/E = Ability   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   Q/E = Ability   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

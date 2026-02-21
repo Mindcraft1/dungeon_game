@@ -187,6 +187,57 @@ export const PICKUP_SWIFT_BOOTS = 'swift_boots';
 export const PICKUP_CRUSHING_BLOW = 'crushing_blow';
 export const PICKUP_IRON_SKIN = 'iron_skin';
 
+// ── Combat: Impact System ──
+export const HITSTOP_NORMAL = 0;              // no hitstop on normal melee
+export const HITSTOP_BIG = 70;                // ms freeze for big hits (shockwave, bomb, crit)
+export const HITSTOP_MEDIUM = 50;             // ms for medium hits (procs)
+export const SHAKE_BIG = 5;                   // px intensity for big impacts
+export const SHAKE_MEDIUM = 3;                // px for medium impacts
+export const SHAKE_SMALL = 1.5;               // px for small hits (melee)
+
+// ── Combat: Abilities ──
+export const MAX_ACTIVE_ABILITIES = 2;        // ability slots (Q + E)
+export const MAX_ACTIVE_PROCS = 2;            // passive proc slots
+
+// Shockwave
+export const ABILITY_SHOCKWAVE_CD = 8;        // seconds
+export const ABILITY_SHOCKWAVE_RADIUS = 140;  // px
+export const ABILITY_SHOCKWAVE_DMG_MULT = 1.2;
+export const ABILITY_SHOCKWAVE_KB = 28;
+
+// Blade Storm
+export const ABILITY_BLADESTORM_CD = 12;      // seconds
+export const ABILITY_BLADESTORM_DURATION = 3; // seconds
+export const ABILITY_BLADESTORM_RADIUS = 110; // px
+export const ABILITY_BLADESTORM_TICK = 0.2;   // seconds per damage tick
+export const ABILITY_BLADESTORM_DMG_MULT = 0.4;
+
+// Gravity Pull
+export const ABILITY_GRAVITY_CD = 10;         // seconds
+export const ABILITY_GRAVITY_RADIUS = 180;    // px
+export const ABILITY_GRAVITY_PULL_DURATION = 1.0; // seconds
+export const ABILITY_GRAVITY_SLOW_DURATION = 0.3; // seconds after pull
+export const ABILITY_GRAVITY_FORCE = 220;     // pull speed px/s
+
+// Freeze Pulse
+export const ABILITY_FREEZE_CD = 10;          // seconds
+export const ABILITY_FREEZE_RADIUS = 160;     // px
+export const ABILITY_FREEZE_DURATION = 1.0;   // seconds
+export const ABILITY_FREEZE_DMG_MULT = 0.3;
+
+// ── Combat: Procs ──
+export const PROC_EXPLOSIVE_CHANCE = 0.10;    // 10%
+export const PROC_EXPLOSIVE_RADIUS = 90;      // px
+export const PROC_EXPLOSIVE_DMG_MULT = 0.6;
+
+export const PROC_CHAIN_LIGHTNING_CHANCE = 0.12; // 12%
+export const PROC_CHAIN_LIGHTNING_JUMPS = 3;
+export const PROC_CHAIN_LIGHTNING_RANGE = 180; // px
+export const PROC_CHAIN_LIGHTNING_DMG_MULT = 0.35;
+
+export const PROC_HEAVY_CRIT_EXTRA_DMG = 0.4; // +40% on crit
+export const PLAYER_BASE_CRIT_CHANCE = 0.05;  // 5% base crit chance
+
 // ── Combo / Kill-Chain ──
 export const COMBO_TIMEOUT = 2500;              // ms before combo resets
 export const COMBO_TIER_1 = 3;                  // kills for tier 1

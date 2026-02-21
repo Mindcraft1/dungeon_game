@@ -33,13 +33,13 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     ctx.shadowBlur = 15 * glow;
     ctx.fillStyle = '#e0e0e0';
     ctx.font = 'bold 36px monospace';
-    ctx.fillText('SETTINGS', CANVAS_WIDTH / 2, 130);
+    ctx.fillText('SETTINGS', CANVAS_WIDTH / 2, 110);
     ctx.restore();
 
     // Subtitle
     ctx.fillStyle = '#666';
     ctx.font = '13px monospace';
-    ctx.fillText('Configure audio, controls & gameplay', CANVAS_WIDTH / 2, 160);
+    ctx.fillText('Configure audio, controls & gameplay', CANVAS_WIDTH / 2, 140);
 
     // ── Settings items ──
     const items = [
@@ -75,8 +75,8 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         },
     ];
 
-    const startY = 210;
-    const spacing = 58;
+    const startY = 190;
+    const spacing = 52;
 
     items.forEach((item, i) => {
         const y = startY + i * spacing;
@@ -123,7 +123,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     });
 
     // ── Key bindings reference ──
-    const keysY = startY + items.length * spacing + 18;
+    const keysY = startY + items.length * spacing + 12;
 
     ctx.fillStyle = '#555';
     ctx.font = 'bold 13px monospace';
@@ -134,13 +134,16 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         ['SPACE', 'Melee Attack'],
         ['M', 'Dash / Dodge Roll'],
         ['N', 'Ranged Attack (Dagger)'],
+        ['Q', 'Ability Slot 1'],
+        ['E', 'Ability Slot 2'],
+        ['B', 'Use Bomb'],
         ['T', 'Teleport to Training'],
         ['P / ESC', 'Pause'],
     ];
 
     ctx.font = '11px monospace';
-    const bindStartY = keysY + 20;
-    const bindSpacing = 18;
+    const bindStartY = keysY + 16;
+    const bindSpacing = 15;
 
     bindings.forEach(([key, action], i) => {
         const by = bindStartY + i * bindSpacing;
@@ -165,7 +168,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
-    ctx.fillText('W/S to navigate  ·  ENTER to toggle/confirm  ·  ESC to go back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S to navigate  ·  ENTER to toggle/confirm  ·  ESC to go back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 14);
 
     ctx.textAlign = 'left';
 }
