@@ -10,8 +10,8 @@ import { computeRelicModifiers } from './relics.js';
 
 // ── Core Shard Economy ──
 
-const BOSS_SHARD_REWARD      = 3;
-const FIRST_BOSS_BONUS       = 2;   // extra shards for first boss of a run
+const BOSS_SHARD_REWARD      = 2;
+const FIRST_BOSS_BONUS       = 1;   // extra shards for first boss of a run
 const RARE_ROOM_SHARD_CHANCE = 0.01; // 1% chance per normal room clear
 
 // ── Run Upgrades (unlockable level-up options) ──
@@ -63,6 +63,9 @@ export const RUN_UPGRADE_DEFINITIONS = {
 };
 
 export const RUN_UPGRADE_IDS = Object.keys(RUN_UPGRADE_DEFINITIONS);
+
+// Cumulative boss kills needed to unlock each run upgrade (6 thresholds for 6 upgrades)
+export const RUN_UPGRADE_UNLOCK_THRESHOLDS = [3, 7, 12, 18, 25, 35];
 
 // ── Per-Run Reward Tracking ──
 
@@ -122,15 +125,20 @@ export function processBossKill(stage, bossNumberInRun) {
         result.relicId = relicId;
     }
 
-    // 4) Maybe unlock a run upgrade (at boss 1, 2, 3 etc.)
+    // 4) Maybe unlock a run upgrade (based on cumulative boss kills)
+    const totalBossKills = state.stats.bossesKilledTotal;
     const unlockedUpgrades = state.runUpgradesUnlocked;
-    const lockedUpgrades = RUN_UPGRADE_IDS.filter(id => !unlockedUpgrades[id]);
-    if (lockedUpgrades.length > 0) {
-        const idx = Math.floor(Math.random() * lockedUpgrades.length);
-        const upgradeId = lockedUpgrades[idx];
-        state.runUpgradesUnlocked[upgradeId] = true;
-        _runRewards.runUpgradeUnlockedThisRun = upgradeId;
-        result.runUpgradeId = upgradeId;
+    const unlockedCount = RUN_UPGRADE_IDS.filter(id => unlockedUpgrades[id]).length;
+    if (unlockedCount < RUN_UPGRADE_UNLOCK_THRESHOLDS.length) {
+        const threshold = RUN_UPGRADE_UNLOCK_THRESHOLDS[unlockedCount];
+        if (totalBossKills >= threshold) {
+            const lockedUpgrades = RUN_UPGRADE_IDS.filter(id => !unlockedUpgrades[id]);
+            const idx = Math.floor(Math.random() * lockedUpgrades.length);
+            const upgradeId = lockedUpgrades[idx];
+            state.runUpgradesUnlocked[upgradeId] = true;
+            _runRewards.runUpgradeUnlockedThisRun = upgradeId;
+            result.runUpgradeId = upgradeId;
+        }
     }
 
     // 5) Update highest stage

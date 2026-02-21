@@ -8,7 +8,7 @@ import { getAvailableShards } from './metaState.js';
 import * as MetaStore from './metaStore.js';
 import { PERK_DEFINITIONS, PERK_IDS, getPerkLevel, getNextCost, canUpgrade, isMaxed } from './metaPerks.js';
 import { RELIC_DEFINITIONS, RELIC_IDS, isRelicUnlocked, getUnlockedRelicCount, RELIC_COUNT } from './relics.js';
-import { getUnlockedRunUpgradeIds, RUN_UPGRADE_DEFINITIONS } from './rewardSystem.js';
+import { getUnlockedRunUpgradeIds, RUN_UPGRADE_DEFINITIONS, RUN_UPGRADE_UNLOCK_THRESHOLDS } from './rewardSystem.js';
 
 // ── Tab constants ──
 export const META_TAB_PERKS  = 0;
@@ -234,19 +234,34 @@ function _renderRelicsTab(ctx, startY) {
 
     // Unlocked run upgrades section
     const upgrades = getUnlockedRunUpgradeIds();
-    if (upgrades.length > 0) {
-        const ugY = gridY + Math.ceil(RELIC_IDS.length / cols) * cellH + 16;
-        ctx.fillStyle = '#888';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText(`Unlocked Run Upgrades (${upgrades.length}/${Object.keys(RUN_UPGRADE_DEFINITIONS).length})`, CANVAS_WIDTH / 2, ugY);
+    const totalUpgrades = Object.keys(RUN_UPGRADE_DEFINITIONS).length;
+    const totalBossKills = MetaStore.getState().stats.bossesKilledTotal;
+    const ugY = gridY + Math.ceil(RELIC_IDS.length / cols) * cellH + 16;
 
+    ctx.fillStyle = '#888';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`Run Upgrades (${upgrades.length}/${totalUpgrades})`, CANVAS_WIDTH / 2, ugY);
+
+    // Show next unlock threshold
+    if (upgrades.length < totalUpgrades) {
+        const nextThreshold = RUN_UPGRADE_UNLOCK_THRESHOLDS[upgrades.length];
+        ctx.fillStyle = '#666';
+        ctx.font = '9px monospace';
+        ctx.fillText(`Next unlock at ${nextThreshold} boss kills (you have ${totalBossKills})`, CANVAS_WIDTH / 2, ugY + 14);
+    }
+
+    if (upgrades.length > 0) {
         ctx.font = '10px monospace';
         upgrades.forEach((uid, i) => {
             const def = RUN_UPGRADE_DEFINITIONS[uid];
             if (!def) return;
             ctx.fillStyle = def.color;
-            ctx.fillText(`${def.icon} ${def.name}: ${def.desc}`, CANVAS_WIDTH / 2, ugY + 18 + i * 16);
+            ctx.fillText(`${def.icon} ${def.name}: ${def.desc}`, CANVAS_WIDTH / 2, ugY + 30 + i * 16);
         });
+    } else {
+        ctx.fillStyle = '#555';
+        ctx.font = '9px monospace';
+        ctx.fillText('Defeat bosses to unlock run upgrades!', CANVAS_WIDTH / 2, ugY + 30);
     }
 
     ctx.textAlign = 'left';

@@ -16,7 +16,7 @@ export const PERK_DEFINITIONS = {
         color:    '#4caf50',
         desc:     '+1% Max HP per level',
         maxLevel: 10,
-        costs:    [2, 2, 3, 3, 4, 4, 5, 5, 6, 6],   // progressive
+        costs:    [3, 3, 5, 5, 7, 7, 9, 12, 15, 20],   // progressive
         effectPerLevel: 0.01,   // +1% per level
         effectLabel: (lvl) => `+${lvl}% Max HP`,
     },
@@ -27,7 +27,7 @@ export const PERK_DEFINITIONS = {
         color:    '#f44336',
         desc:     '+1% Damage per level',
         maxLevel: 10,
-        costs:    [2, 2, 3, 3, 4, 4, 5, 5, 6, 6],
+        costs:    [3, 3, 5, 5, 7, 7, 9, 12, 15, 20],
         effectPerLevel: 0.01,
         effectLabel: (lvl) => `+${lvl}% Damage`,
     },
@@ -38,7 +38,7 @@ export const PERK_DEFINITIONS = {
         color:    '#2196f3',
         desc:     '+0.5% Move Speed per level',
         maxLevel: 10,
-        costs:    [2, 2, 3, 3, 4, 4, 5, 5, 6, 6],
+        costs:    [3, 3, 5, 5, 7, 7, 9, 12, 15, 20],
         effectPerLevel: 0.005,
         effectLabel: (lvl) => `+${(lvl * 0.5).toFixed(1)}% Speed`,
     },
@@ -49,7 +49,7 @@ export const PERK_DEFINITIONS = {
         color:    '#9b59b6',
         desc:     '+1% XP Gain per level',
         maxLevel: 10,
-        costs:    [2, 2, 3, 3, 4, 4, 5, 5, 6, 6],
+        costs:    [3, 3, 5, 5, 7, 7, 9, 12, 15, 20],
         effectPerLevel: 0.01,
         effectLabel: (lvl) => `+${lvl}% XP`,
     },
