@@ -49,11 +49,14 @@
 
 ### 5. Boss-Räume
 - **Trigger:** Alle 5 Stages ein Boss-Encounter
+- **Boss-Typen:** The Brute (Slam/Charge/Summon), The Warlock (Fan/Volley/Summon), The Phantom (Dash/Ring/Clone)
+- **Phase 2:** Bei 50% HP — schnellere Angriffe, mehr Projektile, mehr Adds
 - **Boss-Attacken:** AoE Slam, Summon Adds, Dash-Kombo, Projectile-Patterns
-- **Umsetzung:** Eigene `Boss`-Klasse in `src/entities/`, eigenes Boss-Room-Template in `rooms.js`
+- **Belohnung:** Full Heal + Bonus-XP + permanenter Stat-Boost (Wahl: +HP, +DMG, +SPD)
+- **Umsetzung:** `Boss`-Klasse in `src/entities/boss.js`, Boss-Arena in `rooms.js`, Boss-HP-Bar in HUD, Victory-Overlay in `levelup.js`, 4 Boss-Sounds in `audio.js`, 3 Boss-Partikeleffekte
 - **Warum:** Gibt dem Spiel echte Meilensteine und Spannung
 - **Aufwand:** ~4h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 

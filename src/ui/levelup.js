@@ -92,3 +92,86 @@ export function renderGameOverOverlay(ctx, stage, level) {
 
     ctx.textAlign = 'left';
 }
+
+/**
+ * Draw the Boss Victory overlay with permanent reward selection.
+ */
+export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex, rewardHP, rewardDamage, rewardSpeed) {
+    // Backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    const bw = 380;
+    const bh = 320;
+    const bx = (CANVAS_WIDTH - bw) / 2;
+    const by = (CANVAS_HEIGHT - bh) / 2;
+
+    // Box
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    // Gold shimmer on border
+    const shimmer = Math.sin(Date.now() * 0.004) * 0.3 + 0.7;
+    ctx.save();
+    ctx.globalAlpha = shimmer * 0.3;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.restore();
+
+    ctx.textAlign = 'center';
+
+    // Title
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 26px monospace';
+    ctx.fillText('BOSS DEFEATED!', CANVAS_WIDTH / 2, by + 42);
+
+    // Boss name
+    ctx.fillStyle = bossColor;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText(bossName, CANVAS_WIDTH / 2, by + 68);
+
+    // Subtitle
+    ctx.fillStyle = '#4caf50';
+    ctx.font = '12px monospace';
+    ctx.fillText('✦ Full Heal + Choose Permanent Reward ✦', CANVAS_WIDTH / 2, by + 94);
+
+    // Reward options
+    const opts = [
+        { key: '1', text: `+${rewardHP} Max HP  (permanent)`, color: '#4caf50' },
+        { key: '2', text: `+${rewardDamage} Damage  (permanent)`, color: '#f44336' },
+        { key: '3', text: `+${rewardSpeed} Speed  (permanent)`, color: '#2196f3' },
+    ];
+    const startY = by + 132;
+    const rowH = 46;
+    opts.forEach((o, i) => {
+        const oy = startY + i * rowH;
+        const selected = i === selectedIndex;
+
+        if (selected) {
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.fillRect(bx + 14, oy - 18, bw - 28, rowH - 6);
+            ctx.strokeStyle = o.color;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(bx + 14, oy - 18, bw - 28, rowH - 6);
+
+            ctx.fillStyle = o.color;
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('▸', CANVAS_WIDTH / 2 - 155, oy + 4);
+            ctx.textAlign = 'center';
+        }
+
+        ctx.fillStyle = selected ? o.color : '#666';
+        ctx.font = selected ? 'bold 16px monospace' : '15px monospace';
+        ctx.fillText(`[${o.key}]  ${o.text}`, CANVAS_WIDTH / 2, oy + 2);
+    });
+
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 18);
+    ctx.textAlign = 'left';
+}

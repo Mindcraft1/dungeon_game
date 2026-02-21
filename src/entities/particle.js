@@ -426,4 +426,105 @@ export class ParticleSystem {
             }
         }
     }
+
+    // ── Boss effects ────────────────────────────────────────
+
+    /**
+     * Boss death — massive explosion with type-colored fragments + golden reward sparkles.
+     */
+    bossDeath(x, y, color) {
+        const count = 40 + Math.floor(Math.random() * 15);
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 80 + Math.random() * 250;
+            const size = 2 + Math.random() * 4;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 20,
+                y + (Math.random() - 0.5) * 20,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                size, color,
+                500 + Math.random() * 600,
+                { friction: 0.94, glow: true, glowColor: color, shape: Math.random() > 0.4 ? 'spark' : 'circle' },
+            ));
+        }
+        // White core flash
+        for (let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 40 + Math.random() * 80;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + Math.random() * 3, '#ffffff',
+                250 + Math.random() * 300,
+                { friction: 0.9, glow: true, glowColor: '#ffffff' },
+            ));
+        }
+        // Golden reward sparkles
+        for (let i = 0; i < 15; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 50 + Math.random() * 100;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 30,
+                y + (Math.random() - 0.5) * 30,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed - 40,
+                2 + Math.random() * 2, '#ffd700',
+                600 + Math.random() * 400,
+                { friction: 0.96, gravity: 30, glow: true, glowColor: '#ffab40' },
+            ));
+        }
+    }
+
+    /**
+     * Boss AoE slam — shockwave ring of sparks.
+     */
+    bossSlam(x, y, radius, color) {
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 60 + Math.random() * 50;
+            this.particles.push(new Particle(
+                x + Math.cos(angle) * radius * 0.3,
+                y + Math.sin(angle) * radius * 0.3,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 2, color,
+                300 + Math.random() * 200,
+                { friction: 0.92, glow: true, glowColor: color, shape: 'spark' },
+            ));
+        }
+    }
+
+    /**
+     * Boss phase transition — red/white ring explosion.
+     */
+    bossPhaseTransition(x, y) {
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 100 + Math.random() * 60;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2.5 + Math.random() * 2, '#ff4444',
+                400 + Math.random() * 200,
+                { friction: 0.93, glow: true, glowColor: '#ff0000' },
+            ));
+        }
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 30 + Math.random() * 50;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + Math.random() * 2, '#ffffff',
+                300 + Math.random() * 200,
+                { friction: 0.9, glow: true, glowColor: '#ff4444' },
+            ));
+        }
+    }
 }

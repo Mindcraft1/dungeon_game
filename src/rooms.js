@@ -286,6 +286,32 @@ const ROOM_TEMPLATES = [
     ],
 ];
 
+// Boss arena – open room with 4 corner pillars for cover
+const BOSS_TEMPLATE = [
+    '####################',
+    '#..................#',
+    '#..................#',
+    '#..##..........##..#',
+    '#..................#',
+    '#..................#',
+    '#..................#',
+    '#S................D#',
+    '#..................#',
+    '#..................#',
+    '#..................#',
+    '#..##..........##..#',
+    '#..................#',
+    '#..................#',
+    '####################',
+];
+
+export const BOSS_ROOM_NAME = 'Boss Arena';
+
+/** Parse the dedicated boss room. */
+export function parseBossRoom() {
+    return _parse(BOSS_TEMPLATE);
+}
+
 // Special training room – open area with pillars for practicing movement + combat
 const TRAINING_TEMPLATE = [
     '####################',

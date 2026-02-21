@@ -682,6 +682,144 @@ export function playComboTier(tier = 1) {
     _noiseBurst(3000 + tier * 500, 1.5, 0.04 + tier * 0.01, 0.06 + tier * 0.02, t);
 }
 
+// ── Boss Sounds ──────────────────────────────────────────
+
+/** Boss roar — deep rumble when boss appears or phase transitions */
+export function playBossRoar() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    const g1 = _gain(0.2);
+    if (!g1) return;
+    const o1 = ctx.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(80, t);
+    o1.frequency.exponentialRampToValueAtTime(40, t + 0.4);
+    o1.connect(g1);
+    g1.gain.setValueAtTime(0.2, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o1.start(t);
+    o1.stop(t + 0.52);
+
+    _noiseBurst(300, 1, 0.3, 0.15, t);
+
+    const g2 = _gain(0.08);
+    if (!g2) return;
+    const o2 = ctx.createOscillator();
+    o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(120, t + 0.1);
+    o2.frequency.exponentialRampToValueAtTime(60, t + 0.5);
+    o2.connect(g2);
+    g2.gain.setValueAtTime(0.08, t + 0.1);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    o2.start(t + 0.1);
+    o2.stop(t + 0.42);
+}
+
+/** Boss ground slam — heavy impact */
+export function playBossSlam() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    const g1 = _gain(0.3);
+    if (!g1) return;
+    const o1 = ctx.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(100, t);
+    o1.frequency.exponentialRampToValueAtTime(25, t + 0.2);
+    o1.connect(g1);
+    g1.gain.setValueAtTime(0.3, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o1.start(t);
+    o1.stop(t + 0.32);
+
+    _noiseBurst(600, 1.5, 0.12, 0.2, t);
+}
+
+/** Boss dies — dramatic death sound */
+export function playBossDeath() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    const g1 = _gain(0.25);
+    if (!g1) return;
+    const o1 = ctx.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(200, t);
+    o1.frequency.exponentialRampToValueAtTime(30, t + 0.8);
+    o1.connect(g1);
+    g1.gain.setValueAtTime(0.25, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+    o1.start(t);
+    o1.stop(t + 1.02);
+
+    _noiseBurst(1500, 1, 0.15, 0.25, t);
+
+    const g2 = _gain(0.15);
+    if (!g2) return;
+    const o2 = ctx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(400, t);
+    o2.frequency.exponentialRampToValueAtTime(60, t + 0.6);
+    o2.connect(g2);
+    g2.gain.setValueAtTime(0.15, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+    o2.start(t);
+    o2.stop(t + 0.72);
+}
+
+/** Boss victory fanfare — triumphant ascending arpeggio */
+export function playBossVictory() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    const notes = [523, 659, 784, 1047, 1319];
+    notes.forEach((freq, i) => {
+        const start = t + i * 0.15;
+        const g = _gain(0.2);
+        if (!g) return;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.connect(g);
+        g.gain.setValueAtTime(0.2, start);
+        g.gain.setValueAtTime(0.2, start + 0.12);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+        o.start(start);
+        o.stop(start + 0.42);
+
+        const g2 = _gain(0.08);
+        if (!g2) return;
+        const o2 = ctx.createOscillator();
+        o2.type = 'sine';
+        o2.frequency.value = freq * 2;
+        o2.connect(g2);
+        g2.gain.setValueAtTime(0.08, start);
+        g2.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+        o2.start(start);
+        o2.stop(start + 0.37);
+    });
+
+    const gSub = _gain(0.1);
+    if (!gSub) return;
+    const oSub = ctx.createOscillator();
+    oSub.type = 'sine';
+    oSub.frequency.value = 130;
+    oSub.connect(gSub);
+    gSub.gain.setValueAtTime(0.1, t);
+    gSub.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    oSub.start(t);
+    oSub.stop(t + 0.62);
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

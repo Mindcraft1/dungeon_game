@@ -188,3 +188,70 @@ export const COMBO_XP_MULT_1 = 1.25;            // ×1.25 XP at tier 1
 export const COMBO_XP_MULT_2 = 1.5;             // ×1.5 XP at tier 2
 export const COMBO_XP_MULT_3 = 2.0;             // ×2.0 XP at tier 3
 export const COMBO_XP_MULT_4 = 2.5;             // ×2.5 XP at tier 4
+
+// ── Boss ──
+export const BOSS_STAGE_INTERVAL = 5;            // boss every N stages
+export const BOSS_TYPE_BRUTE   = 'brute';
+export const BOSS_TYPE_WARLOCK = 'warlock';
+export const BOSS_TYPE_PHANTOM = 'phantom';
+
+// Boss base stats (scaled per encounter)
+export const BOSS_BASE_HP     = 400;
+export const BOSS_BASE_SPEED   = 55;
+export const BOSS_BASE_DAMAGE  = 15;
+
+// Boss scaling per encounter (0, 1, 2, ...)
+export const BOSS_HP_SCALE  = 0.3;              // +30% HP per encounter
+export const BOSS_DMG_SCALE = 0.2;              // +20% damage per encounter
+export const BOSS_SPD_SCALE = 0.08;             // +8% speed per encounter
+
+// Boss type-specific multipliers
+export const BOSS_BRUTE_HP_MULT   = 1.3;
+export const BOSS_BRUTE_SPD_MULT  = 0.8;
+export const BOSS_BRUTE_DMG_MULT  = 1.4;
+export const BOSS_BRUTE_RADIUS    = 28;
+export const BOSS_WARLOCK_HP_MULT  = 0.9;
+export const BOSS_WARLOCK_SPD_MULT = 0.7;
+export const BOSS_WARLOCK_DMG_MULT = 1.0;
+export const BOSS_WARLOCK_RADIUS   = 22;
+export const BOSS_PHANTOM_HP_MULT  = 0.75;
+export const BOSS_PHANTOM_SPD_MULT = 1.3;
+export const BOSS_PHANTOM_DMG_MULT = 1.1;
+export const BOSS_PHANTOM_RADIUS   = 20;
+
+// Boss attack timings (ms)
+export const BOSS_ATTACK_COOLDOWN   = 2500;
+export const BOSS_SLAM_WINDUP       = 900;
+export const BOSS_SLAM_RADIUS       = 90;
+export const BOSS_CHARGE_WINDUP     = 500;
+export const BOSS_CHARGE_DURATION   = 800;
+export const BOSS_CHARGE_SPEED_MULT = 3.5;
+export const BOSS_SUMMON_WINDUP     = 800;
+export const BOSS_FAN_WINDUP        = 600;
+export const BOSS_VOLLEY_WINDUP     = 400;
+export const BOSS_VOLLEY_INTERVAL   = 200;
+export const BOSS_DASH_WINDUP       = 400;
+export const BOSS_DASH_DURATION     = 300;
+export const BOSS_DASH_SPEED_MULT   = 5.0;
+export const BOSS_RING_WINDUP       = 500;
+export const BOSS_CLONE_WINDUP      = 600;
+export const BOSS_HIT_COOLDOWN      = 1000;
+
+// Boss rewards
+export const BOSS_XP_REWARD     = 80;           // base XP award
+export const BOSS_REWARD_HP     = 10;           // permanent +HP option
+export const BOSS_REWARD_DAMAGE = 5;            // permanent +DMG option
+export const BOSS_REWARD_SPEED  = 10;           // permanent +SPD option
+
+// Boss colors
+export const BOSS_BRUTE_COLOR   = '#d35400';
+export const BOSS_WARLOCK_COLOR = '#8e44ad';
+export const BOSS_PHANTOM_COLOR = '#00bcd4';
+
+// Boss names
+export const BOSS_BRUTE_NAME   = 'The Brute';
+export const BOSS_WARLOCK_NAME = 'The Warlock';
+export const BOSS_PHANTOM_NAME = 'The Phantom';
+
+// Game state
+export const STATE_BOSS_VICTORY = 'BOSS_VICTORY';

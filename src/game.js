@@ -7,22 +7,25 @@ import {
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
     ATTACK_RANGE, DASH_COOLDOWN,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
-    STATE_TRAINING_CONFIG,
+    STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
+    BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
+    BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
+import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO } from './entities/pickup.js';
 import { ParticleSystem } from './entities/particle.js';
 import { triggerShake } from './shake.js';
-import { renderHUD } from './ui/hud.js';
-import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
+import { renderHUD, renderBossHPBar } from './ui/hud.js';
+import { renderLevelUpOverlay, renderGameOverOverlay, renderBossVictoryOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
@@ -101,6 +104,11 @@ export class Game {
         this.comboPopups = [];        // floating text popups [{text, x, y, timer, maxTimer, color, size}]
         this.comboFlash = 0;          // screen flash timer (ms)
         this.comboFlashColor = '';    // screen flash color
+
+        // ── Boss ──
+        this.boss = null;
+        this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
+        this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -195,6 +203,8 @@ export class Game {
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
+        this.boss = null;
+        this.bossVictoryDelay = 0;
         this.loadRoom(0);
         this.state = STATE_PLAYING;
     }
@@ -449,7 +459,39 @@ export class Game {
     nextRoom() {
         this.stage++;
         this._saveHighscore();
-        this.loadRoom(this.stage - 1);
+        if (this._isBossStage(this.stage)) {
+            this._loadBossRoom();
+        } else {
+            this.boss = null;
+            this.bossVictoryDelay = 0;
+            this.loadRoom(this.stage - 1);
+        }
+    }
+
+    _isBossStage(stage) {
+        return stage > 0 && stage % BOSS_STAGE_INTERVAL === 0;
+    }
+
+    _loadBossRoom() {
+        const { grid, spawnPos, doorPos } = parseBossRoom();
+        this.grid = grid;
+        this._placePlayer(spawnPos);
+        this.door = new Door(doorPos.col, doorPos.row);
+        this.enemies = [];
+        this.projectiles = [];
+        this.hazards = [];
+        this.pickups = [];
+        this.particles.clear();
+        this.bossVictoryDelay = 0;
+
+        // Determine boss type (rotates: Brute → Warlock → Phantom)
+        const encounter = Math.floor(this.stage / BOSS_STAGE_INTERVAL) - 1;
+        const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM];
+        const bossType = bossTypes[encounter % bossTypes.length];
+
+        this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage);
+        Audio.playBossRoar();
+        this.controlsHintTimer = 3000;
     }
 
     // ── Teleport to training (T key) ──────────────────────
@@ -463,6 +505,7 @@ export class Game {
             projectiles: this.projectiles,
             pickups: this.pickups,
             hazards: this.hazards,
+            boss: this.boss,
         };
         this._openTrainingConfig(true);
     }
@@ -511,10 +554,16 @@ export class Game {
         this.projectiles = this._savedGame.projectiles || [];
         this.pickups = this._savedGame.pickups || [];
         this.hazards = this._savedGame.hazards || [];
+        this.boss = this._savedGame.boss || null;
         this.trainingMode = false;
         this._savedGame = null;
 
-        const { spawnPos } = parseRoom(this.stage - 1);
+        let spawnPos;
+        if (this._isBossStage(this.stage)) {
+            ({ spawnPos } = parseBossRoom());
+        } else {
+            ({ spawnPos } = parseRoom(this.stage - 1));
+        }
         this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
         this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
         this.player.hp = this.player.maxHp;
@@ -534,6 +583,8 @@ export class Game {
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
+        this.boss = null;
+        this.bossVictoryDelay = 0;
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -558,6 +609,7 @@ export class Game {
             case STATE_LEVEL_UP:        this._updateLevelUp();        break;
             case STATE_GAME_OVER:       this._updateGameOver();       break;
             case STATE_TRAINING_CONFIG: this._updateTrainingConfig(); break;
+            case STATE_BOSS_VICTORY:    this._updateBossVictory();   break;
         }
     }
 
@@ -674,6 +726,17 @@ export class Game {
     }
 
     _updatePlaying(dt) {
+        // Boss victory delay (freeze frame while particles play)
+        if (this.bossVictoryDelay > 0) {
+            this.bossVictoryDelay -= dt * 1000;
+            if (this.bossVictoryDelay <= 0) {
+                Audio.playBossVictory();
+                this.bossRewardIndex = 0;
+                this.state = STATE_BOSS_VICTORY;
+            }
+            return;
+        }
+
         // Teleport to training (T)
         if (!this.trainingMode && wasPressed('KeyT')) {
             this._teleportToTraining();
@@ -713,8 +776,8 @@ export class Game {
         }
         this.comboPopups = this.comboPopups.filter(p => p.timer > 0);
 
-        // Dash / Dodge Roll (Shift key)
-        if (wasPressed('ShiftLeft') || wasPressed('ShiftRight')) {
+        // Dash / Dodge Roll (N key)
+        if (wasPressed('KeyN')) {
             if (this.player.tryDash(movement)) {
                 Audio.playPlayerDash();
                 this.particles.dashBurst(this.player.x, this.player.y);
@@ -731,7 +794,10 @@ export class Game {
 
         // Attack
         if (isDown('Space')) {
-            const hitCount = this.player.attack(this.enemies);
+            const targets = this.boss && !this.boss.dead
+                ? [...this.enemies, this.boss]
+                : this.enemies;
+            const hitCount = this.player.attack(targets);
             if (hitCount >= 0) {
                 Audio.playAttack();
                 // Attack arc particles
@@ -750,6 +816,13 @@ export class Game {
                             const d = Math.sqrt(dx * dx + dy * dy) || 1;
                             this.particles.hitSparks(e.x, e.y, dx / d, dy / d);
                         }
+                    }
+                    // Boss hit sparks
+                    if (this.boss && !this.boss.dead && this.boss.damageFlashTimer > 100) {
+                        const bx = this.boss.x - this.player.x;
+                        const by = this.boss.y - this.player.y;
+                        const bd = Math.sqrt(bx * bx + by * by) || 1;
+                        this.particles.hitSparks(this.boss.x, this.boss.y, bx / bd, by / bd);
                     }
                 }
             }
@@ -805,6 +878,68 @@ export class Game {
         // Detect new projectiles fired by shooters
         if (this.projectiles.length > projCountBefore) {
             Audio.playProjectile();
+        }
+
+        // ── Boss update ──
+        if (this.boss && !this.boss.dead) {
+            this.boss.update(dt, this.player, this.grid, this.enemies, this.projectiles);
+
+            // Process boss events
+            for (const evt of this.boss._events) {
+                switch (evt.type) {
+                    case 'slam':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, this.boss.color);
+                        triggerShake(8, 0.88);
+                        break;
+                    case 'phase_transition':
+                        Audio.playBossRoar();
+                        this.particles.bossPhaseTransition(this.boss.x, this.boss.y);
+                        triggerShake(10, 0.9);
+                        break;
+                    case 'charge':
+                        Audio.playTankCharge();
+                        break;
+                    case 'summon':
+                        Audio.playBossRoar();
+                        break;
+                    case 'projectile':
+                        Audio.playProjectile();
+                        break;
+                }
+            }
+            this.boss._events = [];
+
+            // Process boss spawned adds
+            if (this.boss.pendingSpawns.length > 0) {
+                const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15) * 0.7);
+                const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2) * 0.8;
+                const dmgBase = Math.floor((ENEMY_DAMAGE + (this.stage - 1) * 0.5) * 0.7);
+                for (const spawn of this.boss.pendingSpawns) {
+                    this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
+                }
+                this.boss.pendingSpawns = [];
+            }
+        }
+
+        // Boss death
+        if (this.boss && this.boss.dead && !this.boss.xpGiven) {
+            this.boss.xpGiven = true;
+            // Kill all remaining adds
+            for (const e of this.enemies) {
+                if (!e.dead) {
+                    e.dead = true;
+                    e.xpGiven = true;
+                    const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
+                    this.particles.enemyDeath(e.x, e.y, eColor, e.radius);
+                }
+            }
+            this.projectiles = [];
+            Audio.playBossDeath();
+            this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
+            triggerShake(15, 0.92);
+            this.bossVictoryDelay = 1200; // 1.2s freeze before victory overlay
+            return;
         }
 
         // Projectiles — update + trail particles
@@ -867,7 +1002,8 @@ export class Game {
         }
 
         // Door
-        this.door.update(dt, this.enemies, this.trainingMode);
+        const allFoes = this.boss && !this.boss.dead ? [...this.enemies, this.boss] : this.enemies;
+        this.door.update(dt, allFoes, this.trainingMode);
 
         // Door unlock sound + particles
         if (doorWasLocked && !this.door.locked) {
@@ -1075,6 +1211,58 @@ export class Game {
         }
     }
 
+    _updateBossVictory() {
+        const choices = ['hp', 'damage', 'speed'];
+
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.bossRewardIndex = (this.bossRewardIndex - 1 + 3) % 3;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.bossRewardIndex = (this.bossRewardIndex + 1) % 3;
+            Audio.playMenuNav();
+        }
+
+        let choice = null;
+        if (wasPressed('Space') || wasPressed('Enter')) {
+            choice = choices[this.bossRewardIndex];
+        } else if (wasPressed('Digit1')) { choice = 'hp'; }
+        else if (wasPressed('Digit2')) { choice = 'damage'; }
+        else if (wasPressed('Digit3')) { choice = 'speed'; }
+
+        if (!choice) return;
+        Audio.playMenuSelect();
+
+        // Apply permanent reward
+        switch (choice) {
+            case 'hp':
+                this.player.maxHp += BOSS_REWARD_HP;
+                break;
+            case 'damage':
+                this.player.damage += BOSS_REWARD_DAMAGE;
+                break;
+            case 'speed':
+                this.player.speed += BOSS_REWARD_SPEED;
+                break;
+        }
+
+        // Full heal
+        this.player.hp = this.player.maxHp;
+
+        // Award boss XP (may trigger level-up chain)
+        const xp = this.boss.xpValue;
+        if (this.player.addXp(xp)) {
+            Audio.playLevelUp();
+            this.particles.levelUp(this.player.x, this.player.y);
+            this.upgradeIndex = 0;
+            this.state = STATE_LEVEL_UP;
+            return;
+        }
+
+        // No level-up → back to playing (door is unlocked, walk through to continue)
+        this.state = STATE_PLAYING;
+    }
+
     // ── Render ─────────────────────────────────────────────
 
     render() {
@@ -1117,6 +1305,7 @@ export class Game {
         for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
+        if (this.boss && !this.boss.dead) this.boss.render(ctx);
         for (const p of this.projectiles) p.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
         this.particles.render(ctx);
@@ -1124,10 +1313,11 @@ export class Game {
 
         // Locked-door hint (real game only)
         if (!this.trainingMode && this.door.locked && this.door.isPlayerNear(this.player)) {
+            const lockText = this.boss && !this.boss.dead ? 'DEFEAT THE BOSS' : 'LOCKED';
             this._renderTooltip(
                 this.door.x + this.door.width / 2,
                 this.door.y - 14,
-                'LOCKED', '#e74c3c',
+                lockText, '#e74c3c',
             );
         }
 
@@ -1141,9 +1331,16 @@ export class Game {
             );
         }
 
-        const alive = this.enemies.filter(e => !e.dead).length;
+        let alive = this.enemies.filter(e => !e.dead).length;
+        if (this.boss && !this.boss.dead) alive++;
+        const isBossRoom = !!(this.boss);
         renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
-                  this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer);
+                  this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom);
+
+        // Boss HP bar
+        if (this.boss && !this.boss.dead) {
+            renderBossHPBar(ctx, this.boss);
+        }
 
         // ── Combo screen flash ──
         if (this.comboFlash > 0 && this.comboFlashColor) {
@@ -1199,6 +1396,9 @@ export class Game {
             renderLevelUpOverlay(ctx, this.player, this.upgradeIndex);
         } else if (this.state === STATE_GAME_OVER) {
             renderGameOverOverlay(ctx, this.stage, this.player.level);
+        } else if (this.state === STATE_BOSS_VICTORY) {
+            renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
+                this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED);
         }
     }
 
@@ -1322,8 +1522,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   SHIFT = Dash   M = Mute   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   SHIFT = Dash   M = Mute   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   N = Dash   M = Mute   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   N = Dash   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

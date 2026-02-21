@@ -5,7 +5,8 @@ import { PICKUP_INFO } from '../entities/pickup.js';
  * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo).
  */
 export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false,
-                          comboCount = 0, comboTier = 0, comboMultiplier = 1, comboTimer = 0) {
+                          comboCount = 0, comboTier = 0, comboMultiplier = 1, comboTimer = 0,
+                          isBossRoom = false) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -52,9 +53,9 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillText(trainingMode ? 'TRAINING' : `Stage ${stage}`, pad + 76, infoY);
 
     if (enemiesAlive > 0) {
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = isBossRoom ? '#ff6600' : '#e74c3c';
         ctx.font = '11px monospace';
-        ctx.fillText(`Enemies: ${enemiesAlive}`, pad, infoY + 16);
+        ctx.fillText(isBossRoom ? 'BOSS FIGHT!' : `Enemies: ${enemiesAlive}`, pad, infoY + 16);
     } else {
         ctx.fillStyle = '#27ae60';
         ctx.font = '11px monospace';
@@ -254,4 +255,58 @@ function _renderMuteIcon(ctx, muted) {
     ctx.font = '8px monospace';
     ctx.fillText('[M]', x, y + 10);
     ctx.restore();
+}
+
+/**
+ * Render a large Boss HP bar at the top-center of the screen.
+ */
+export function renderBossHPBar(ctx, boss) {
+    if (!boss || boss.dead) return;
+
+    const barW = 400;
+    const barH = 18;
+    const bx = (CANVAS_WIDTH - barW) / 2;
+    const by = 14;
+
+    // Background panel
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx - 8, by - 22, barW + 16, barH + 34);
+
+    // Boss name
+    ctx.textAlign = 'center';
+    ctx.fillStyle = boss.color;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(boss.name.toUpperCase(), CANVAS_WIDTH / 2, by - 6);
+
+    // HP bar background
+    ctx.fillStyle = '#333';
+    ctx.fillRect(bx, by, barW, barH);
+
+    // HP bar fill
+    const ratio = boss.hp / boss.maxHp;
+    let barColor;
+    if (ratio > 0.5) barColor = boss.color;
+    else if (ratio > 0.25) barColor = '#ff9800';
+    else barColor = '#f44336';
+    ctx.fillStyle = barColor;
+    ctx.fillRect(bx, by, barW * ratio, barH);
+
+    // HP bar border
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, barW, barH);
+
+    // HP text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`${boss.hp} / ${boss.maxHp}`, CANVAS_WIDTH / 2, by + 13);
+
+    // Phase indicator
+    if (boss.phase === 2) {
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText('⚡ PHASE 2 ⚡', CANVAS_WIDTH / 2, by + barH + 10);
+    }
+
+    ctx.textAlign = 'left';
 }
