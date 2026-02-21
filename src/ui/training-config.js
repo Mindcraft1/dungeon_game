@@ -4,14 +4,15 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * Render the training configuration screen.
  *
  * @param {CanvasRenderingContext2D} ctx
- * @param {number} cursor        – which row is selected (0=room, 1=enemies, 2=count, 3=START)
+ * @param {number} cursor        – which row is selected (0=room, 1=enemies, 2=count, 3=damage, 4=START)
  * @param {number} roomIndex     – -1 = training room, 0..N = game rooms
  * @param {string} roomName      – display name
- * @param {string} enemyLabel    – e.g. "All Types", "Basic", "Shooter"
+ * @param {string} enemyLabel    – e.g. "All", "Basic", "Shooter"
  * @param {number} enemyCount    – 1..10
- * @param {boolean} fromGame     – true if player pressed T mid-game (show "Back" instead of "Menu")
+ * @param {boolean} damageOn     – whether damage is enabled
+ * @param {boolean} fromGame     – true if player pressed T mid-game
  */
-export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabel, enemyCount, fromGame) {
+export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabel, enemyCount, damageOn, fromGame) {
     // ── Background ──
     ctx.fillStyle = 'rgba(10, 10, 18, 0.97)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -40,17 +41,18 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
 
     // ── Options ──
     const options = [
-        { label: 'ROOM',    value: roomName,   color: '#4fc3f7' },
-        { label: 'ENEMIES', value: enemyLabel,  color: '#e74c3c' },
-        { label: 'COUNT',   value: `${enemyCount}`, color: '#2ecc71' },
+        { label: 'ROOM',    value: roomName,                       color: '#4fc3f7' },
+        { label: 'ENEMIES', value: enemyLabel,                     color: '#e74c3c' },
+        { label: 'COUNT',   value: `${enemyCount}`,                color: '#2ecc71' },
+        { label: 'DAMAGE',  value: damageOn ? 'ON' : 'OFF',        color: damageOn ? '#f44336' : '#4caf50' },
     ];
 
-    const startY = 160;
+    const startY = 140;
     const boxW = 460;
-    const boxH = 52;
+    const boxH = 48;
 
     // Custom y positions to make room for enemy previews between rows 1 and 2
-    const rowYs = [startY, startY + 70, startY + 172];
+    const rowYs = [startY, startY + 62, startY + 158, startY + 220];
 
     options.forEach((opt, i) => {
         const y = rowYs[i];
@@ -95,8 +97,8 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
     });
 
     // ── START button ──
-    const btnY = rowYs[2] + boxH + 20;
-    const btnSelected = cursor === 3;
+    const btnY = rowYs[3] + boxH + 16;
+    const btnSelected = cursor === 4;
     const btnW = 200;
     const btnH = 44;
 

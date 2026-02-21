@@ -65,6 +65,7 @@ export class Game {
         this.trainingRoomIndex = -1;    // -1 = training room, 0..13 = game rooms
         this.trainingEnemyType = 0;     // 0=all, 1=basic, 2=shooter, 3=dasher, 4=tank
         this.trainingEnemyCount = 3;
+        this.trainingDamage = false;    // false = no damage (default), true = take damage
         this._trainingFromGame = false; // true if opened via T key mid-game
     }
 
@@ -535,8 +536,9 @@ export class Game {
         }
 
         // Enemies
+        const noDamage = this.trainingMode && !this.trainingDamage;
         for (const e of this.enemies) {
-            e.update(dt, this.player, this.grid, this.enemies, this.projectiles, this.trainingMode);
+            e.update(dt, this.player, this.grid, this.enemies, this.projectiles, noDamage);
 
             if (e.dead && !e.xpGiven) {
                 e.xpGiven = true;
@@ -551,7 +553,7 @@ export class Game {
 
         // Projectiles
         for (const p of this.projectiles) {
-            p.update(dt, this.player, this.grid, this.trainingMode);
+            p.update(dt, this.player, this.grid, noDamage);
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
 
@@ -584,6 +586,23 @@ export class Game {
         if (!this.trainingMode && this.player.hp <= 0) {
             this._saveHighscore();
             this.state = STATE_GAME_OVER;
+        }
+
+        // Death in training with damage on → full heal + respawn enemies
+        if (this.trainingMode && this.trainingDamage && this.player.hp <= 0) {
+            this.player.hp = this.player.maxHp;
+            this.player.invulnTimer = 0;
+            // Re-place player at spawn
+            let spawnPos;
+            if (this.trainingRoomIndex === -1) {
+                ({ spawnPos } = parseTrainingRoom());
+            } else {
+                ({ spawnPos } = parseRoom(this.trainingRoomIndex));
+            }
+            this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
+            this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
+            this.projectiles = [];
+            this._respawnTrainingEnemies();
         }
     }
 
@@ -656,7 +675,7 @@ export class Game {
     // ── Training Config Screen ──────────────────────────────
 
     _updateTrainingConfig() {
-        const ROWS = 4; // 0=room, 1=enemy type, 2=count, 3=start
+        const ROWS = 5; // 0=room, 1=enemy type, 2=count, 3=damage, 4=start
         const ENEMY_LABELS = ['All', 'Basic', 'Shooter', 'Dasher', 'Tank'];
         const roomCount = getRoomCount(); // 14
 
@@ -684,6 +703,9 @@ export class Game {
             // Enemy count: 1..10
             if (left)  this.trainingEnemyCount = Math.max(1, this.trainingEnemyCount - 1);
             if (right) this.trainingEnemyCount = Math.min(10, this.trainingEnemyCount + 1);
+        } else if (this.trainingConfigCursor === 3) {
+            // Damage toggle
+            if (left || right) this.trainingDamage = !this.trainingDamage;
         }
 
         // Confirm (Enter / Space) — start training from any row
@@ -751,6 +773,7 @@ export class Game {
                 roomName,
                 ENEMY_LABELS[this.trainingEnemyType],
                 this.trainingEnemyCount,
+                this.trainingDamage,
                 this._trainingFromGame,
             );
             return;

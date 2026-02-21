@@ -201,12 +201,14 @@ Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multip
 ## Training Mode
 
 - Accessed via menu option or **T key** mid-game → opens **Training Config screen** first
-- **Config screen** (`STATE_TRAINING_CONFIG`): choose room, enemy type, and enemy count
+- **Config screen** (`STATE_TRAINING_CONFIG`): choose room, enemy type, enemy count, and damage toggle
   - **Room**: Training Room (default) or any of the 14 game rooms (cycle with A/D)
   - **Enemies**: All (random mix), Basic, Shooter, Dasher, or Tank (cycle with A/D)
   - **Count**: 1–10 (default 3, adjust with A/D)
-  - Settings persist across sessions (stored on Game instance)
-- **No damage** to player (enemies skip contact damage)
+  - **Damage**: OFF (default, green) or ON (red) — toggles whether the player takes damage from enemies/projectiles
+  - Settings persist across sessions (stored on Game instance: `trainingDamage`)
+- **Damage OFF (default):** Enemies skip contact damage, projectiles skip damage — player is invulnerable
+- **Damage ON:** Enemies and projectiles deal normal damage. If HP ≤ 0, player respawns at spawn point with full HP (no game over in training)
 - Enemies respawn after `TRAINING_RESPAWN_DELAY` (2s) when all dead, using configured type/count
 - Door always open (`forceUnlock`)
 - Door / ESC returns to saved game (full heal) or menu
