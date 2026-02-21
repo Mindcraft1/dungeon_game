@@ -81,53 +81,63 @@ function _renderActiveBuffs(ctx, player, pad) {
     const buffs = player.activeBuffs;
     if (buffs.length === 0) return;
 
-    const iconSize = 20;
-    const spacing = 6;
-    const startX = CANVAS_WIDTH - pad - iconSize;
+    const iconSize = 18;
+    const rowH = 32;
+    const panelW = 190;
+    const startX = CANVAS_WIDTH - pad;
     const startY = 44;
 
     buffs.forEach((buff, i) => {
         const info = PICKUP_INFO[buff.type];
         if (!info) return;
 
-        const x = startX;
-        const y = startY + i * (iconSize + spacing + 4);
+        const y = startY + i * (rowH + 4);
+        const panelX = startX - panelW;
 
-        // Background
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(x - 2, y - 2, iconSize + 4, iconSize + 8);
+        // Background panel
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(panelX, y, panelW, rowH);
+
+        // Colored left accent bar
+        ctx.fillStyle = info.color;
+        ctx.fillRect(panelX, y, 3, rowH);
 
         // Icon color circle
+        const iconX = panelX + 14;
+        const iconY = y + rowH / 2;
         ctx.fillStyle = info.color;
         ctx.beginPath();
-        ctx.arc(x + iconSize / 2, y + iconSize / 2, iconSize / 2 - 2, 0, Math.PI * 2);
+        ctx.arc(iconX, iconY, iconSize / 2 - 1, 0, Math.PI * 2);
         ctx.fill();
 
-        // Category indicator: sword (offensive) or shield (defensive)
+        // Category symbol on icon
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 9px monospace';
+        ctx.font = 'bold 8px monospace';
         ctx.textAlign = 'center';
-        const symbol = info.category === 'offensive' ? '⚔' : '🛡';
-        ctx.fillText(symbol, x + iconSize / 2, y + iconSize / 2 + 3);
+        ctx.fillText(info.category === 'offensive' ? '⚔' : '🛡', iconX, iconY + 3);
 
-        // Timer bar below icon
-        const barW = iconSize;
-        const barH = 3;
-        const barY = y + iconSize + 1;
+        // Buff name
+        const textX = iconX + iconSize / 2 + 6;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = info.color;
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(info.name, textX, y + 12);
+
+        // Effect description
+        ctx.fillStyle = '#ccc';
+        ctx.font = '8px monospace';
+        ctx.fillText(info.effect, textX, y + 22);
+
+        // Timer bar at bottom of panel
         const ratio = Math.max(0, buff.remaining / buff.duration);
+        const barX = panelX + 3;
+        const barY = y + rowH - 3;
+        const barW = panelW - 3;
+        const barH = 2;
 
         ctx.fillStyle = '#222';
-        ctx.fillRect(x, barY, barW, barH);
-
-        // Color based on remaining time
+        ctx.fillRect(barX, barY, barW, barH);
         ctx.fillStyle = ratio > 0.5 ? info.color : ratio > 0.25 ? '#ff9800' : '#f44336';
-        ctx.fillRect(x, barY, barW * ratio, barH);
-
-        // Abbreviated name to the left of icon
-        ctx.textAlign = 'right';
-        ctx.fillStyle = info.color;
-        ctx.font = '9px monospace';
-        const shortName = info.name.length > 8 ? info.name.slice(0, 8) : info.name;
-        ctx.fillText(shortName, x - 6, y + iconSize / 2 + 3);
+        ctx.fillRect(barX, barY, barW * ratio, barH);
     });
 }

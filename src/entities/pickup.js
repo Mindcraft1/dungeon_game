@@ -19,14 +19,14 @@ const DROP_TABLE = {
 
 // ── Item metadata (display name, color, category, icon shape) ──
 export const PICKUP_INFO = {
-    [PICKUP_RAGE_SHARD]:    { name: 'Rage Shard',    color: '#e74c3c', glow: '#ff6b6b', category: 'offensive', icon: 'crystal'  },
-    [PICKUP_HEART_FRAGMENT]:{ name: 'Heart Fragment', color: '#e91e8c', glow: '#ff69b4', category: 'defensive', icon: 'heart'    },
-    [PICKUP_PIERCING_SHOT]: { name: 'Piercing Shot',  color: '#9b59b6', glow: '#bb86fc', category: 'offensive', icon: 'orb'      },
-    [PICKUP_PHASE_SHIELD]:  { name: 'Phase Shield',   color: '#7c4dff', glow: '#b388ff', category: 'defensive', icon: 'shield'   },
-    [PICKUP_SPEED_SURGE]:   { name: 'Speed Surge',    color: '#2ecc71', glow: '#69f0ae', category: 'offensive', icon: 'bolt'     },
-    [PICKUP_SWIFT_BOOTS]:   { name: 'Swift Boots',    color: '#00c853', glow: '#76ff03', category: 'defensive', icon: 'boots'    },
-    [PICKUP_CRUSHING_BLOW]: { name: 'Crushing Blow',  color: '#e67e22', glow: '#ffab40', category: 'offensive', icon: 'fist'     },
-    [PICKUP_IRON_SKIN]:     { name: 'Iron Skin',      color: '#f39c12', glow: '#ffd54f', category: 'defensive', icon: 'armor'    },
+    [PICKUP_RAGE_SHARD]:    { name: 'Rage Shard',    color: '#e74c3c', glow: '#ff6b6b', category: 'offensive', icon: 'crystal', effect: '+50% DMG'        },
+    [PICKUP_HEART_FRAGMENT]:{ name: 'Heart Fragment', color: '#e91e8c', glow: '#ff69b4', category: 'defensive', icon: 'heart',   effect: '+20 HP'          },
+    [PICKUP_PIERCING_SHOT]: { name: 'Piercing Shot',  color: '#9b59b6', glow: '#bb86fc', category: 'offensive', icon: 'orb',     effect: '+40% Range +25% DMG' },
+    [PICKUP_PHASE_SHIELD]:  { name: 'Phase Shield',   color: '#7c4dff', glow: '#b388ff', category: 'defensive', icon: 'shield',  effect: 'Block next hit'  },
+    [PICKUP_SPEED_SURGE]:   { name: 'Speed Surge',    color: '#2ecc71', glow: '#69f0ae', category: 'offensive', icon: 'bolt',    effect: '-40% ATK CD'     },
+    [PICKUP_SWIFT_BOOTS]:   { name: 'Swift Boots',    color: '#00c853', glow: '#76ff03', category: 'defensive', icon: 'boots',   effect: '+40% Speed'      },
+    [PICKUP_CRUSHING_BLOW]: { name: 'Crushing Blow',  color: '#e67e22', glow: '#ffab40', category: 'offensive', icon: 'fist',    effect: 'Next hit 3x DMG' },
+    [PICKUP_IRON_SKIN]:     { name: 'Iron Skin',      color: '#f39c12', glow: '#ffd54f', category: 'defensive', icon: 'armor',   effect: '-50% DMG taken'  },
 };
 
 /**
