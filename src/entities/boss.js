@@ -30,8 +30,9 @@ export class Boss {
      * @param {string} bossType   – BOSS_TYPE_BRUTE | BOSS_TYPE_WARLOCK | BOSS_TYPE_PHANTOM
      * @param {number} encounter  – 0-based encounter index for stat scaling
      * @param {number} stage      – current game stage
+     * @param {object} [biome]    – optional biome object for themed visuals
      */
-    constructor(x, y, bossType, encounter, stage) {
+    constructor(x, y, bossType, encounter, stage, biome = null) {
         this.x = x;
         this.y = y;
         this.type = bossType;
@@ -76,6 +77,9 @@ export class Boss {
 
         this.hp = this.maxHp;
         this.xpValue = Math.floor(BOSS_XP_REWARD * (1 + encounter * 0.3));
+
+        // ── Biome-themed visual overrides ──
+        this._applyBiomeTheme(biome);
 
         // ── Common state ──
         this.facingAngle = 0;
@@ -676,11 +680,40 @@ export class Boss {
         }
     }
 
+    // ── Biome theme application ────────────────────────────
+
+    _applyBiomeTheme(biome) {
+        // Default colors (used when no biome or no theme defined)
+        const defaults = {
+            brute:   { body: BOSS_BRUTE_COLOR,   stroke: '#a84300', eyes: '#ff6600', eyesFlash: '#ff4444', chargeAura: '#ff4444' },
+            warlock: { body: BOSS_WARLOCK_COLOR,  stroke: '#6c3483', innerEye: '#e0b0ff', innerEyeFlash: '#bb86fc', pupil: '#2a0134', orbit: BOSS_WARLOCK_COLOR },
+            phantom: { body: BOSS_PHANTOM_COLOR,  stroke: '#00838f', glow: '#e0f7fa', afterimage: BOSS_PHANTOM_COLOR },
+        };
+
+        const theme = biome && biome.bossTheme ? biome.bossTheme[this.type] : null;
+        const fallback = defaults[this.type] || defaults.brute;
+
+        this.themeBody       = (theme && theme.body)          || fallback.body;
+        this.themeStroke     = (theme && theme.stroke)        || fallback.stroke;
+        this.themeEyes       = (theme && theme.eyes)          || fallback.eyes;
+        this.themeEyesFlash  = (theme && theme.eyesFlash)     || fallback.eyesFlash;
+        this.themeChargeAura = (theme && theme.chargeAura)    || fallback.chargeAura;
+        this.themeInnerEye      = (theme && theme.innerEye)      || fallback.innerEye;
+        this.themeInnerEyeFlash = (theme && theme.innerEyeFlash) || fallback.innerEyeFlash;
+        this.themePupil      = (theme && theme.pupil)         || fallback.pupil;
+        this.themeOrbit      = (theme && theme.orbit)         || fallback.orbit;
+        this.themeGlow       = (theme && theme.glow)          || fallback.glow;
+        this.themeAfterimage = (theme && theme.afterimage)    || fallback.afterimage;
+
+        // Override base color used by projectiles & attack indicators
+        if (theme) this.color = theme.body;
+    }
+
     // ── Boss type rendering ────────────────────────────────
 
     _renderBrute(ctx, flash) {
         // Octagon
-        ctx.fillStyle = flash ? '#ffffff' : this.color;
+        ctx.fillStyle = flash ? '#ffffff' : this.themeBody;
         ctx.beginPath();
         for (let i = 0; i < 8; i++) {
             const angle = (Math.PI / 4) * i - Math.PI / 8;
@@ -691,7 +724,7 @@ export class Boss {
         ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = '#a84300';
+        ctx.strokeStyle = this.themeStroke;
         ctx.lineWidth = 3;
         ctx.stroke();
 
@@ -701,7 +734,7 @@ export class Boss {
         const perpX = -Math.sin(this.facingAngle);
         const perpY = Math.cos(this.facingAngle);
 
-        ctx.fillStyle = flash ? '#ff4444' : '#ff6600';
+        ctx.fillStyle = flash ? this.themeEyesFlash : this.themeEyes;
         ctx.beginPath();
         ctx.arc(this.x + eyeOffX + perpX * 7, this.y + eyeOffY + perpY * 7, 3.5, 0, Math.PI * 2);
         ctx.fill();
@@ -713,7 +746,7 @@ export class Boss {
         if (this.currentAttack === 'charge' && this.attackPhase === 2) {
             ctx.save();
             ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.02) * 0.3;
-            ctx.strokeStyle = '#ff4444';
+            ctx.strokeStyle = this.themeChargeAura;
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2);
@@ -724,7 +757,7 @@ export class Boss {
 
     _renderWarlock(ctx, flash) {
         // Pentagon
-        ctx.fillStyle = flash ? '#ffffff' : this.color;
+        ctx.fillStyle = flash ? '#ffffff' : this.themeBody;
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
             const angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
@@ -735,19 +768,19 @@ export class Boss {
         ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = '#6c3483';
+        ctx.strokeStyle = this.themeStroke;
         ctx.lineWidth = 3;
         ctx.stroke();
 
         // Inner eye
-        ctx.fillStyle = flash ? '#bb86fc' : '#e0b0ff';
+        ctx.fillStyle = flash ? this.themeInnerEyeFlash : this.themeInnerEye;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius * 0.3, 0, Math.PI * 2);
         ctx.fill();
 
         // Pupil (tracks player)
         const pupilDist = this.radius * 0.15;
-        ctx.fillStyle = '#2a0134';
+        ctx.fillStyle = this.themePupil;
         ctx.beginPath();
         ctx.arc(
             this.x + Math.cos(this.facingAngle) * pupilDist,
@@ -764,7 +797,7 @@ export class Boss {
             const angle = t + (Math.PI * 2 / 3) * i;
             const ox = this.x + Math.cos(angle) * (this.radius + 10);
             const oy = this.y + Math.sin(angle) * (this.radius + 10);
-            ctx.fillStyle = this.color;
+            ctx.fillStyle = this.themeOrbit;
             ctx.beginPath();
             ctx.arc(ox, oy, 3, 0, Math.PI * 2);
             ctx.fill();
@@ -777,7 +810,7 @@ export class Boss {
         const outerR = this.radius;
         const innerR = this.radius * 0.45;
 
-        ctx.fillStyle = flash ? '#ffffff' : this.color;
+        ctx.fillStyle = flash ? '#ffffff' : this.themeBody;
         ctx.beginPath();
         for (let i = 0; i < 10; i++) {
             const angle = (Math.PI / 5) * i - Math.PI / 2;
@@ -789,14 +822,14 @@ export class Boss {
         ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = '#00838f';
+        ctx.strokeStyle = this.themeStroke;
         ctx.lineWidth = 2.5;
         ctx.stroke();
 
         // Central glow
         ctx.save();
         ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.006) * 0.2;
-        ctx.fillStyle = '#e0f7fa';
+        ctx.fillStyle = this.themeGlow;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius * 0.25, 0, Math.PI * 2);
         ctx.fill();
@@ -806,7 +839,7 @@ export class Boss {
         if (this.currentAttack === 'dash_strike' && this.attackPhase === 2) {
             ctx.save();
             ctx.globalAlpha = 0.3;
-            ctx.fillStyle = this.color;
+            ctx.fillStyle = this.themeAfterimage;
             ctx.beginPath();
             ctx.arc(
                 this.x - this.dashDirX * this.radius * 2,

@@ -72,6 +72,31 @@ const BIOMES = [
             vignetteColor: 'rgba(10,30,10,0.35)', // warm dark green
             vignetteSize: 0.30,                    // how far vignette reaches inward (0–1)
         },
+
+        // ── Boss appearance per type ──
+        bossTheme: {
+            brute: {
+                body: '#4e7a2e',       // mossy green
+                stroke: '#2e5a10',
+                eyes: '#a8d840',
+                eyesFlash: '#66ff33',
+                chargeAura: '#4caf50',
+            },
+            warlock: {
+                body: '#2d6a4f',       // deep jungle green
+                stroke: '#1b4332',
+                innerEye: '#95d5b2',
+                innerEyeFlash: '#66bb6a',
+                pupil: '#0b2218',
+                orbit: '#4caf50',
+            },
+            phantom: {
+                body: '#20b2aa',       // teal-green
+                stroke: '#0e6655',
+                glow: '#b2dfdb',
+                afterimage: '#20b2aa',
+            },
+        },
     },
 
     // ── 2. DESERT (Stages 6–10, 26–30, …) ─────────────────
@@ -122,6 +147,31 @@ const BIOMES = [
             tintColor: 'rgba(200,160,80,0.04)',
             vignetteColor: 'rgba(40,25,5,0.30)',
             vignetteSize: 0.28,
+        },
+
+        // ── Boss appearance per type ──
+        bossTheme: {
+            brute: {
+                body: '#c68a17',       // golden sand
+                stroke: '#8b6914',
+                eyes: '#ffe082',
+                eyesFlash: '#ffcc00',
+                chargeAura: '#ffa726',
+            },
+            warlock: {
+                body: '#a0522d',       // sienna
+                stroke: '#6d3a1f',
+                innerEye: '#ffd54f',
+                innerEyeFlash: '#ffb300',
+                pupil: '#3e2723',
+                orbit: '#d4a056',
+            },
+            phantom: {
+                body: '#d4a056',       // dusty gold
+                stroke: '#8d6e63',
+                glow: '#fff8e1',
+                afterimage: '#d4a056',
+            },
         },
     },
 
@@ -174,6 +224,31 @@ const BIOMES = [
             vignetteColor: 'rgba(30,5,0,0.40)',
             vignetteSize: 0.35,
         },
+
+        // ── Boss appearance per type ──
+        bossTheme: {
+            brute: {
+                body: '#c62828',       // crimson
+                stroke: '#7f0000',
+                eyes: '#ff8a65',
+                eyesFlash: '#ff5722',
+                chargeAura: '#ff4444',
+            },
+            warlock: {
+                body: '#7b1fa2',       // deep purple fire
+                stroke: '#4a0072',
+                innerEye: '#ff8a80',
+                innerEyeFlash: '#ff5252',
+                pupil: '#1a0020',
+                orbit: '#e040fb',
+            },
+            phantom: {
+                body: '#e65100',       // ember orange
+                stroke: '#bf360c',
+                glow: '#ffccbc',
+                afterimage: '#e65100',
+            },
+        },
     },
 
     // ── 4. DEPTHS (Stages 16–20, 36–40, …) ────────────────
@@ -224,6 +299,31 @@ const BIOMES = [
             tintColor: 'rgba(40,80,200,0.06)',
             vignetteColor: 'rgba(0,5,30,0.45)',
             vignetteSize: 0.38,
+        },
+
+        // ── Boss appearance per type ──
+        bossTheme: {
+            brute: {
+                body: '#1565c0',       // deep blue
+                stroke: '#0d47a1',
+                eyes: '#64b5f6',
+                eyesFlash: '#42a5f5',
+                chargeAura: '#1e88e5',
+            },
+            warlock: {
+                body: '#4527a0',       // deep indigo
+                stroke: '#1a237e',
+                innerEye: '#b39ddb',
+                innerEyeFlash: '#9575cd',
+                pupil: '#0d0040',
+                orbit: '#7c4dff',
+            },
+            phantom: {
+                body: '#00838f',       // deep teal
+                stroke: '#004d40',
+                glow: '#b2ebf2',
+                afterimage: '#00838f',
+            },
         },
     },
 ];

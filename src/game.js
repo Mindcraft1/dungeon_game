@@ -27,7 +27,7 @@ import {
     HAZARD_LAVA_SLOW,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
@@ -100,6 +100,7 @@ export class Game {
         this.hazards = [];
         this.door = null;
         this.grid = null;
+        this._currentSpawnPos = null;  // track for save/restore from training
         this.controlsHintTimer = 0;
 
         // Mode flags
@@ -130,7 +131,8 @@ export class Game {
         this.muted = Audio.isMuted();
 
         // ── Settings screen ──
-        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Back
+        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=Back
+        this.proceduralRooms = this._loadRoomModeSetting();
 
         // ── Particles ──
         this.particles = new ParticleSystem();
@@ -424,8 +426,12 @@ export class Game {
     // ── Room management ────────────────────────────────────
 
     loadRoom(templateIndex) {
-        const { grid, spawnPos, doorPos } = parseRoom(templateIndex);
+        // Use procedural generation if enabled, otherwise use predefined templates
+        const { grid, spawnPos, doorPos } = this.proceduralRooms
+            ? generateProceduralRoom(this.stage || 1)
+            : parseRoom(templateIndex);
         this.grid = grid;
+        this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this._spawnEnemies(grid, spawnPos, doorPos);
@@ -721,6 +727,7 @@ export class Game {
     _loadBossRoom() {
         const { grid, spawnPos, doorPos } = parseBossRoom();
         this.grid = grid;
+        this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this.enemies = [];
@@ -737,7 +744,7 @@ export class Game {
         const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM];
         const bossType = bossTypes[encounter % bossTypes.length];
 
-        this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage);
+        this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage, this.currentBiome);
         Audio.playBossRoar();
         this.controlsHintTimer = 3000;
     }
@@ -756,6 +763,7 @@ export class Game {
             coinPickups: this.coinPickups,
             hazards: this.hazards,
             boss: this.boss,
+            spawnPos: this._currentSpawnPos,
         };
         this._openTrainingConfig(true);
     }
@@ -815,7 +823,9 @@ export class Game {
         this._savedGame = null;
 
         let spawnPos;
-        if (this._isBossStage(this.stage)) {
+        if (this._savedGame.spawnPos) {
+            spawnPos = this._savedGame.spawnPos;
+        } else if (this._isBossStage(this.stage)) {
             ({ spawnPos } = parseBossRoom());
         } else {
             ({ spawnPos } = parseRoom(this.stage - 1));
@@ -2000,7 +2010,7 @@ export class Game {
     }
 
     _updateSettings() {
-        const count = 3; // 0=SFX, 1=Music, 2=Back
+        const count = 4; // 0=SFX, 1=Music, 2=Rooms, 3=Back
 
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.settingsCursor = (this.settingsCursor - 1 + count) % count;
@@ -2017,12 +2027,12 @@ export class Game {
             return;
         }
 
-        // Toggle with Enter/Space or Left/Right arrows on SFX/Music rows
+        // Toggle with Enter/Space or Left/Right arrows on toggleable rows
         const toggle = wasPressed('Enter') || wasPressed('Space');
         const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
                        || wasPressed('KeyA') || wasPressed('KeyD');
 
-        if (toggle || (leftRight && this.settingsCursor < 2)) {
+        if (toggle || (leftRight && this.settingsCursor < 3)) {
             Audio.playMenuSelect();
             if (this.settingsCursor === 0) {
                 // Toggle SFX mute
@@ -2032,10 +2042,28 @@ export class Game {
                 // Toggle music
                 Music.toggleMusicEnabled();
             } else if (this.settingsCursor === 2) {
+                // Toggle room generation mode
+                this.proceduralRooms = !this.proceduralRooms;
+                this._saveRoomModeSetting();
+            } else if (this.settingsCursor === 3) {
                 // Back to menu
                 this.state = STATE_MENU;
             }
         }
+    }
+
+    _loadRoomModeSetting() {
+        try {
+            const val = localStorage.getItem('dungeon_procedural_rooms');
+            if (val === null) return true; // default: procedural
+            return val === 'true';
+        } catch (e) { return true; }
+    }
+
+    _saveRoomModeSetting() {
+        try {
+            localStorage.setItem('dungeon_procedural_rooms', this.proceduralRooms ? 'true' : 'false');
+        } catch (e) {}
     }
 
     _updateLevelUp() {
@@ -2437,7 +2465,7 @@ export class Game {
         }
 
         if (this.state === STATE_SETTINGS) {
-            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled());
+            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms);
             this._renderCheatNotifications(ctx);
             return;
         }

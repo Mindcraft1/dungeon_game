@@ -124,11 +124,15 @@
 ---
 
 ### 10. Procedural Room Generation
-- **Algorithmen:** BSP-Tree oder Cellular Automata
-- **Umsetzung:** Neue Generator-Funktion in `rooms.js`, gibt ASCII-Grid zurück
-- **Warum:** Unendliche Raum-Varianz statt 14 feste Templates
-- **Aufwand:** ~6h
-- **Status:** ⬜ Offen
+- **Algorithmen:** Custom procedural placement (pillars, walls, L-shapes, chokepoints)
+- **Difficulty Scaling:** Obstacle count & complexity increase with stage (difficulty 0.0→1.0 over 20 stages)
+- **Guarantees:** Flood-fill connectivity validation, safe zones around spawn/door
+- **Boss Arenas:** Keep dedicated handcrafted template (not procedural)
+- **Training Room:** Unchanged (dedicated template)
+- **Settings Toggle:** PREDEFINED / PROCEDURAL in Settings screen, persisted in localStorage
+- **Umsetzung:** `generateProceduralRoom(stage)` in `rooms.js`, toggle in `settings.js` + `game.js`
+- **Aufwand:** ~3h
+- **Status:** ✅ Fertig
 
 ---
 

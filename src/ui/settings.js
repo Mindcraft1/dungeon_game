@@ -6,8 +6,9 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {number} cursor – currently selected option index
  * @param {boolean} sfxMuted – whether SFX are muted
  * @param {boolean} musicEnabled – whether music is enabled
+ * @param {boolean} proceduralRooms – whether procedural room generation is enabled
  */
-export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
+export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -38,7 +39,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
     // Subtitle
     ctx.fillStyle = '#666';
     ctx.font = '13px monospace';
-    ctx.fillText('Configure audio and view controls', CANVAS_WIDTH / 2, 160);
+    ctx.fillText('Configure audio, controls & gameplay', CANVAS_WIDTH / 2, 160);
 
     // ── Settings items ──
     const items = [
@@ -55,6 +56,15 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
             valueColor: musicEnabled ? '#4caf50' : '#e74c3c',
             color: '#bb86fc',
             desc: 'Toggle background music',
+        },
+        {
+            label: 'ROOMS',
+            value: proceduralRooms ? 'PROCEDURAL' : 'PREDEFINED',
+            valueColor: proceduralRooms ? '#ff9800' : '#4caf50',
+            color: '#ff9800',
+            desc: proceduralRooms
+                ? 'Rooms are randomly generated each run'
+                : 'Rooms use handcrafted layouts',
         },
         {
             label: 'BACK',
@@ -74,7 +84,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
 
         // Selection box
         if (selected) {
-            const boxW = 360;
+            const boxW = 400;
             const boxH = 54;
             ctx.fillStyle = 'rgba(79,195,247,0.08)';
             ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
@@ -86,7 +96,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
             ctx.fillStyle = item.color;
             ctx.font = 'bold 18px monospace';
             ctx.textAlign = 'right';
-            ctx.fillText('▸', CANVAS_WIDTH / 2 - 155, y + 2);
+            ctx.fillText('▸', CANVAS_WIDTH / 2 - 175, y + 2);
             ctx.textAlign = 'center';
         }
 
@@ -96,11 +106,11 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled) {
         if (item.value) {
             // Label on left, value on right
             ctx.textAlign = 'left';
-            ctx.fillText(item.label, CANVAS_WIDTH / 2 - 120, y);
+            ctx.fillText(item.label, CANVAS_WIDTH / 2 - 150, y);
             ctx.textAlign = 'right';
             ctx.fillStyle = selected ? item.valueColor : '#555';
-            ctx.font = 'bold 20px monospace';
-            ctx.fillText(item.value, CANVAS_WIDTH / 2 + 140, y);
+            ctx.font = 'bold 18px monospace';
+            ctx.fillText(item.value, CANVAS_WIDTH / 2 + 170, y);
             ctx.textAlign = 'center';
         } else {
             ctx.fillText(item.label, CANVAS_WIDTH / 2, y);

@@ -367,6 +367,325 @@ function _parse(template) {
     return { grid, spawnPos, doorPos };
 }
 
+// ── Procedural Room Generation ─────────────────────────────
+
+/**
+ * Generate a procedural room for the given stage.
+ * Layout difficulty increases with stage:
+ *  - More wall obstacles
+ *  - Tighter corridors & chokepoints
+ *  - More complex structures (pillars → walls → mazes)
+ *
+ * Guarantees:
+ *  - S (spawn) at left, D (door) at right — always connected
+ *  - Border walls always present
+ *  - Playable path always exists (flood-fill validated)
+ *
+ * @param {number} stage - Current game stage (1-based)
+ * @returns {{ grid: boolean[][], spawnPos: {col,row}, doorPos: {col,row} }}
+ */
+export function generateProceduralRoom(stage) {
+    // Seeded RNG for reproducibility within a run (but different each run)
+    let _seed = (stage * 9973 + (Date.now() & 0xffff)) | 0;
+    function _rng() {
+        _seed = (_seed * 16807 + 0) % 2147483647;
+        return (_seed & 0x7fffffff) / 0x7fffffff;
+    }
+    function _rngInt(min, max) {
+        return min + Math.floor(_rng() * (max - min + 1));
+    }
+
+    // Start with empty room (border walls)
+    const template = [];
+    for (let r = 0; r < ROWS; r++) {
+        let row = '';
+        for (let c = 0; c < COLS; c++) {
+            if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) {
+                row += '#';
+            } else {
+                row += '.';
+            }
+        }
+        template.push(row.split(''));
+    }
+
+    // Fixed spawn & door positions
+    const spawnRow = 7;
+    const spawnCol = 1;
+    const doorRow = 7;
+    const doorCol = COLS - 2;
+    template[spawnRow][spawnCol] = 'S';
+    template[doorRow][doorCol] = 'D';
+
+    // ── Difficulty scaling ──
+    // difficulty ramps from 0.0 (stage 1) to ~1.0 (stage 20+)
+    const difficulty = Math.min(1.0, (stage - 1) / 19);
+
+    // Number of obstacle structures to place
+    const minStructures = 1 + Math.floor(difficulty * 3);
+    const maxStructures = 3 + Math.floor(difficulty * 6);
+    const structCount = _rngInt(minStructures, maxStructures);
+
+    // Place obstacle structures
+    for (let s = 0; s < structCount; s++) {
+        const structType = _rng();
+
+        if (structType < 0.3) {
+            // Single pillar (1×1 or 2×2)
+            const size = difficulty > 0.3 && _rng() < 0.5 ? 2 : 1;
+            _placePillar(template, size, _rng, _rngInt);
+        } else if (structType < 0.6) {
+            // Horizontal wall segment
+            const len = _rngInt(2, 3 + Math.floor(difficulty * 4));
+            _placeHWall(template, len, _rng, _rngInt);
+        } else if (structType < 0.8) {
+            // Vertical wall segment
+            const len = _rngInt(2, 2 + Math.floor(difficulty * 3));
+            _placeVWall(template, len, _rng, _rngInt);
+        } else {
+            // L-shape or T-shape (harder rooms)
+            if (difficulty > 0.4) {
+                _placeLShape(template, _rng, _rngInt, difficulty);
+            } else {
+                _placePillar(template, 2, _rng, _rngInt);
+            }
+        }
+    }
+
+    // ── Add chokepoints at higher difficulty ──
+    if (difficulty > 0.5) {
+        const chokeCount = _rngInt(1, Math.floor(difficulty * 3));
+        for (let i = 0; i < chokeCount; i++) {
+            _placeChokepoint(template, _rng, _rngInt, difficulty);
+        }
+    }
+
+    // ── Ensure connectivity (flood-fill from S to D) ──
+    // If not connected, carve a path
+    _ensureConnectivity(template, spawnCol, spawnRow, doorCol, doorRow);
+
+    // ── Ensure safe zones around spawn and door ──
+    _clearSafeZone(template, spawnCol, spawnRow, 2);
+    _clearSafeZone(template, doorCol, doorRow, 2);
+
+    // ── Eliminate isolated floor pockets ──
+    // Any floor tile unreachable from spawn becomes a wall so enemies
+    // can never spawn in an enclosed area the player can't reach.
+    _fillUnreachable(template, spawnCol, spawnRow);
+
+    // Parse the template
+    return _parse(template.map(row => row.join('')));
+}
+
+/** Place a square pillar (1×1 or 2×2) on the grid */
+function _placePillar(template, size, _rng, _rngInt) {
+    const maxR = ROWS - 2 - size;
+    const maxC = COLS - 2 - size;
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const r = _rngInt(2, maxR);
+        const c = _rngInt(3, maxC - 1); // avoid spawn/door columns
+        if (_isNearSpecial(template, r, c, size, 3)) continue;
+        for (let dr = 0; dr < size; dr++) {
+            for (let dc = 0; dc < size; dc++) {
+                template[r + dr][c + dc] = '#';
+            }
+        }
+        return;
+    }
+}
+
+/** Place a horizontal wall segment */
+function _placeHWall(template, len, _rng, _rngInt) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const r = _rngInt(2, ROWS - 3);
+        const c = _rngInt(3, COLS - 3 - len);
+        if (_isNearSpecial(template, r, c, 1, 3)) continue;
+        if (_isNearSpecial(template, r, c + len - 1, 1, 3)) continue;
+        for (let dc = 0; dc < len; dc++) {
+            template[r][c + dc] = '#';
+        }
+        return;
+    }
+}
+
+/** Place a vertical wall segment */
+function _placeVWall(template, len, _rng, _rngInt) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const r = _rngInt(2, ROWS - 3 - len);
+        const c = _rngInt(3, COLS - 4);
+        if (_isNearSpecial(template, r, c, 1, 3)) continue;
+        if (_isNearSpecial(template, r + len - 1, c, 1, 3)) continue;
+        for (let dr = 0; dr < len; dr++) {
+            template[r + dr][c] = '#';
+        }
+        return;
+    }
+}
+
+/** Place an L-shaped wall */
+function _placeLShape(template, _rng, _rngInt, difficulty) {
+    const hLen = _rngInt(2, 3 + Math.floor(difficulty * 2));
+    const vLen = _rngInt(2, 3 + Math.floor(difficulty * 2));
+
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const r = _rngInt(2, ROWS - 3 - vLen);
+        const c = _rngInt(3, COLS - 4 - hLen);
+        if (_isNearSpecial(template, r, c, 1, 3)) continue;
+
+        // Horizontal part
+        for (let dc = 0; dc < hLen; dc++) {
+            template[r][c + dc] = '#';
+        }
+        // Vertical part (going down from the left end)
+        for (let dr = 1; dr < vLen; dr++) {
+            template[r + dr][c] = '#';
+        }
+        return;
+    }
+}
+
+/** Place a chokepoint — walls protruding from top and bottom */
+function _placeChokepoint(template, _rng, _rngInt, difficulty) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const c = _rngInt(5, COLS - 6);
+        // Check if column is near spawn/door
+        if (c <= 3 || c >= COLS - 4) continue;
+
+        const topLen = _rngInt(2, 3 + Math.floor(difficulty * 2));
+        const botLen = _rngInt(2, 3 + Math.floor(difficulty * 2));
+
+        // Ensure a gap of at least 3 tiles in the middle
+        const totalBlocked = topLen + botLen;
+        const innerHeight = ROWS - 2; // 13 inner tiles
+        if (totalBlocked > innerHeight - 3) continue;
+
+        // Place from top
+        for (let dr = 0; dr < topLen; dr++) {
+            const r = 1 + dr;
+            if (template[r][c] !== 'S' && template[r][c] !== 'D') {
+                template[r][c] = '#';
+            }
+        }
+        // Place from bottom
+        for (let dr = 0; dr < botLen; dr++) {
+            const r = ROWS - 2 - dr;
+            if (template[r][c] !== 'S' && template[r][c] !== 'D') {
+                template[r][c] = '#';
+            }
+        }
+        return;
+    }
+}
+
+/** Check if a position is too close to S or D markers */
+function _isNearSpecial(template, r, c, size, minDist) {
+    for (let dr = -minDist; dr < size + minDist; dr++) {
+        for (let dc = -minDist; dc < size + minDist; dc++) {
+            const rr = r + dr;
+            const cc = c + dc;
+            if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) continue;
+            const ch = template[rr][cc];
+            if (ch === 'S' || ch === 'D') return true;
+        }
+    }
+    return false;
+}
+
+/** Clear a safe zone around a position (set to floor) */
+function _clearSafeZone(template, col, row, radius) {
+    for (let dr = -radius; dr <= radius; dr++) {
+        for (let dc = -radius; dc <= radius; dc++) {
+            const rr = row + dr;
+            const cc = col + dc;
+            if (rr <= 0 || rr >= ROWS - 1 || cc <= 0 || cc >= COLS - 1) continue;
+            const ch = template[rr][cc];
+            if (ch !== 'S' && ch !== 'D') {
+                template[rr][cc] = '.';
+            }
+        }
+    }
+}
+
+/** Ensure S and D are connected via flood-fill; carve a path if not */
+function _ensureConnectivity(template, sc, sr, dc, dr) {
+    // Flood-fill from spawn
+    const visited = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const queue = [{ r: sr, c: sc }];
+    visited[sr][sc] = true;
+
+    while (queue.length > 0) {
+        const { r, c } = queue.shift();
+        if (r === dr && c === dc) return; // Already connected
+
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [ddr, ddc] of dirs) {
+            const nr = r + ddr;
+            const nc = c + ddc;
+            if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
+            if (visited[nr][nc]) continue;
+            const ch = template[nr][nc];
+            if (ch === '#') continue;
+            visited[nr][nc] = true;
+            queue.push({ r: nr, c: nc });
+        }
+    }
+
+    // Not connected — carve a simple path from spawn to door
+    let cr = sr, cc = sc;
+    while (cc !== dc || cr !== dr) {
+        if (cc < dc) cc++;
+        else if (cc > dc) cc--;
+        else if (cr < dr) cr++;
+        else if (cr > dr) cr--;
+
+        if (template[cr][cc] === '#') {
+            template[cr][cc] = '.';
+        }
+        // Also clear one tile above or below for wider passage
+        if (cr > 1 && template[cr - 1][cc] === '#' && Math.random() < 0.3) {
+            template[cr - 1][cc] = '.';
+        }
+        if (cr < ROWS - 2 && template[cr + 1][cc] === '#' && Math.random() < 0.3) {
+            template[cr + 1][cc] = '.';
+        }
+    }
+}
+
+/**
+ * Flood-fill from spawn and convert every floor tile that is NOT reachable
+ * into a wall. This prevents enemies from spawning in isolated pockets
+ * created by obstacle placement.
+ */
+function _fillUnreachable(template, sc, sr) {
+    const visited = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const queue = [{ r: sr, c: sc }];
+    visited[sr][sc] = true;
+
+    while (queue.length > 0) {
+        const { r, c } = queue.shift();
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
+            if (visited[nr][nc]) continue;
+            const ch = template[nr][nc];
+            if (ch === '#') continue;
+            visited[nr][nc] = true;
+            queue.push({ r: nr, c: nc });
+        }
+    }
+
+    // Any non-wall tile that wasn't visited is unreachable → make it a wall
+    for (let r = 1; r < ROWS - 1; r++) {
+        for (let c = 1; c < COLS - 1; c++) {
+            if (!visited[r][c] && template[r][c] !== '#') {
+                template[r][c] = '#';
+            }
+        }
+    }
+}
+
 /**
  * Pick random free tiles for enemy spawns (min distance from player spawn).
  */
