@@ -159,7 +159,7 @@
 - **Umsetzung:** Achievement-Daten in `localStorage`, Badge-Anzeige im Profil-Screen
 - **Warum:** Langzeit-Motivation und Ziele
 - **Aufwand:** ~3h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 
@@ -176,5 +176,5 @@
 | 7 | Ranged Attack | ~2h | ⭐⭐⭐ | Gameplay-Tiefe |
 | 8 | Charakter-Klassen | ~5h | ⭐⭐⭐⭐ | Wiederspielwert |
 | 9 | Run-Modifiers | ~4h | ⭐⭐⭐⭐ | Wiederspielwert |
-| 10 | Achievements | ~3h | ⭐⭐⭐ | Langzeit-Motivation |
+| 10 | Achievements ✅ | ~3h | ⭐⭐⭐ | Langzeit-Motivation |
 | 11 | Procedural Rooms | ~6h | ⭐⭐⭐ | Nice-to-have |

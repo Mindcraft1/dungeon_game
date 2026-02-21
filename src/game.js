@@ -9,7 +9,7 @@ import {
     UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
-    STATE_META_SHOP, STATE_SHOP_RUN,
+    STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
@@ -52,13 +52,20 @@ import * as MetaStore from './meta/metaStore.js';
 import * as RewardSystem from './meta/rewardSystem.js';
 import { RELIC_DEFINITIONS } from './meta/relics.js';
 import { RUN_UPGRADE_DEFINITIONS, getUnlockedRunUpgradeIds } from './meta/rewardSystem.js';
-import { PERK_IDS, upgradePerk, canUpgrade } from './meta/metaPerks.js';
+import { PERK_IDS, upgradePerk, canUpgrade, isMaxed as isPerkMaxed } from './meta/metaPerks.js';
 import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
 import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from './meta/uiRewardsToast.js';
 import { getAvailableShards } from './meta/metaState.js';
 import { renderMetaShop } from './ui/metaShop.js';
 import { renderRunShop } from './ui/runShop.js';
 import { renderBuffSummary } from './ui/buffSummary.js';
+
+// ── Achievement System ──
+import { emit as achEmit } from './achievements/achievementEvents.js';
+import * as AchievementStore from './achievements/achievementStore.js';
+import * as AchievementEngine from './achievements/achievementEngine.js';
+import { renderAchievements } from './achievements/uiAchievements.js';
+import { ACHIEVEMENTS, TIER_ORDER } from './achievements/achievementsList.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -79,6 +86,8 @@ export class Game {
 
         // Load meta progression for the active profile
         MetaStore.load(this.activeProfileIndex);
+        AchievementStore.load(this.activeProfileIndex);
+        AchievementEngine.init((def) => this._onAchievementUnlock(def));
 
         // Start at profiles screen if no profiles exist, otherwise menu
         this.state = this.profiles.length === 0 ? STATE_PROFILES : STATE_MENU;
@@ -175,6 +184,11 @@ export class Game {
             xpboost:    false,   // BIGXP  — 10× XP gain
         };
         this.cheatNotifications = [];  // [{text, timer, color}]
+
+        // ── Achievements ──
+        this.achievementCursor = 0;
+        this.achievementFilter = 0;  // 0=All, 1-5=tier
+        this._achievementToasts = [];  // [{text, icon, color, timer, maxTimer}]
 
         // ── Shop System ──
         this.runCoins = 0;                     // reset per run
@@ -315,10 +329,22 @@ export class Game {
         this.cheatNotifications.push({ text, timer: 2500, color });
     }
 
+    /** Called by achievementEngine when an achievement unlocks */
+    _onAchievementUnlock(def) {
+        Audio.playAchievementUnlock();
+        this._achievementToasts.push({
+            text: def.name,
+            icon: def.icon,
+            color: '#e040fb',
+            timer: 3500,
+            maxTimer: 3500,
+        });
+    }
+
     // ── Menu ───────────────────────────────────────────────
 
     _updateMenu() {
-        const count = 6; // Play, Meta Progress, Shop, Characters, Training, Settings
+        const count = 7; // Play, Meta Progress, Shop, Achievements, Characters, Training, Settings
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.menuIndex = (this.menuIndex - 1 + count) % count;
             Audio.playMenuNav();
@@ -337,13 +363,17 @@ export class Game {
                 this.metaShopCursor = 0;
                 this.state = STATE_META_SHOP;
             } else if (this.menuIndex === 3) {
+                this.achievementCursor = 0;
+                this.achievementFilter = 0;
+                this.state = STATE_ACHIEVEMENTS;
+            } else if (this.menuIndex === 4) {
                 this.profileCursor = 0;
                 this.profileCreating = false;
                 this.profileDeleting = false;
                 this.state = STATE_PROFILES;
-            } else if (this.menuIndex === 4) {
-                this._openTrainingConfig(false);
             } else if (this.menuIndex === 5) {
+                this._openTrainingConfig(false);
+            } else if (this.menuIndex === 6) {
                 this.settingsCursor = 0;
                 this.state = STATE_SETTINGS;
             }
@@ -389,6 +419,13 @@ export class Game {
         this.activeMetaBoosterId = this.purchasedMetaBoosterId;
         this.purchasedMetaBoosterId = null;  // consumed
         this._applyMetaBooster();
+
+        // ── Achievement event: run start ──
+        achEmit('run_start', { metaBoosterActive: !!this.activeMetaBoosterId });
+        achEmit('stage_entered', { stage: 1 });
+        if (this.currentBiome) {
+            achEmit('biome_changed', { biomeId: this.currentBiome.id });
+        }
 
         this.state = STATE_PLAYING;
     }
@@ -441,6 +478,13 @@ export class Game {
         this.coinPickups = [];
         this.playerProjectiles = [];
         this.particles.clear();
+
+        // ── Achievement event: room started ──
+        achEmit('room_started', {
+            stage: this.stage,
+            enemyCount: this.enemies.length,
+            hasTraps: this.hazards.length > 0,
+        });
 
         // Run upgrade: shield — grant shield charge as invuln at room start
         if (this.runUpgradesActive && this.runUpgradesActive.upgrade_shield && this.shieldCharges > 0) {
@@ -706,6 +750,12 @@ export class Game {
             this.shieldCharges = Math.min(this.shieldCharges + 1, 3);
         }
 
+        // ── Achievement events: stage entered + biome ──
+        achEmit('stage_entered', { stage: this.stage });
+        if (this.currentBiome) {
+            achEmit('biome_changed', { biomeId: this.currentBiome.id });
+        }
+
         // Announce biome change
         if (this.currentBiome && (!oldBiome || oldBiome.id !== this.currentBiome.id)) {
             this.biomeAnnounceTimer = 3000;
@@ -747,6 +797,10 @@ export class Game {
         this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage, this.currentBiome);
         Audio.playBossRoar();
         this.controlsHintTimer = 3000;
+
+        // ── Achievement events: boss fight + room started ──
+        achEmit('boss_fight_started', { stage: this.stage });
+        achEmit('room_started', { stage: this.stage, enemyCount: 1, hasTraps: false });
     }
 
     // ── Teleport to training (T key) ──────────────────────
@@ -937,6 +991,11 @@ export class Game {
                 if (canUpgrade(perkId)) {
                     upgradePerk(perkId);
                     Audio.playPerkUpgrade();
+                    achEmit('meta_upgrade_bought', { perkId });
+                    // Check if perk reached max level
+                    if (isPerkMaxed(perkId)) {
+                        achEmit('meta_perk_maxed', { perkId });
+                    }
                 } else {
                     // Can't afford or maxed — do nothing
                 }
@@ -1132,6 +1191,7 @@ export class Game {
                     this.purchasedMetaBoosterId = id;
                     showToast(`Purchased: ${booster.name}!`, booster.color, booster.icon);
                     Audio.playMenuSelect();
+                    achEmit('shop_purchase_meta_booster', { boosterId: id, costShards: booster.cost });
                 } else {
                     showToast('Not enough Core Shards', '#e74c3c', '✗');
                 }
@@ -1197,6 +1257,9 @@ export class Game {
         }
         this.runCoins -= item.cost;
         Audio.playMenuSelect();
+
+        // ── Achievement event: run shop purchase ──
+        achEmit('shop_purchase_run_item', { itemId: id, costCoins: item.cost });
 
         switch (id) {
             case 'run_item_max_hp_boost':
@@ -1291,6 +1354,10 @@ export class Game {
         // Always update toasts
         updateToasts(dt);
 
+        // Update achievement toasts
+        for (const at of this._achievementToasts) at.timer -= dt * 1000;
+        this._achievementToasts = this._achievementToasts.filter(t => t.timer > 0);
+
         // ── Cheat code processing ──
         this._processCheatCodes();
         // Update cheat notifications
@@ -1310,6 +1377,7 @@ export class Game {
             case STATE_SETTINGS:        this._updateSettings();      break;
             case STATE_META_SHOP:       this._updateMetaShop();      break;
             case STATE_SHOP_RUN:        this._updateRunShop();       break;
+            case STATE_ACHIEVEMENTS:    this._updateAchievements();  break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -1356,6 +1424,7 @@ export class Game {
                 this.activeProfileIndex = this.profileCursor;
                 this._saveProfiles();
                 MetaStore.load(this.activeProfileIndex);
+                AchievementStore.load(this.activeProfileIndex);
                 this.state = STATE_MENU;
                 this.menuIndex = 0;
             } else {
@@ -1393,6 +1462,7 @@ export class Game {
                 this.activeProfileIndex = this.profiles.length - 1;
                 this._saveProfiles();
                 MetaStore.load(this.activeProfileIndex);
+                AchievementStore.load(this.activeProfileIndex);
                 this.profileCreating = false;
                 this.profileCursor = this.activeProfileIndex;
             }
@@ -1419,6 +1489,7 @@ export class Game {
         if (index < 0 || index >= this.profiles.length) return;
         // Delete meta data for this profile (and shift higher indices)
         MetaStore.deleteProfileMeta(index, this.profiles.length);
+        AchievementStore.deleteProfileAchievements(index, this.profiles.length);
         this.profiles.splice(index, 1);
         // Adjust active index
         if (this.activeProfileIndex >= this.profiles.length) {
@@ -1433,6 +1504,7 @@ export class Game {
         this._saveProfiles();
         // Reload meta for the (possibly changed) active profile
         MetaStore.load(this.activeProfileIndex);
+        AchievementStore.load(this.activeProfileIndex);
     }
 
     _updatePlaying(dt) {
@@ -1647,6 +1719,9 @@ export class Game {
                 e.xpGiven = true;
                 Audio.playEnemyDeath();
 
+                // ── Achievement event: enemy killed ──
+                achEmit('enemy_killed', { enemyType: e.type, isElite: (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER) });
+
                 // Death explosion particles
                 const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
                 this.particles.enemyDeath(e.x, e.y, eColor, e.radius);
@@ -1757,6 +1832,14 @@ export class Game {
             this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
             triggerShake(15, 0.92);
 
+            // ── Achievement events: boss killed + room cleared ──
+            achEmit('boss_killed', {
+                bossIndexInRun: this.bossesKilledThisRun,
+                stage: this.stage,
+                biome: this.currentBiome ? this.currentBiome.id : null,
+            });
+            achEmit('room_cleared', { stage: this.stage });
+
             // ── Meta Progression: boss kill rewards ──
             this.bossesKilledThisRun++;
             // Coin reward for boss kill
@@ -1773,6 +1856,7 @@ export class Game {
                 const relic = RELIC_DEFINITIONS[reward.relicId];
                 showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
                 Audio.playRelicUnlock();
+                achEmit('relic_unlocked', { relicId: reward.relicId });
             }
             // Toast for run upgrade unlock
             if (reward.runUpgradeId) {
@@ -1835,6 +1919,10 @@ export class Game {
             Audio.playPlayerHurt();
             this.particles.playerDamage(this.player.x, this.player.y);
             triggerShake(6, 0.86);
+
+            // ── Achievement event: player took damage ──
+            achEmit('player_took_damage', { amount: hpBefore - this.player.hp, stage: this.stage });
+
             // Run upgrade: thorns — 10% chance reflect 5 dmg to nearest enemy
             if (this.runUpgradesActive.upgrade_thorns) {
                 if (Math.random() < 0.10) {
@@ -1872,6 +1960,9 @@ export class Game {
                 }
                 this.player.applyBuff(pk.type);
                 pk.dead = true;
+
+                // ── Achievement event: pickup collected ──
+                achEmit('pickup_collected', { pickupType: pk.type });
             }
         }
         this.pickups = this.pickups.filter(pk => !pk.dead);
@@ -1884,6 +1975,9 @@ export class Game {
                 Audio.playPickup();
                 this.particles.pickupCollect(coin.x, coin.y, '#ffd700', '#ffe082');
                 coin.dead = true;
+
+                // ── Achievement event: coins gained ──
+                achEmit('coins_gained', { amount: coin.value });
             }
         }
         this.coinPickups = this.coinPickups.filter(c => !c.dead);
@@ -1921,6 +2015,12 @@ export class Game {
         } else {
             if (this.door.checkCollision(this.player)) {
                 Audio.playDoorEnter();
+
+                // ── Achievement event: room cleared (non-boss) ──
+                if (!this._isBossStage(this.stage)) {
+                    achEmit('room_cleared', { stage: this.stage });
+                }
+
                 this.nextRoom();
             }
         }
@@ -1936,6 +2036,7 @@ export class Game {
                 this.particles.levelUp(this.player.x, this.player.y);
                 triggerShake(10, 0.92);
                 showBigToast('💀 REVIVED! 💀', '#ffd700', '💀');
+                achEmit('revive_used', {});
             } else {
                 this._saveHighscore();
                 this.player.clearBuffs();
@@ -1944,6 +2045,7 @@ export class Game {
                 triggerShake(10, 0.9);
                 // Meta: finalize run
                 RewardSystem.onRunEnd(this.stage);
+                achEmit('run_end', { stage: this.stage });
                 this.state = STATE_GAME_OVER;
             }
         }
@@ -2117,6 +2219,9 @@ export class Game {
             this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
         }
 
+        // ── Achievement event: player level changed ──
+        achEmit('player_level_changed', { level: this.player.level });
+
         this.upgradeIndex = 0;
         this._levelUpSpaceReady = false;
 
@@ -2272,6 +2377,44 @@ export class Game {
         if (wasPressed('KeyG')) {
             Audio.playMenuSelect();
             this._openMetaMenu(true);
+        }
+    }
+
+    _updateAchievements() {
+        const filterLabels = ['All', ...TIER_ORDER];
+        const filterCount = filterLabels.length;
+
+        // Tab switching (A/D)
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.achievementFilter = (this.achievementFilter - 1 + filterCount) % filterCount;
+            this.achievementCursor = 0;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.achievementFilter = (this.achievementFilter + 1) % filterCount;
+            this.achievementCursor = 0;
+            Audio.playMenuNav();
+        }
+
+        // Row navigation
+        const filtered = this.achievementFilter === 0
+            ? ACHIEVEMENTS
+            : ACHIEVEMENTS.filter(a => a.tier === TIER_ORDER[this.achievementFilter - 1]);
+
+        if (filtered.length > 0) {
+            if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+                this.achievementCursor = (this.achievementCursor - 1 + filtered.length) % filtered.length;
+                Audio.playMenuNav();
+            }
+            if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+                this.achievementCursor = (this.achievementCursor + 1) % filtered.length;
+                Audio.playMenuNav();
+            }
+        }
+
+        if (wasPressed('Escape')) {
+            this.state = STATE_MENU;
+            this.menuIndex = 0;
         }
     }
 
@@ -2478,6 +2621,13 @@ export class Game {
             return;
         }
 
+        if (this.state === STATE_ACHIEVEMENTS) {
+            renderAchievements(ctx, this.achievementCursor, this.achievementFilter);
+            this._renderAchievementToasts(ctx);
+            this._renderCheatNotifications(ctx);
+            return;
+        }
+
         renderRoom(ctx, this.grid, this.currentBiome, this.stage || 0);
         for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
@@ -2588,6 +2738,9 @@ export class Game {
 
         // ── Meta rewards toasts ──
         renderToasts(ctx);
+
+        // ── Achievement unlock toasts ──
+        this._renderAchievementToasts(ctx);
 
         // Overlays
         if (this.state === STATE_PAUSED) {
@@ -2771,6 +2924,49 @@ export class Game {
             : 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
+        ctx.restore();
+    }
+
+    // ── Achievement toast rendering ────────────────────────
+
+    _renderAchievementToasts(ctx) {
+        if (this._achievementToasts.length === 0) return;
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        let y = CANVAS_HEIGHT - 80;
+
+        for (const t of this._achievementToasts) {
+            const fadeMs = t.maxTimer * 0.3;
+            const alpha = t.timer < fadeMs
+                ? t.timer / fadeMs
+                : Math.min(1, (t.maxTimer - t.timer) / 400);
+
+            ctx.globalAlpha = alpha;
+
+            const display = `${t.icon}  ACHIEVEMENT: ${t.text}`;
+            const w = display.length * 8 + 32;
+            const h = 30;
+            const x = CANVAS_WIDTH / 2 - w / 2;
+
+            // Background with glow
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = '#e040fb';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+
+            // Text
+            ctx.fillStyle = '#e040fb';
+            ctx.font = 'bold 13px monospace';
+            ctx.shadowColor = '#e040fb';
+            ctx.shadowBlur = 8;
+            ctx.fillText(display, CANVAS_WIDTH / 2, y + 20);
+            ctx.shadowBlur = 0;
+
+            y -= h + 6;
+        }
+
         ctx.restore();
     }
 

@@ -981,6 +981,45 @@ export function playPerkUpgrade() {
     _noiseBurst(4000, 2, 0.03, 0.1, t + 0.05);
 }
 
+/** Achievement unlocked — triumphant chime (ascending triad + shimmer) */
+export function playAchievementUnlock() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Ascending major triad: C5 → E5 → G5
+    const notes = [523, 659, 784];
+    notes.forEach((freq, i) => {
+        const g = _gain(0.14);
+        if (!g) return;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.connect(g);
+        const start = t + i * 0.1;
+        g.gain.setValueAtTime(0.14, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+        o.start(start);
+        o.stop(start + 0.42);
+    });
+
+    // High shimmer
+    const g2 = _gain(0.08);
+    if (g2) {
+        const o2 = ctx.createOscillator();
+        o2.type = 'triangle';
+        o2.frequency.value = 1568;  // G6
+        o2.connect(g2);
+        g2.gain.setValueAtTime(0.08, t + 0.25);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+        o2.start(t + 0.25);
+        o2.stop(t + 0.72);
+    }
+
+    _noiseBurst(6000, 3, 0.05, 0.06, t + 0.2);
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

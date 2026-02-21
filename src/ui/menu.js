@@ -2,7 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 /**
  * Draw the main menu screen.
- * @param {number} selectedIndex – 0 = Play, 1 = Meta Progress, 2 = Shop, 3 = Characters, 4 = Training, 5 = Settings
+ * @param {number} selectedIndex – 0 = Play, 1 = Meta Progress, 2 = Shop, 3 = Achievements, 4 = Characters, 5 = Training, 6 = Settings
  * @param {string|null} profileName – name of active character
  * @param {number} coreShards – available core shards
  * @param {string|null} selectedBooster – selected meta booster name for display
@@ -59,13 +59,14 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
         { label: 'START GAME', desc: 'Fight through dungeon rooms', color: '#4fc3f7' },
         { label: 'META PROGRESS', desc: `Perks, Relics & Stats  ·  ◆ ${coreShards}`, color: '#bb86fc' },
         { label: 'SHOP', desc: `Boosters for your next run${boosterHint}`, color: '#ffd700' },
+        { label: 'ACHIEVEMENTS', desc: 'View your trophies & milestones', color: '#ffab40' },
         { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
         { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
         { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
     ];
 
-    const startY = 280;
-    const spacing = 52;
+    const startY = 270;
+    const spacing = 43;
 
     options.forEach((opt, i) => {
         const y = startY + i * spacing;
@@ -103,7 +104,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
-    ctx.fillText('W/S or ↑/↓ to select  ·  ENTER to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+    ctx.fillText('W/S or ↑/↓ to select  ·  ENTER to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
 
     ctx.textAlign = 'left';
 }
