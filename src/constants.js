@@ -20,6 +20,12 @@ export const ATTACK_COOLDOWN = 350;
 export const ATTACK_DURATION = 150;
 export const ATTACK_KNOCKBACK = 20;
 
+// ── Dash / Dodge Roll ──
+export const DASH_SPEED_MULT = 3.5;      // speed multiplier during dash
+export const DASH_DURATION = 180;         // ms the dash lasts
+export const DASH_COOLDOWN = 900;         // ms before next dash
+export const DASH_INVULN_TIME = 160;      // ms of i-frames during dash
+
 // ── Enemy ──
 export const ENEMY_RADIUS = 12;
 export const ENEMY_SPEED = 70;

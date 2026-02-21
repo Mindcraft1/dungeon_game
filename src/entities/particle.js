@@ -311,6 +311,45 @@ export class ParticleSystem {
     }
 
     /**
+     * Dash trail — cyan speed streaks behind the player.
+     */
+    dashTrail(x, y, dirX, dirY) {
+        const count = 3;
+        for (let i = 0; i < count; i++) {
+            const spread = (Math.random() - 0.5) * 0.6;
+            const speed = 20 + Math.random() * 40;
+            this.particles.push(new Particle(
+                x - dirX * 10 + (Math.random() - 0.5) * 8,
+                y - dirY * 10 + (Math.random() - 0.5) * 8,
+                (-dirX + spread) * speed,
+                (-dirY + spread) * speed,
+                1.5 + Math.random() * 2, '#4fc3f7',
+                120 + Math.random() * 100,
+                { friction: 0.9, shrink: true, glow: true, glowColor: '#03a9f4' },
+            ));
+        }
+    }
+
+    /**
+     * Dash start burst — quick burst at dash origin.
+     */
+    dashBurst(x, y) {
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 50 + Math.random() * 60;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                1.5 + Math.random() * 1.5, '#b3e5fc',
+                150 + Math.random() * 100,
+                { friction: 0.92, shrink: true, glow: true, glowColor: '#4fc3f7' },
+            ));
+        }
+    }
+
+    /**
      * Projectile trail — subtle purple wisps (call each frame).
      */
     projectileTrail(x, y) {

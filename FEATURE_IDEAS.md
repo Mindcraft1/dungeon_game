@@ -11,7 +11,7 @@
 - **Mechanik:** Kurzer Dash in Bewegungsrichtung mit ~200ms i-Frames
 - **Warum:** Gibt dem Spieler ein aktives Defensiv-Tool, macht Gameplay deutlich dynamischer
 - **Aufwand:** ~1h — neuer Timer + Cooldown in `constants.js`, Logik in `player.js`
-- **Status:** ⬜ Offend
+- **Status:** ✅ Fertig
 
 ---
 
@@ -20,7 +20,7 @@
 - **Umsetzung:** Kleine `Particle`-Klasse in `src/entities/`, Array in `game.js`, update/render pro Frame
 - **Warum:** Macht das Spiel sofort 3× befriedigender
 - **Aufwand:** ~1.5h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 
@@ -29,7 +29,7 @@
 - **Umsetzung:** ~20 Zeilen in `main.js` — `ctx.translate(shakeX, shakeY)` pro Frame mit Decay
 - **Warum:** Enormer Juice-Faktor für minimalen Aufwand
 - **Aufwand:** ~30min
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 
@@ -63,7 +63,7 @@
 - **Umsetzung:** Neue Zeichen in ASCII-Templates, Rendering in `render.js`, Logik in `game.js`
 - **Warum:** Macht Räume taktischer und abwechslungsreicher
 - **Aufwand:** ~3h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 

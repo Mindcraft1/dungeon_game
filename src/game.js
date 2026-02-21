@@ -5,7 +5,7 @@ import {
     ENEMY_COLOR, SHOOTER_COLOR, TANK_COLOR, DASHER_COLOR,
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
-    ATTACK_RANGE,
+    ATTACK_RANGE, DASH_COOLDOWN,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG,
 } from './constants.js';
@@ -587,6 +587,22 @@ export class Game {
         this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
 
+        // Dash / Dodge Roll (Shift key)
+        if (wasPressed('ShiftLeft') || wasPressed('ShiftRight')) {
+            if (this.player.tryDash(movement)) {
+                Audio.playPlayerDash();
+                this.particles.dashBurst(this.player.x, this.player.y);
+            }
+        }
+
+        // Dash trail particles while dashing
+        if (this.player.dashing) {
+            this.particles.dashTrail(
+                this.player.x, this.player.y,
+                this.player.dashDirX, this.player.dashDirY,
+            );
+        }
+
         // Attack
         if (isDown('Space')) {
             const hitCount = this.player.attack(this.enemies);
@@ -1141,14 +1157,14 @@ export class Game {
         ctx.save();
         ctx.globalAlpha = alpha * 0.7;
         ctx.fillStyle = '#000';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 210, CANVAS_HEIGHT - 68, 420, 28);
+        ctx.fillRect(CANVAS_WIDTH / 2 - 260, CANVAS_HEIGHT - 68, 520, 28);
         ctx.globalAlpha = alpha;
         ctx.fillStyle = '#bbb';
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   M = Mute   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   M = Mute   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   SHIFT = Dash   M = Mute   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   SHIFT = Dash   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

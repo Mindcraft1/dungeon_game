@@ -1,4 +1,4 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
@@ -12,7 +12,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
 
     // ── Background panel ──
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(pad - 4, y - 4, barW + 60, 84);
+    ctx.fillRect(pad - 4, y - 4, barW + 60, 104);
 
     // ── HP bar ──
     ctx.fillStyle = '#333';
@@ -59,6 +59,26 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
         ctx.font = '11px monospace';
         ctx.fillText('Door open!', pad, infoY + 16);
     }
+
+    // ── Dash cooldown bar ──
+    const dashBarY = infoY + 30;
+    const dashBarW = 60;
+    const dashBarH = 5;
+    const dashReady = player.dashCooldown <= 0;
+    const dashRatio = dashReady ? 1 : 1 - (player.dashCooldown / DASH_COOLDOWN);
+
+    ctx.fillStyle = '#333';
+    ctx.fillRect(pad, dashBarY, dashBarW, dashBarH);
+    ctx.fillStyle = dashReady ? '#4fc3f7' : '#1a6a8a';
+    ctx.fillRect(pad, dashBarY, dashBarW * dashRatio, dashBarH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad, dashBarY, dashBarW, dashBarH);
+
+    ctx.fillStyle = dashReady ? '#4fc3f7' : '#666';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(dashReady ? 'DASH ✓' : 'DASH', pad + dashBarW + 4, dashBarY + 5);
 
     // ── Stats (top-right) ──
     ctx.textAlign = 'right';

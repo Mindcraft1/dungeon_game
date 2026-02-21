@@ -2,6 +2,7 @@ import {
     PLAYER_RADIUS, PLAYER_SPEED, PLAYER_MAX_HP, PLAYER_DAMAGE,
     PLAYER_COLOR, PLAYER_INVULN_TIME,
     ATTACK_RANGE, ATTACK_ARC, ATTACK_COOLDOWN, ATTACK_DURATION, ATTACK_KNOCKBACK,
+    DASH_SPEED_MULT, DASH_DURATION, DASH_COOLDOWN, DASH_INVULN_TIME,
     XP_BASE, XP_MULTIPLIER, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     MAX_ACTIVE_BUFFS, BUFF_DURATION_SHORT, BUFF_DURATION_LONG,
     BUFF_RAGE_DAMAGE_MULT, BUFF_HEAL_AMOUNT,
@@ -40,6 +41,13 @@ export class Player {
         this.invulnTimer = 0;
         this.damageFlashTimer = 0;
 
+        // ── Dash / Dodge Roll ──
+        this.dashing = false;
+        this.dashTimer = 0;       // remaining ms of current dash
+        this.dashCooldown = 0;    // remaining ms before next dash allowed
+        this.dashDirX = 0;
+        this.dashDirY = 0;
+
         // ── Buff system ──
         // Each buff: { type, remaining (ms), duration (ms) }
         this.activeBuffs = [];
@@ -54,17 +62,72 @@ export class Player {
             this.facingY = movement.y;
         }
 
+        const ms = dt * 1000;
+
+        // ── Dash logic ──
+        if (this.dashCooldown > 0) this.dashCooldown -= ms;
+
+        if (this.dashing) {
+            this.dashTimer -= ms;
+            if (this.dashTimer <= 0) {
+                this.dashing = false;
+                this.dashTimer = 0;
+            } else {
+                // Dash movement overrides normal movement
+                const dashSpeed = this.getEffectiveSpeed() * DASH_SPEED_MULT;
+                this.x += this.dashDirX * dashSpeed * dt;
+                this.y += this.dashDirY * dashSpeed * dt;
+                resolveWalls(this, this.radius, grid);
+                // Tick other timers and return (skip normal movement)
+                if (this.attackTimer > 0) this.attackTimer -= ms;
+                if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
+                if (this.invulnTimer > 0) this.invulnTimer -= ms;
+                if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+                this._updateBuffs(ms);
+                return;
+            }
+        }
+
         const moveSpeed = this.getEffectiveSpeed();
         this.x += movement.x * moveSpeed * dt;
         this.y += movement.y * moveSpeed * dt;
         resolveWalls(this, this.radius, grid);
 
-        const ms = dt * 1000;
         if (this.attackTimer > 0) this.attackTimer -= ms;
         if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
         if (this.invulnTimer > 0) this.invulnTimer -= ms;
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
         this._updateBuffs(ms);
+    }
+
+    /**
+     * Attempt to start a dash in the given direction.
+     * Returns true if the dash was started, false if on cooldown or no direction.
+     */
+    tryDash(movement) {
+        if (this.dashing) return false;
+        if (this.dashCooldown > 0) return false;
+
+        // Need a movement direction to dash
+        let dirX = movement.x;
+        let dirY = movement.y;
+        if (dirX === 0 && dirY === 0) {
+            // Use facing direction if not moving
+            dirX = this.facingX;
+            dirY = this.facingY;
+        }
+        const len = Math.sqrt(dirX * dirX + dirY * dirY);
+        if (len === 0) return false;
+        dirX /= len;
+        dirY /= len;
+
+        this.dashing = true;
+        this.dashTimer = DASH_DURATION;
+        this.dashCooldown = DASH_COOLDOWN;
+        this.dashDirX = dirX;
+        this.dashDirY = dirY;
+        this.invulnTimer = Math.max(this.invulnTimer, DASH_INVULN_TIME);
+        return true;
     }
 
     /**
@@ -274,13 +337,36 @@ export class Player {
     _renderBody(ctx) {
         const flashing = this.damageFlashTimer > 0 && Math.floor(this.damageFlashTimer / 50) % 2 === 0;
 
+        // Dash ghost afterimage
+        if (this.dashing) {
+            const progress = 1 - this.dashTimer / DASH_DURATION;
+            ctx.save();
+            ctx.globalAlpha = 0.25 * (1 - progress);
+            ctx.fillStyle = '#4fc3f7';
+            ctx.beginPath();
+            ctx.arc(
+                this.x - this.dashDirX * 18,
+                this.y - this.dashDirY * 18,
+                this.radius * 0.85, 0, Math.PI * 2,
+            );
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(
+                this.x - this.dashDirX * 32,
+                this.y - this.dashDirY * 32,
+                this.radius * 0.6, 0, Math.PI * 2,
+            );
+            ctx.fill();
+            ctx.restore();
+        }
+
         ctx.save();
         if (this.invulnTimer > 0) {
             ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.02) * 0.2;
         }
 
         // Body
-        ctx.fillStyle = flashing ? '#ffffff' : PLAYER_COLOR;
+        ctx.fillStyle = flashing ? '#ffffff' : (this.dashing ? '#b3e5fc' : PLAYER_COLOR);
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();

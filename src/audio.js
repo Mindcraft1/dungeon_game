@@ -538,6 +538,52 @@ export function playDash() {
     o.stop(t + 0.09);
 }
 
+/** Player dash/dodge roll — airy whoosh sweep */
+export function playPlayerDash() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Wide-band filtered noise whoosh (rising then falling)
+    const buf = _noiseBuffer(0.25);
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(600, t);
+    filter.frequency.exponentialRampToValueAtTime(4000, t + 0.06);
+    filter.frequency.exponentialRampToValueAtTime(800, t + 0.2);
+    filter.Q.value = 0.8;
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.001, t);
+    env.gain.linearRampToValueAtTime(0.22, t + 0.04);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+
+    src.connect(filter);
+    filter.connect(env);
+    env.connect(_master);
+    src.start(t);
+    src.stop(t + 0.25);
+
+    // Subtle tonal shimmer for "magic" feel
+    const g = _gain(0.04);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(900, t);
+    o.frequency.exponentialRampToValueAtTime(1800, t + 0.05);
+    o.frequency.exponentialRampToValueAtTime(600, t + 0.15);
+    o.connect(g);
+    g.gain.setValueAtTime(0.04, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.start(t);
+    o.stop(t + 0.18);
+}
+
 // ── Hazard Sounds ────────────────────────────────────────────
 
 /** Arrow trap fires — short mechanical twang */
