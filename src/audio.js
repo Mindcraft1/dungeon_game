@@ -538,6 +538,68 @@ export function playDash() {
     o.stop(t + 0.09);
 }
 
+/** Player dagger throw — sharp 'whoosh' with metallic edge */
+export function playDaggerThrow() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Sharp metallic whoosh — ascending then dropping
+    _noiseBurst(4000, 2.5, 0.08, 0.15, t);
+
+    // Tonal knife-throw whistle
+    const g = _gain(0.06);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(800, t);
+    o.frequency.exponentialRampToValueAtTime(1600, t + 0.03);
+    o.frequency.exponentialRampToValueAtTime(600, t + 0.08);
+    o.connect(g);
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.start(t);
+    o.stop(t + 0.12);
+
+    // Sub-click for weight
+    const g2 = _gain(0.04);
+    if (!g2) return;
+    const o2 = ctx.createOscillator();
+    o2.type = 'triangle';
+    o2.frequency.setValueAtTime(300, t);
+    o2.frequency.exponentialRampToValueAtTime(100, t + 0.05);
+    o2.connect(g2);
+    g2.gain.setValueAtTime(0.04, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    o2.start(t);
+    o2.stop(t + 0.08);
+}
+
+/** Dagger hits an enemy — sharp metallic impact */
+export function playDaggerHit() {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Metallic ping
+    const g = _gain(0.12);
+    if (!g) return;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(900, t);
+    o.frequency.exponentialRampToValueAtTime(300, t + 0.06);
+    o.connect(g);
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o.start(t);
+    o.stop(t + 0.1);
+
+    // Impact crack
+    _noiseBurst(2000, 2, 0.04, 0.1, t);
+}
+
 /** Player dash/dodge roll — airy whoosh sweep */
 export function playPlayerDash() {
     const ctx = _ensureCtx();

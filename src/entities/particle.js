@@ -527,4 +527,40 @@ export class ParticleSystem {
             ));
         }
     }
+
+    /**
+     * Dagger throw — small cyan burst at throw origin.
+     */
+    daggerThrow(x, y, dirX, dirY) {
+        const count = 5;
+        for (let i = 0; i < count; i++) {
+            const spread = (Math.random() - 0.5) * 0.8;
+            const speed = 30 + Math.random() * 50;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 4,
+                y + (Math.random() - 0.5) * 4,
+                (dirX + spread) * speed,
+                (dirY + spread) * speed,
+                1 + Math.random() * 1.5, '#4fc3f7',
+                120 + Math.random() * 80,
+                { friction: 0.9, shrink: true, glow: true, glowColor: '#03a9f4' },
+            ));
+        }
+    }
+
+    /**
+     * Dagger trail — subtle cyan wisps behind the flying dagger.
+     */
+    daggerTrail(x, y, color) {
+        if (Math.random() > 0.3) return; // don't spawn every frame
+        this.particles.push(new Particle(
+            x + (Math.random() - 0.5) * 3,
+            y + (Math.random() - 0.5) * 3,
+            (Math.random() - 0.5) * 8,
+            (Math.random() - 0.5) * 8,
+            1 + Math.random(), color || '#4fc3f7',
+            100 + Math.random() * 80,
+            { friction: 0.95, glow: true, glowColor: '#03a9f4', shrink: true },
+        ));
+    }
 }

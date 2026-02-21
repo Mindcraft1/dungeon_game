@@ -20,6 +20,15 @@ export const ATTACK_COOLDOWN = 350;
 export const ATTACK_DURATION = 150;
 export const ATTACK_KNOCKBACK = 20;
 
+// ── Ranged Attack (Dagger Throw) ──
+export const DAGGER_COOLDOWN = 800;       // ms between throws (longer than melee)
+export const DAGGER_DAMAGE_MULT = 0.6;   // 60% of player melee damage
+export const DAGGER_SPEED = 280;          // px/s (faster than enemy projectiles)
+export const DAGGER_RANGE = 300;          // max travel distance in px
+export const DAGGER_RADIUS = 5;           // slightly larger than enemy projectiles
+export const DAGGER_COLOR = '#4fc3f7';    // player-themed cyan
+export const DAGGER_KNOCKBACK = 10;       // half of melee knockback
+
 // ── Dash / Dodge Roll ──
 export const DASH_SPEED_MULT = 3.5;      // speed multiplier during dash
 export const DASH_DURATION = 180;         // ms the dash lasts

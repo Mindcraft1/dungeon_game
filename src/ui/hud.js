@@ -1,4 +1,4 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, COMBO_TIMEOUT } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIMEOUT } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
@@ -81,6 +81,26 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(dashReady ? 'DASH ✓' : 'DASH', pad + dashBarW + 4, dashBarY + 5);
+
+    // ── Dagger cooldown bar ──
+    const daggerBarY = dashBarY + dashBarH + 4;
+    const daggerBarW = 60;
+    const daggerBarH = 5;
+    const daggerReady = player.daggerCooldown <= 0;
+    const daggerRatio = daggerReady ? 1 : 1 - (player.daggerCooldown / DAGGER_COOLDOWN);
+
+    ctx.fillStyle = '#333';
+    ctx.fillRect(pad, daggerBarY, daggerBarW, daggerBarH);
+    ctx.fillStyle = daggerReady ? '#ffa726' : '#7a5200';
+    ctx.fillRect(pad, daggerBarY, daggerBarW * daggerRatio, daggerBarH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad, daggerBarY, daggerBarW, daggerBarH);
+
+    ctx.fillStyle = daggerReady ? '#ffa726' : '#666';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(daggerReady ? 'DAGGER ✓' : 'DAGGER', pad + daggerBarW + 4, daggerBarY + 5);
 
     // ── Stats (top-right) ──
     ctx.textAlign = 'right';

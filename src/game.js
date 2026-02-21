@@ -5,7 +5,7 @@ import {
     ENEMY_COLOR, SHOOTER_COLOR, TANK_COLOR, DASHER_COLOR,
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
-    ATTACK_RANGE, DASH_COOLDOWN,
+    ATTACK_RANGE, DASH_COOLDOWN, DAGGER_COOLDOWN,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
@@ -18,7 +18,7 @@ import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAM
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
-import { Projectile } from './entities/projectile.js';
+import { Projectile, PlayerProjectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
 import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO } from './entities/pickup.js';
@@ -63,6 +63,7 @@ export class Game {
         this.player = null;
         this.enemies = [];
         this.projectiles = [];
+        this.playerProjectiles = [];  // player-fired daggers
         this.pickups = [];
         this.hazards = [];
         this.door = null;
@@ -275,6 +276,7 @@ export class Game {
         this.stage = 1;
         this.player = null;
         this.pickups = [];
+        this.playerProjectiles = [];
         this.controlsHintTimer = 5000;
         this._comboReset();
         this.comboPopups = [];
@@ -313,6 +315,7 @@ export class Game {
         this._spawnEnemies(grid, spawnPos, doorPos);
         this.hazards = generateHazards(grid, spawnPos, doorPos, this.stage);
         this.pickups = [];
+        this.playerProjectiles = [];
         this.particles.clear();
     }
 
@@ -344,6 +347,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
+        this.playerProjectiles = [];
         this.pickups = [];
         this.hazards = [];
         this.particles.clear();
@@ -555,6 +559,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.enemies = [];
         this.projectiles = [];
+        this.playerProjectiles = [];
         this.hazards = [];
         this.pickups = [];
         this.particles.clear();
@@ -579,6 +584,7 @@ export class Game {
             door: this.door,
             grid: this.grid,
             projectiles: this.projectiles,
+            playerProjectiles: this.playerProjectiles,
             pickups: this.pickups,
             hazards: this.hazards,
             boss: this.boss,
@@ -590,6 +596,7 @@ export class Game {
     _enterTrainingFromGame() {
         this.trainingMode = true;
         this.projectiles = [];
+        this.playerProjectiles = [];
         this.stage = 0;
         this.controlsHintTimer = 4000;
 
@@ -628,6 +635,7 @@ export class Game {
         this.door = this._savedGame.door;
         this.grid = this._savedGame.grid;
         this.projectiles = this._savedGame.projectiles || [];
+        this.playerProjectiles = this._savedGame.playerProjectiles || [];
         this.pickups = this._savedGame.pickups || [];
         this.hazards = this._savedGame.hazards || [];
         this.boss = this._savedGame.boss || null;
@@ -653,6 +661,7 @@ export class Game {
         this.trainingMode = false;
         this._savedGame = null;
         this.projectiles = [];
+        this.playerProjectiles = [];
         this.pickups = [];
         this.hazards = [];
         this.particles.clear();
@@ -938,6 +947,27 @@ export class Game {
             }
         }
 
+        // Ranged Attack (E key) — throw dagger
+        if (wasPressed('KeyE')) {
+            const throwData = this.player.tryThrow();
+            if (throwData) {
+                const dagger = new PlayerProjectile(
+                    throwData.x, throwData.y,
+                    throwData.dirX, throwData.dirY,
+                    throwData.speed, throwData.damage,
+                    throwData.radius, throwData.color,
+                    throwData.maxDist, throwData.knockback,
+                );
+                this.playerProjectiles.push(dagger);
+                Audio.playDaggerThrow();
+                // Throw particles
+                this.particles.daggerThrow(
+                    throwData.x, throwData.y,
+                    throwData.dirX, throwData.dirY,
+                );
+            }
+        }
+
         // Track player HP to detect damage
         const hpBefore = this.player.hp;
         const shieldBefore = this.player.phaseShieldActive;
@@ -1062,6 +1092,24 @@ export class Game {
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
 
+        // Player daggers — update + hit detection
+        const activeBoss = this.boss && !this.boss.dead ? this.boss : null;
+        for (const d of this.playerProjectiles) {
+            d.update(dt, this.enemies, activeBoss, this.grid);
+            if (!d.dead) {
+                this.particles.daggerTrail(d.x, d.y, d.color);
+            }
+            // Hit sparks when dagger hits a target
+            if (d.dead && d.hitTarget) {
+                Audio.playDaggerHit();
+                this.particles.hitSparks(
+                    d.hitTarget.x, d.hitTarget.y,
+                    d.hitTarget.dirX, d.hitTarget.dirY,
+                );
+            }
+        }
+        this.playerProjectiles = this.playerProjectiles.filter(d => !d.dead);
+
         // Hazards — update (damage, projectile spawning)
         for (const h of this.hazards) {
             h.update(dt, this.player, this.projectiles, this.grid, noDamage);
@@ -1162,6 +1210,7 @@ export class Game {
             this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
             this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
             this.projectiles = [];
+            this.playerProjectiles = [];
             this.pickups = [];
             this._respawnTrainingEnemies();
         }
@@ -1489,6 +1538,7 @@ export class Game {
         for (const e of this.enemies) e.render(ctx);
         if (this.boss && !this.boss.dead) this.boss.render(ctx);
         for (const p of this.projectiles) p.render(ctx);
+        for (const d of this.playerProjectiles) d.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
         this.particles.render(ctx);
         this.player.render(ctx);
@@ -1707,8 +1757,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   N = Dash   M = Mute   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   N = Dash   M = Mute   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   E = Throw   N = Dash   M = Mute   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   E = Throw   N = Dash   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

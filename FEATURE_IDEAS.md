@@ -77,17 +77,23 @@
 - **Umsetzung:** Web Audio API + generierte Sounds via [sfxr.me](https://sfxr.me) oder [jsfxr](https://sfxr.me)
 - **Warum:** Kein Game fühlt sich komplett an ohne Sound
 - **Aufwand:** ~2h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 
 ### 8. Sekundär-Angriff / Ranged Attack
-- **Taste:** E oder rechte Maustaste
-- **Mechanik:** Wurf-Dolch mit eigenem Cooldown und begrenzter Reichweite
-- **Umsetzung:** Nutzt die existierende `Projectile`-Klasse wieder
+- **Taste:** E
+- **Mechanik:** Wurf-Dolch in Blickrichtung mit eigenem Cooldown (800ms) und begrenzter Reichweite (300px)
+- **Damage:** 60% des Melee-Schadens — belohnt Nahkampf-Engagement
+- **Balance:** Längerer Cooldown als Melee, weniger Schaden, weniger Knockback (10 vs 20)
+- **Buff-Interaktion:** Rage Shard (+50% DMG), Piercing Shot (+40% Reichweite/+25% DMG), Speed Surge (-40% CD), Crushing Blow (3× nächster Treffer)
+- **Visuals:** Dolch-förmiges Projektil (cyan), Trail-Partikel, Wurf-Burst, Hit-Sparks
+- **Sound:** Metallischer Wurf-Whoosh + Impact-Ping bei Treffer
+- **HUD:** Cooldown-Bar unter Dash-Anzeige (orange)
+- **Umsetzung:** `PlayerProjectile`-Klasse in `projectile.js`, `tryThrow()` in `player.js`, Integration in `game.js`
 - **Warum:** Gibt taktische Optionen gegen Shooter-Enemies und zum Finishen
 - **Aufwand:** ~2h
-- **Status:** ⬜ Offen
+- **Status:** ✅ Fertig
 
 ---
 

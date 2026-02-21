@@ -2,6 +2,8 @@ import {
     PLAYER_RADIUS, PLAYER_SPEED, PLAYER_MAX_HP, PLAYER_DAMAGE,
     PLAYER_COLOR, PLAYER_INVULN_TIME,
     ATTACK_RANGE, ATTACK_ARC, ATTACK_COOLDOWN, ATTACK_DURATION, ATTACK_KNOCKBACK,
+    DAGGER_COOLDOWN, DAGGER_DAMAGE_MULT, DAGGER_SPEED, DAGGER_RANGE,
+    DAGGER_RADIUS, DAGGER_COLOR, DAGGER_KNOCKBACK,
     DASH_SPEED_MULT, DASH_DURATION, DASH_COOLDOWN, DASH_INVULN_TIME,
     XP_BASE, XP_MULTIPLIER, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     MAX_ACTIVE_BUFFS, BUFF_DURATION_SHORT, BUFF_DURATION_LONG,
@@ -40,6 +42,7 @@ export class Player {
         this.attackVisualTimer = 0;
         this.invulnTimer = 0;
         this.damageFlashTimer = 0;
+        this.daggerCooldown = 0;   // ranged attack cooldown
 
         // ── Dash / Dodge Roll ──
         this.dashing = false;
@@ -83,6 +86,7 @@ export class Player {
                 if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
                 if (this.invulnTimer > 0) this.invulnTimer -= ms;
                 if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+                if (this.daggerCooldown > 0) this.daggerCooldown -= ms;
                 this._updateBuffs(ms);
                 return;
             }
@@ -97,6 +101,7 @@ export class Player {
         if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
         if (this.invulnTimer > 0) this.invulnTimer -= ms;
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+        if (this.daggerCooldown > 0) this.daggerCooldown -= ms;
         this._updateBuffs(ms);
     }
 
@@ -182,6 +187,58 @@ export class Player {
             hitCount++;
         }
         return hitCount;
+    }
+
+    /**
+     * Try to throw a dagger projectile in the facing direction.
+     * Returns a projectile config object { x, y, dirX, dirY, speed, damage, radius, color, maxDist, knockback }
+     * or null if on cooldown.
+     */
+    tryThrow() {
+        if (this.daggerCooldown > 0) return null;
+
+        // Cooldown (may be reduced by Speed Surge buff)
+        const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
+        this.daggerCooldown = DAGGER_COOLDOWN * cdMult;
+
+        // Direction (facing)
+        const len = Math.sqrt(this.facingX * this.facingX + this.facingY * this.facingY);
+        const dirX = len > 0 ? this.facingX / len : 1;
+        const dirY = len > 0 ? this.facingY / len : 0;
+
+        // Damage: base = player damage × DAGGER_DAMAGE_MULT, with buff multipliers
+        let dmg = Math.floor(this.damage * DAGGER_DAMAGE_MULT);
+        if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
+        if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
+
+        // Crushing Blow: one-time 3× nuke on ranged too
+        let kbMult = 1;
+        if (this.crushingBlowReady) {
+            dmg = Math.floor(dmg * BUFF_CRUSHING_DAMAGE_MULT);
+            kbMult = BUFF_CRUSHING_KB_MULT;
+            this.crushingBlowReady = false;
+            this._removeBuff(PICKUP_CRUSHING_BLOW);
+        }
+
+        // Range (may be extended by Piercing Shot buff)
+        const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
+        const maxDist = DAGGER_RANGE * rangeMult;
+
+        // Spawn slightly in front of player
+        const spawnOffset = this.radius + DAGGER_RADIUS + 2;
+        const spawnX = this.x + dirX * spawnOffset;
+        const spawnY = this.y + dirY * spawnOffset;
+
+        return {
+            x: spawnX, y: spawnY,
+            dirX, dirY,
+            speed: DAGGER_SPEED,
+            damage: dmg,
+            radius: DAGGER_RADIUS,
+            color: DAGGER_COLOR,
+            maxDist,
+            knockback: DAGGER_KNOCKBACK * kbMult,
+        };
     }
 
     takeDamage(amount) {
