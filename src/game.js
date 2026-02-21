@@ -74,7 +74,7 @@ import * as Impact from './combat/impactSystem.js';
 import { ABILITY_IDS } from './combat/abilities.js';
 import { PROC_IDS } from './combat/procs.js';
 import { renderAbilityBar } from './ui/uiAbilityBar.js';
-import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout } from './combat/combatUnlocks.js';
+import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
 
 // ── Enemy type → color mapping for particles ──
@@ -957,7 +957,7 @@ export class Game {
 
     _openLoadout() {
         const meta = MetaStore.getState();
-        const loadout = sanitizeLoadout(meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] }, meta.stats);
+        const loadout = sanitizeLoadout(meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] }, meta);
         this.loadoutAbilities = [...loadout.abilities];
         this.loadoutProcs = [...loadout.procs];
         this.loadoutCursor = TOTAL_LOADOUT_ITEMS - 1; // cursor on START
@@ -1015,12 +1015,11 @@ export class Game {
 
     _loadoutToggle(index) {
         const meta = MetaStore.getState();
-        const stats = meta.stats;
 
         if (index < ABILITY_ORDER.length) {
             // It's an ability
             const id = ABILITY_ORDER[index];
-            if (!isAbilityUnlocked(id, stats)) return; // locked
+            if (!isAbilityUnlocked(id, meta)) return; // locked
 
             const pos = this.loadoutAbilities.indexOf(id);
             if (pos >= 0) {
@@ -1039,7 +1038,7 @@ export class Game {
             // It's a proc
             const procIndex = index - ABILITY_ORDER.length;
             const id = PROC_ORDER[procIndex];
-            if (!isProcUnlocked(id, stats)) return; // locked
+            if (!isProcUnlocked(id, meta)) return; // locked
 
             const pos = this.loadoutProcs.indexOf(id);
             if (pos >= 0) {
@@ -1059,7 +1058,7 @@ export class Game {
         const meta = MetaStore.getState();
         const loadout = sanitizeLoadout(
             meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] },
-            meta.stats,
+            meta,
         );
         this.abilitySystem.reset();
         this.procSystem.reset();
@@ -2068,6 +2067,14 @@ export class Game {
                 showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
             }
 
+            // ── Combat unlock: check boss milestone ──
+            const combatUnlock = checkBossUnlocks(MetaStore.getState().stats.bossesKilledTotal);
+            if (combatUnlock) {
+                const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
+                showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
+                Audio.playRelicUnlock();
+            }
+
             this.bossVictoryDelay = 1200; // 1.2s freeze before victory overlay
             return;
         }
@@ -2842,8 +2849,8 @@ export class Game {
         }
 
         if (this.state === STATE_LOADOUT) {
-            const stats = MetaStore.getState().stats;
-            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, stats, this.loadoutRejectFlash);
+            const meta = MetaStore.getState();
+            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, meta, this.loadoutRejectFlash);
             this._renderCheatNotifications(ctx);
             return;
         }

@@ -18,6 +18,8 @@ export function createDefaultMetaState() {
         },
         relicsUnlocked: {},          // Record<relicId, true>
         runUpgradesUnlocked: {},     // Record<upgradeId, true>
+        unlockedAbilities: { shockwave: true },      // Record<abilityId, true>
+        unlockedProcs:     { explosive_strikes: true }, // Record<procId, true>
         stats: {
             bossesKilledTotal: 0,
             highestStage:      0,
@@ -49,6 +51,8 @@ export function validateMetaState(raw) {
         },
         relicsUnlocked:      _objCopy(raw.relicsUnlocked),
         runUpgradesUnlocked: _objCopy(raw.runUpgradesUnlocked),
+        unlockedAbilities:   _objCopyDefault(raw.unlockedAbilities, { shockwave: true }),
+        unlockedProcs:       _objCopyDefault(raw.unlockedProcs, { explosive_strikes: true }),
         stats: {
             bossesKilledTotal: _int(raw.stats?.bossesKilledTotal, 0),
             highestStage:      _int(raw.stats?.highestStage, 0),
@@ -94,6 +98,17 @@ function _objCopy(obj) {
     const out = {};
     for (const k of Object.keys(obj)) {
         if (obj[k] === true) out[k] = true;
+    }
+    return out;
+}
+
+/** Copy boolean record, merging with defaults to guarantee starters are present. */
+function _objCopyDefault(obj, defaults) {
+    const out = { ...defaults };
+    if (obj && typeof obj === 'object') {
+        for (const k of Object.keys(obj)) {
+            if (obj[k] === true) out[k] = true;
+        }
     }
     return out;
 }

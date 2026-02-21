@@ -8,8 +8,7 @@ import { ABILITY_DEFINITIONS } from '../combat/abilities.js';
 import { PROC_DEFINITIONS } from '../combat/procs.js';
 import {
     ABILITY_ORDER, PROC_ORDER,
-    ABILITY_UNLOCK_CONDITIONS, PROC_UNLOCK_CONDITIONS,
-    isAbilityUnlocked, isProcUnlocked, getUnlockProgress,
+    isAbilityUnlocked, isProcUnlocked, getNextUnlockHint,
 } from '../combat/combatUnlocks.js';
 
 /**
@@ -18,10 +17,10 @@ import {
  * @param {number}   cursor             – 0..(ABILITY_ORDER.length + PROC_ORDER.length) inclusive
  * @param {string[]} selectedAbilities  – selected ability IDs (max 2, ordered Q/E)
  * @param {string[]} selectedProcs      – selected proc IDs (max 2, ordered 1/2)
- * @param {{highestStage: number, bossesKilledTotal: number}} stats
+ * @param {object}   meta               – full metaState (has .unlockedAbilities, .unlockedProcs, .stats)
  * @param {number}   rejectFlash        – ms remaining for "slot full" flash (0 = off)
  */
-export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, stats, rejectFlash) {
+export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, meta, rejectFlash) {
     // ── Background ──
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -68,13 +67,12 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     for (let i = 0; i < ABILITY_ORDER.length; i++) {
         const id = ABILITY_ORDER[i];
         const def = ABILITY_DEFINITIONS[id];
-        const cond = ABILITY_UNLOCK_CONDITIONS[id];
-        const unlocked = isAbilityUnlocked(id, stats);
+        const unlocked = isAbilityUnlocked(id, meta);
         const selected = selectedAbilities.includes(id);
         const isCursor = cursor === i;
         const y = abilityStartY + i * itemSpacing;
 
-        _renderRow(ctx, def, cond, unlocked, selected, isCursor, y, stats,
+        _renderRow(ctx, def, unlocked, selected, isCursor, y, meta,
                    'ability', selectedAbilities.indexOf(id), rejectFlash);
     }
 
@@ -90,13 +88,12 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     for (let i = 0; i < PROC_ORDER.length; i++) {
         const id = PROC_ORDER[i];
         const def = PROC_DEFINITIONS[id];
-        const cond = PROC_UNLOCK_CONDITIONS[id];
-        const unlocked = isProcUnlocked(id, stats);
+        const unlocked = isProcUnlocked(id, meta);
         const selected = selectedProcs.includes(id);
         const isCursor = cursor === ABILITY_ORDER.length + i;
         const y = procStartY + i * itemSpacing;
 
-        _renderRow(ctx, def, cond, unlocked, selected, isCursor, y, stats,
+        _renderRow(ctx, def, unlocked, selected, isCursor, y, meta,
                    'proc', selectedProcs.indexOf(id), rejectFlash);
     }
 
@@ -105,6 +102,14 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     const isStartCursor = cursor === startIdx;
     const startY = procStartY + PROC_ORDER.length * itemSpacing + 26;
     const canStart = selectedAbilities.length >= 1;
+
+    // ── Unlock progress hint ──
+    const hint = getNextUnlockHint(meta.stats.bossesKilledTotal);
+    if (hint) {
+        ctx.fillStyle = '#555';
+        ctx.font = '11px monospace';
+        ctx.fillText(hint, CANVAS_WIDTH / 2, startY - 34);
+    }
 
     if (isStartCursor) {
         const bw = 260, bh = 44;
@@ -185,7 +190,7 @@ function _renderSummaryStrip(ctx, abilities, procs) {
     ctx.textAlign = 'center';
 }
 
-function _renderRow(ctx, def, cond, unlocked, selected, isCursor, y, stats, type, slotIndex, rejectFlash) {
+function _renderRow(ctx, def, unlocked, selected, isCursor, y, meta, type, slotIndex, rejectFlash) {
     const leftX = CANVAS_WIDTH / 2 - 190;
     const rightX = CANVAS_WIDTH / 2 + 170;
 
@@ -240,12 +245,11 @@ function _renderRow(ctx, def, cond, unlocked, selected, isCursor, y, stats, type
         ctx.font = '14px monospace';
         ctx.fillText(`🔒  ${def.name}`, leftX + 12, y + 5);
 
-        // Unlock condition + progress
+        // Unlock hint
         ctx.textAlign = 'right';
         ctx.fillStyle = '#555';
         ctx.font = '11px monospace';
-        const progress = getUnlockProgress(cond, stats);
-        ctx.fillText(`${cond.desc}  (${progress})`, rightX, y + 5);
+        ctx.fillText('Defeat more bosses to unlock', rightX, y + 5);
     }
 
     ctx.textAlign = 'center';
