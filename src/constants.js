@@ -47,6 +47,11 @@ export const COLOR_WALL_LIGHT = '#5d4e37';
 export const COLOR_WALL_DARK = '#3a3028';
 
 // ── Game states ──
+export const STATE_MENU = 'MENU';
 export const STATE_PLAYING = 'PLAYING';
 export const STATE_LEVEL_UP = 'LEVEL_UP';
 export const STATE_GAME_OVER = 'GAME_OVER';
+
+// ── Training ──
+export const TRAINING_ENEMY_COUNT = 3;
+export const TRAINING_RESPAWN_DELAY = 2000; // ms before dead enemies respawn

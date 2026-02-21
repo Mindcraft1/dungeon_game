@@ -113,6 +113,25 @@ const ROOM_TEMPLATES = [
     ],
 ];
 
+// Special training room – open area with pillars for practicing movement + combat
+const TRAINING_TEMPLATE = [
+    '####################',
+    '#..................#',
+    '#..................#',
+    '#...##........##...#',
+    '#..................#',
+    '#..................#',
+    '#......####........#',
+    '#S.....####.......D#',
+    '#......####........#',
+    '#..................#',
+    '#..................#',
+    '#...##........##...#',
+    '#..................#',
+    '#..................#',
+    '####################',
+];
+
 /**
  * Parse a room template into a boolean grid + spawn/door positions.
  * @param {number} templateIndex – cycled through ROOM_TEMPLATES
@@ -120,6 +139,15 @@ const ROOM_TEMPLATES = [
  */
 export function parseRoom(templateIndex) {
     const template = ROOM_TEMPLATES[templateIndex % ROOM_TEMPLATES.length];
+    return _parse(template);
+}
+
+/** Parse the dedicated training room. */
+export function parseTrainingRoom() {
+    return _parse(TRAINING_TEMPLATE);
+}
+
+function _parse(template) {
     const grid = [];
     let spawnPos = null;
     let doorPos = null;

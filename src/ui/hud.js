@@ -3,7 +3,7 @@ import { CANVAS_WIDTH } from '../constants.js';
 /**
  * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining).
  */
-export function renderHUD(ctx, player, stage, enemiesAlive) {
+export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -47,7 +47,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive) {
     ctx.fillStyle = '#ffd700';
     ctx.fillText(`LVL ${player.level}`, pad, infoY);
     ctx.fillStyle = '#aaa';
-    ctx.fillText(`Stage ${stage}`, pad + 76, infoY);
+    ctx.fillText(trainingMode ? 'TRAINING' : `Stage ${stage}`, pad + 76, infoY);
 
     if (enemiesAlive > 0) {
         ctx.fillStyle = '#e74c3c';

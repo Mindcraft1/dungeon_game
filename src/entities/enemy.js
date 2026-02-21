@@ -17,7 +17,7 @@ export class Enemy {
         this.damageFlashTimer = 0;
     }
 
-    update(dt, player, grid, enemies) {
+    update(dt, player, grid, enemies, trainingMode = false) {
         if (this.dead) return;
 
         const ms = dt * 1000;
@@ -49,12 +49,14 @@ export class Enemy {
         // ── Walls (final authority on position) ──
         resolveWalls(this, this.radius, grid);
 
-        // ── Contact damage ──
+        // ── Contact damage (skipped in training) ──
         if (this.hitCooldown > 0) this.hitCooldown -= ms;
-        const pDist = Math.sqrt((player.x - this.x) ** 2 + (player.y - this.y) ** 2);
-        if (pDist < this.radius + player.radius && this.hitCooldown <= 0) {
-            player.takeDamage(this.damage);
-            this.hitCooldown = ENEMY_HIT_COOLDOWN;
+        if (!trainingMode) {
+            const pDist = Math.sqrt((player.x - this.x) ** 2 + (player.y - this.y) ** 2);
+            if (pDist < this.radius + player.radius && this.hitCooldown <= 0) {
+                player.takeDamage(this.damage);
+                this.hitCooldown = ENEMY_HIT_COOLDOWN;
+            }
         }
 
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;

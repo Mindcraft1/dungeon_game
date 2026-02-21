@@ -13,8 +13,8 @@ export class Door {
         this.pulseTime = 0;
     }
 
-    update(dt, enemies) {
-        this.locked = enemies.some(e => !e.dead);
+    update(dt, enemies, forceUnlock = false) {
+        this.locked = forceUnlock ? false : enemies.some(e => !e.dead);
         if (!this.locked) this.pulseTime += dt;
     }
 

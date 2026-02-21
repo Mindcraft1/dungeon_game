@@ -69,7 +69,7 @@ export function renderGameOverOverlay(ctx, stage, level) {
 
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER to restart', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 45);
+    ctx.fillText('Press ENTER for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 45);
 
     ctx.textAlign = 'left';
 }
