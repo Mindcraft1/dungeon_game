@@ -29,9 +29,9 @@ game_test/
     ├── constants.js        # All tunable values + game state enums
     ├── input.js            # Keyboard abstraction (keysDown, wasPressed, getMovement, getLastKey)
     ├── collision.js        # Circle-vs-grid wall resolution, circle-circle, circle-rect
-    ├── rooms.js            # 6 ASCII room templates + 1 training template, parsing, enemy spawn logic
+    ├── rooms.js            # 14 ASCII room templates + 1 training template, parsing, enemy spawn logic
     ├── render.js           # Room grid renderer (floor tiles + bevelled wall tiles)
-    ├── game.js             # ⭐ Core Game class — state machine, all logic orchestration (~745 lines)
+    ├── game.js             # ⭐ Core Game class — state machine, all logic orchestration (~950 lines)
     ├── entities/
     │   ├── player.js       # Player class: movement, 120° arc melee, XP/leveling, rendering
     │   ├── enemy.js        # Enemy class: 4 types (basic/shooter/tank/dasher), type-specific AI + rendering
@@ -41,7 +41,8 @@ game_test/
         ├── hud.js          # In-game HUD: HP/XP bars, level, stage, enemy count, stats
         ├── levelup.js      # Level-Up overlay (3 upgrade choices) + Game Over overlay
         ├── menu.js         # Main menu: 3 options (Start / Training / Characters) + highscore
-        └── profiles.js     # Character profile screen: list, create (text input), delete
+        ├── profiles.js     # Character profile screen: list, create (text input), delete
+        └── training-config.js  # Training config screen: room/enemy/count selection UI
 ```
 
 ---
@@ -66,7 +67,8 @@ index.html
               ├── src/ui/hud.js           ← constants.js
               ├── src/ui/levelup.js       ← constants.js
               ├── src/ui/menu.js          ← constants.js
-              └── src/ui/profiles.js      ← constants.js
+              ├── src/ui/profiles.js      ← constants.js
+              └── src/ui/training-config.js ← constants.js
 ```
 
 `game.js` is the **sole orchestrator**. No other module imports `game.js`. All UI modules are pure render functions — they receive data, draw to canvas, and return.
@@ -75,7 +77,7 @@ index.html
 
 ## State Machine
 
-The game runs on a 6-state FSM controlled by `Game.state`:
+The game runs on a 7-state FSM controlled by `Game.state`:
 
 ```
 STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYING ◄──Resume──► STATE_PAUSED
@@ -87,6 +89,10 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
                                 └───────────Enter───────────────────────┘                             │
                                                                                                       │
                                                      STATE_PLAYING ◄──────────────────────────────────┘
+                                                          ▲
+                                                          │
+               STATE_MENU ──Training──► STATE_TRAINING_CONFIG ──Start──► STATE_PLAYING (training)
+               STATE_PLAYING ──T key──► STATE_TRAINING_CONFIG ──Start──► STATE_PLAYING (training)
 ```
 
 | State | Value | Triggered by | Input handling |
@@ -97,6 +103,7 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 | `STATE_PAUSED` | `'PAUSED'` | Esc or P during gameplay (non-training) | W/S navigate, Enter/Space/Esc confirm, P quick-resume |
 | `STATE_LEVEL_UP` | `'LEVEL_UP'` | XP reaches threshold | W/S navigate, Enter/Space/1-2-3 choose upgrade |
 | `STATE_GAME_OVER` | `'GAME_OVER'` | Player HP ≤ 0 (non-training) | Enter/Space → menu |
+| `STATE_TRAINING_CONFIG` | `'TRAINING_CONFIG'` | Training menu option or T key mid-game | W/S navigate rows, A/D change values, Enter start, Esc back |
 
 ---
 
@@ -168,6 +175,9 @@ Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multip
 
 - 14 room templates (ASCII art, 20×15 grid): `#`=wall, `.`=floor, `S`=spawn, `D`=door
 - 1 training template (open arena with pillars)
+- `ROOM_NAMES[]`: Display names for all 14 rooms (e.g. 'Open Arena', 'Central Block', etc.)
+- `TRAINING_ROOM_NAME`: Display name for training room
+- `getRoomCount()`: Returns number of game room templates (14)
 - Room cycling: `templates[stageIndex % 14]`
 - Enemy spawns: random floor tiles ≥5 tiles from player spawn, Fisher-Yates shuffled
 
@@ -190,9 +200,14 @@ Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multip
 
 ## Training Mode
 
-- Accessed via menu option or **T key** mid-game (teleports, saves game state)
+- Accessed via menu option or **T key** mid-game → opens **Training Config screen** first
+- **Config screen** (`STATE_TRAINING_CONFIG`): choose room, enemy type, and enemy count
+  - **Room**: Training Room (default) or any of the 14 game rooms (cycle with A/D)
+  - **Enemies**: All (random mix), Basic, Shooter, Dasher, or Tank (cycle with A/D)
+  - **Count**: 1–10 (default 3, adjust with A/D)
+  - Settings persist across sessions (stored on Game instance)
 - **No damage** to player (enemies skip contact damage)
-- Enemies respawn after `TRAINING_RESPAWN_DELAY` (2s) when all dead
+- Enemies respawn after `TRAINING_RESPAWN_DELAY` (2s) when all dead, using configured type/count
 - Door always open (`forceUnlock`)
 - Door / ESC returns to saved game (full heal) or menu
 - Player keeps XP/level progress (XP not awarded in training)

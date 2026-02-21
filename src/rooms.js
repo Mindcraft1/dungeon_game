@@ -1,5 +1,28 @@
 import { TILE_SIZE, COLS, ROWS } from './constants.js';
 
+/** Human-readable room names for the training config screen */
+export const ROOM_NAMES = [
+    'Open Arena',
+    'Four Pillars',
+    'Central Block',
+    'Horizontal Bars',
+    'Scattered Pillars',
+    'Corner Covers',
+    'Staggered Blocks',
+    'Mirror L-Walls',
+    'Pillar Grid',
+    'Twin Blocks',
+    'Plus Barrier',
+    'Pinch Points',
+    'Dense Asymmetric',
+    'Fortress',
+];
+
+export const TRAINING_ROOM_NAME = 'Training Room';
+
+/** Total number of room templates available */
+export function getRoomCount() { return ROOM_TEMPLATES.length; }
+
 // Each template is 20 cols × 15 rows.
 // # = wall   . = floor   S = player spawn   D = door/exit
 const ROOM_TEMPLATES = [

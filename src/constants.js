@@ -99,6 +99,7 @@ export const STATE_PLAYING = 'PLAYING';
 export const STATE_PAUSED = 'PAUSED';
 export const STATE_LEVEL_UP = 'LEVEL_UP';
 export const STATE_GAME_OVER = 'GAME_OVER';
+export const STATE_TRAINING_CONFIG = 'TRAINING_CONFIG';
 
 // ── Training ──
 export const TRAINING_ENEMY_COUNT = 3;

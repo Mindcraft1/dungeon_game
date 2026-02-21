@@ -5,9 +5,10 @@ import {
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
+    STATE_TRAINING_CONFIG,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
@@ -17,6 +18,7 @@ import { renderHUD } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
+import { renderTrainingConfig } from './ui/training-config.js';
 
 export class Game {
     constructor(ctx) {
@@ -57,6 +59,13 @@ export class Game {
 
         // Saved real-game state for returning from training
         this._savedGame = null;
+
+        // ── Training config ──
+        this.trainingConfigCursor = 0;  // 0=room, 1=enemy type, 2=count, 3=start
+        this.trainingRoomIndex = -1;    // -1 = training room, 0..13 = game rooms
+        this.trainingEnemyType = 0;     // 0=all, 1=basic, 2=shooter, 3=dasher, 4=tank
+        this.trainingEnemyCount = 3;
+        this._trainingFromGame = false; // true if opened via T key mid-game
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -128,7 +137,7 @@ export class Game {
             if (this.menuIndex === 0) {
                 this._startGame();
             } else if (this.menuIndex === 1) {
-                this._startTraining();
+                this._openTrainingConfig(false);
             } else {
                 this.profileCursor = 0;
                 this.profileCreating = false;
@@ -148,13 +157,21 @@ export class Game {
         this.state = STATE_PLAYING;
     }
 
+    _openTrainingConfig(fromGame) {
+        this._trainingFromGame = fromGame;
+        this.trainingConfigCursor = 0;
+        this.state = STATE_TRAINING_CONFIG;
+    }
+
     _startTraining() {
         this.trainingMode = true;
-        this._savedGame = null;
+        if (!this._trainingFromGame) {
+            this._savedGame = null;
+            this.player = null;
+        }
         this.stage = 0;
-        this.player = null;
         this.controlsHintTimer = 6000;
-        this._loadTrainingRoom();
+        this._loadConfiguredTrainingRoom();
         this.state = STATE_PLAYING;
     }
 
@@ -180,6 +197,43 @@ export class Game {
         this.enemies = spawns.map(p => new Enemy(
             p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE,
         ));
+    }
+
+    /** Load training room using user-selected config */
+    _loadConfiguredTrainingRoom() {
+        let grid, spawnPos, doorPos;
+        if (this.trainingRoomIndex === -1) {
+            ({ grid, spawnPos, doorPos } = parseTrainingRoom());
+        } else {
+            ({ grid, spawnPos, doorPos } = parseRoom(this.trainingRoomIndex));
+        }
+        this.grid = grid;
+        this._placePlayer(spawnPos);
+        this.door = new Door(doorPos.col, doorPos.row);
+        this.trainingRespawnTimer = 0;
+        this.projectiles = [];
+
+        this._spawnTrainingEnemies(grid, spawnPos, doorPos);
+    }
+
+    /** Spawn enemies in training based on the config selection */
+    _spawnTrainingEnemies(grid, spawnPos, doorPos) {
+        const count = this.trainingEnemyCount;
+        const spawns = getEnemySpawns(grid, spawnPos, doorPos, count);
+        const typeOptions = [null, ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK];
+        const selectedType = typeOptions[this.trainingEnemyType]; // null = all
+
+        this.enemies = spawns.map(p => {
+            let type;
+            if (selectedType) {
+                type = selectedType;
+            } else {
+                // Random from all types
+                const all = [ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK];
+                type = all[Math.floor(Math.random() * all.length)];
+            }
+            return new Enemy(p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE, type, 1);
+        });
     }
 
     _placePlayer(spawnPos) {
@@ -267,12 +321,22 @@ export class Game {
             grid: this.grid,
             projectiles: this.projectiles,
         };
+        this._openTrainingConfig(true);
+    }
+
+    /** Actually enter training after config (when coming from mid-game) */
+    _enterTrainingFromGame() {
         this.trainingMode = true;
         this.projectiles = [];
         this.stage = 0;
         this.controlsHintTimer = 4000;
-        // Keep player stats, move to training room, full heal
-        const { grid, spawnPos, doorPos } = parseTrainingRoom();
+
+        let grid, spawnPos, doorPos;
+        if (this.trainingRoomIndex === -1) {
+            ({ grid, spawnPos, doorPos } = parseTrainingRoom());
+        } else {
+            ({ grid, spawnPos, doorPos } = parseRoom(this.trainingRoomIndex));
+        }
         this.grid = grid;
         this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
         this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
@@ -282,10 +346,8 @@ export class Game {
         this.player.attackVisualTimer = 0;
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
-        const spawns = getEnemySpawns(grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
-        this.enemies = spawns.map(p => new Enemy(
-            p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE,
-        ));
+
+        this._spawnTrainingEnemies(grid, spawnPos, doorPos);
         this.state = STATE_PLAYING;
     }
 
@@ -327,12 +389,13 @@ export class Game {
         if (this.controlsHintTimer > 0) this.controlsHintTimer -= dt * 1000;
 
         switch (this.state) {
-            case STATE_MENU:      this._updateMenu();       break;
-            case STATE_PROFILES:  this._updateProfiles();   break;
-            case STATE_PLAYING:   this._updatePlaying(dt);  break;
-            case STATE_PAUSED:    this._updatePaused();     break;
-            case STATE_LEVEL_UP:  this._updateLevelUp();    break;
-            case STATE_GAME_OVER: this._updateGameOver();   break;
+            case STATE_MENU:            this._updateMenu();           break;
+            case STATE_PROFILES:        this._updateProfiles();       break;
+            case STATE_PLAYING:         this._updatePlaying(dt);      break;
+            case STATE_PAUSED:          this._updatePaused();         break;
+            case STATE_LEVEL_UP:        this._updateLevelUp();        break;
+            case STATE_GAME_OVER:       this._updateGameOver();       break;
+            case STATE_TRAINING_CONFIG: this._updateTrainingConfig(); break;
         }
     }
 
@@ -526,11 +589,13 @@ export class Game {
 
     _respawnTrainingEnemies() {
         this.trainingRespawnTimer = 0;
-        const { spawnPos, doorPos } = parseTrainingRoom();
-        const spawns = getEnemySpawns(this.grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
-        this.enemies = spawns.map(p => new Enemy(
-            p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE,
-        ));
+        let spawnPos, doorPos;
+        if (this.trainingRoomIndex === -1) {
+            ({ spawnPos, doorPos } = parseTrainingRoom());
+        } else {
+            ({ spawnPos, doorPos } = parseRoom(this.trainingRoomIndex));
+        }
+        this._spawnTrainingEnemies(this.grid, spawnPos, doorPos);
     }
 
     _updatePaused() {
@@ -588,6 +653,69 @@ export class Game {
             : STATE_PLAYING;
     }
 
+    // ── Training Config Screen ──────────────────────────────
+
+    _updateTrainingConfig() {
+        const ROWS = 4; // 0=room, 1=enemy type, 2=count, 3=start
+        const ENEMY_LABELS = ['All', 'Basic', 'Shooter', 'Dasher', 'Tank'];
+        const roomCount = getRoomCount(); // 14
+
+        // Navigate rows (W/S)
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.trainingConfigCursor = (this.trainingConfigCursor - 1 + ROWS) % ROWS;
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.trainingConfigCursor = (this.trainingConfigCursor + 1) % ROWS;
+        }
+
+        // Change values (A/D or Left/Right)
+        const left  = wasPressed('KeyA') || wasPressed('ArrowLeft');
+        const right = wasPressed('KeyD') || wasPressed('ArrowRight');
+
+        if (this.trainingConfigCursor === 0) {
+            // Room selection: -1 = training room, 0..roomCount-1 = game rooms
+            if (left)  this.trainingRoomIndex = (this.trainingRoomIndex - 1 + roomCount + 1) % (roomCount + 1) - 1;
+            if (right) this.trainingRoomIndex = (this.trainingRoomIndex + 1 + 1) % (roomCount + 1) - 1;
+        } else if (this.trainingConfigCursor === 1) {
+            // Enemy type
+            if (left)  this.trainingEnemyType = (this.trainingEnemyType - 1 + ENEMY_LABELS.length) % ENEMY_LABELS.length;
+            if (right) this.trainingEnemyType = (this.trainingEnemyType + 1) % ENEMY_LABELS.length;
+        } else if (this.trainingConfigCursor === 2) {
+            // Enemy count: 1..10
+            if (left)  this.trainingEnemyCount = Math.max(1, this.trainingEnemyCount - 1);
+            if (right) this.trainingEnemyCount = Math.min(10, this.trainingEnemyCount + 1);
+        }
+
+        // Confirm (Enter / Space) — start training from any row
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            if (this._trainingFromGame) {
+                this._enterTrainingFromGame();
+            } else {
+                this._startTraining();
+            }
+            return;
+        }
+
+        // Back
+        if (wasPressed('Escape')) {
+            if (this._trainingFromGame) {
+                // Cancel: restore saved state and resume
+                if (this._savedGame) {
+                    this.stage = this._savedGame.stage;
+                    this.enemies = this._savedGame.enemies;
+                    this.door = this._savedGame.door;
+                    this.grid = this._savedGame.grid;
+                    this.projectiles = this._savedGame.projectiles || [];
+                    this._savedGame = null;
+                }
+                this.state = STATE_PLAYING;
+            } else {
+                this.state = STATE_MENU;
+                this.menuIndex = 0;
+            }
+        }
+    }
+
     _updateGameOver() {
         if (wasPressed('Enter') || wasPressed('Space')) this.restart();
     }
@@ -608,6 +736,23 @@ export class Game {
             renderProfiles(ctx, this.profiles, this.activeProfileIndex,
                            this.profileCursor, this.profileCreating,
                            this.profileNewName, this.profileDeleting);
+            return;
+        }
+
+        if (this.state === STATE_TRAINING_CONFIG) {
+            const ENEMY_LABELS = ['All', 'Basic', 'Shooter', 'Dasher', 'Tank'];
+            const roomName = this.trainingRoomIndex === -1
+                ? TRAINING_ROOM_NAME
+                : ROOM_NAMES[this.trainingRoomIndex] || `Room ${this.trainingRoomIndex + 1}`;
+            renderTrainingConfig(
+                ctx,
+                this.trainingConfigCursor,
+                this.trainingRoomIndex,
+                roomName,
+                ENEMY_LABELS[this.trainingEnemyType],
+                this.trainingEnemyCount,
+                this._trainingFromGame,
+            );
             return;
         }
 
