@@ -134,7 +134,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null) {
 
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER or SPACE for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 70);
+    ctx.fillText('Press ENTER for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 70);
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';

@@ -2,11 +2,12 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIME
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
- * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo).
+ * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo, coins).
  */
 export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false,
                           comboCount = 0, comboTier = 0, comboMultiplier = 1, comboTimer = 0,
-                          isBossRoom = false, biomeName = null, biomeColor = null) {
+                          isBossRoom = false, biomeName = null, biomeColor = null,
+                          runCoins = 0, shieldCharges = 0, bombCharges = 0) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -14,7 +15,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
 
     // ── Background panel ──
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(pad - 4, y - 4, barW + 60, 104);
+    ctx.fillRect(pad - 4, y - 4, barW + 60, 150);
 
     // ── HP bar ──
     ctx.fillStyle = '#333';
@@ -111,6 +112,31 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(daggerReady ? 'DAGGER ✓' : 'DAGGER', pad + daggerBarW + 4, daggerBarY + 5);
+
+    // ── Coins, Shield, Bomb indicators (below dagger bar) ──
+    if (!trainingMode) {
+        let indicatorY = daggerBarY + daggerBarH + 6;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+
+        // Coins
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText(`🪙 ${runCoins}`, pad, indicatorY + 5);
+        indicatorY += 14;
+
+        // Shield charges
+        if (shieldCharges > 0) {
+            ctx.fillStyle = '#00bcd4';
+            ctx.fillText(`🛡️ ×${shieldCharges}`, pad, indicatorY + 5);
+            indicatorY += 14;
+        }
+
+        // Bomb charges
+        if (bombCharges > 0) {
+            ctx.fillStyle = '#ff9800';
+            ctx.fillText(`💣 ×${bombCharges} [B]`, pad, indicatorY + 5);
+        }
+    }
 
     // ── Stats (top-right) ──
     ctx.textAlign = 'right';

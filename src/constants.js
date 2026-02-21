@@ -271,3 +271,100 @@ export const BOSS_PHANTOM_NAME = 'The Phantom';
 export const STATE_BOSS_VICTORY = 'BOSS_VICTORY';
 export const STATE_META_MENU = 'META_MENU';
 export const STATE_SETTINGS = 'SETTINGS';
+export const STATE_META_SHOP = 'META_SHOP';
+export const STATE_SHOP_RUN = 'SHOP_RUN';
+
+// ── Shop: Coin Economy ──
+export const COIN_REWARD_NORMAL_ENEMY = 1;
+export const COIN_REWARD_ELITE_ENEMY  = 3;   // tank + dasher count as "elite"
+export const COIN_REWARD_BOSS         = 10;
+
+// ── Meta-Shop Boosters (Core Shards, max 1 per run) ──
+export const META_BOOSTERS = {
+    meta_booster_shield_pack: {
+        id:    'meta_booster_shield_pack',
+        name:  'Shield Pack',
+        desc:  'Start with 3 shield charges (absorb 3 hits)',
+        icon:  '🛡️',
+        color: '#00bcd4',
+        cost:  20,
+    },
+    meta_booster_weapon_core: {
+        id:    'meta_booster_weapon_core',
+        name:  'Weapon Core',
+        desc:  '+12% Damage until Boss 3',
+        icon:  '⚔️',
+        color: '#f44336',
+        cost:  25,
+    },
+    meta_booster_training_manual: {
+        id:    'meta_booster_training_manual',
+        name:  'Training Manual',
+        desc:  '+20% XP gain until Level 5',
+        icon:  '📖',
+        color: '#9c27b0',
+        cost:  18,
+    },
+    meta_booster_panic_button: {
+        id:    'meta_booster_panic_button',
+        name:  'Panic Button',
+        desc:  '1× Revive with 50% HP per run',
+        icon:  '💀',
+        color: '#ffd700',
+        cost:  30,
+    },
+};
+export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);
+
+// ── In-Run Shop Items (Coins) ──
+export const RUN_SHOP_ITEMS = {
+    run_item_small_heal: {
+        id:    'run_item_small_heal',
+        name:  'Small Heal',
+        desc:  'Heal 25% HP instantly',
+        icon:  '❤️',
+        color: '#4caf50',
+        cost:  8,
+    },
+    run_item_repair_armor: {
+        id:    'run_item_repair_armor',
+        name:  'Repair Armor',
+        desc:  '+1 shield charge',
+        icon:  '🔷',
+        color: '#00bcd4',
+        cost:  12,
+    },
+    run_item_sharpen_blade: {
+        id:    'run_item_sharpen_blade',
+        name:  'Sharpen Blade',
+        desc:  '+8% Damage (rest of run)',
+        icon:  '🗡️',
+        color: '#f44336',
+        cost:  15,
+    },
+    run_item_light_boots: {
+        id:    'run_item_light_boots',
+        name:  'Light Boots',
+        desc:  '+5% Speed (rest of run)',
+        icon:  '👢',
+        color: '#2196f3',
+        cost:  15,
+    },
+    run_item_bomb: {
+        id:    'run_item_bomb',
+        name:  'Bomb',
+        desc:  '1 charge: AoE damage around you (B key)',
+        icon:  '💣',
+        color: '#ff9800',
+        cost:  10,
+    },
+    run_item_trap_resist: {
+        id:    'run_item_trap_resist',
+        name:  'Trap Resist',
+        desc:  '-15% spike & lava damage (rest of run)',
+        icon:  '🧱',
+        color: '#795548',
+        cost:  14,
+    },
+};
+export const RUN_SHOP_ITEM_IDS = Object.keys(RUN_SHOP_ITEMS);

@@ -65,6 +65,9 @@ export class Player {
         this.metaDamageTakenMultiplier = 1;
         this.metaSpikeDamageMultiplier = 1;
         this.metaLavaDotMultiplier = 1;
+
+        // ── Shop modifiers (set by game.js) ──
+        this.shopTrapResistMult = 1;   // from run_item_trap_resist
     }
 
     update(dt, movement, grid) {

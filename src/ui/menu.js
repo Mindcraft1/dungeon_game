@@ -2,11 +2,12 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 /**
  * Draw the main menu screen.
- * @param {number} selectedIndex – 0 = Play, 1 = Training, 2 = Characters, 3 = Settings, 4 = Meta Progress
+ * @param {number} selectedIndex – 0 = Play, 1 = Meta Progress, 2 = Shop, 3 = Characters, 4 = Training, 5 = Settings
  * @param {string|null} profileName – name of active character
  * @param {number} coreShards – available core shards
+ * @param {string|null} selectedBooster – selected meta booster name for display
  */
-export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null, coreShards = 0) {
+export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null, coreShards = 0, selectedBooster = null) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -53,16 +54,18 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     }
 
     // Menu options
+    const boosterHint = selectedBooster ? `  ·  ✓ ${selectedBooster}` : '';
     const options = [
         { label: 'START GAME', desc: 'Fight through dungeon rooms', color: '#4fc3f7' },
-        { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
-        { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
-        { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
         { label: 'META PROGRESS', desc: `Perks, Relics & Stats  ·  ◆ ${coreShards}`, color: '#bb86fc' },
+        { label: 'SHOP', desc: `Boosters for your next run${boosterHint}`, color: '#ffd700' },
+        { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
+        { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
+        { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
     ];
 
-    const startY = 295;
-    const spacing = 48;
+    const startY = 280;
+    const spacing = 52;
 
     options.forEach((opt, i) => {
         const y = startY + i * spacing;
@@ -70,13 +73,13 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
 
         // Selection box
         if (selected) {
-            const boxW = 320;
-            const boxH = 50;
+            const boxW = 340;
+            const boxH = 52;
             ctx.fillStyle = 'rgba(79,195,247,0.08)';
-            ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+            ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 22, boxW, boxH);
             ctx.strokeStyle = opt.color;
             ctx.lineWidth = 2;
-            ctx.strokeRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+            ctx.strokeRect(CANVAS_WIDTH / 2 - boxW / 2, y - 22, boxW, boxH);
 
             // Arrow indicator
             ctx.fillStyle = opt.color;
@@ -88,7 +91,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
 
         // Label
         ctx.fillStyle = selected ? opt.color : '#555';
-        ctx.font = `bold 22px monospace`;
+        ctx.font = `bold 18px monospace`;
         ctx.fillText(opt.label, CANVAS_WIDTH / 2, y);
 
         // Description

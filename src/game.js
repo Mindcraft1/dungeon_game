@@ -9,10 +9,15 @@ import {
     UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
+    STATE_META_SHOP, STATE_SHOP_RUN,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
     BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
+    COIN_REWARD_NORMAL_ENEMY, COIN_REWARD_ELITE_ENEMY, COIN_REWARD_BOSS,
+    META_BOOSTERS, META_BOOSTER_IDS,
+    RUN_SHOP_ITEMS, RUN_SHOP_ITEM_IDS,
+    PLAYER_INVULN_TIME,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
@@ -44,6 +49,8 @@ import { PERK_IDS, upgradePerk, canUpgrade } from './meta/metaPerks.js';
 import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
 import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from './meta/uiRewardsToast.js';
 import { getAvailableShards } from './meta/metaState.js';
+import { renderMetaShop } from './ui/metaShop.js';
+import { renderRunShop } from './ui/runShop.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -67,7 +74,7 @@ export class Game {
 
         // Start at profiles screen if no profiles exist, otherwise menu
         this.state = this.profiles.length === 0 ? STATE_PROFILES : STATE_MENU;
-        this.menuIndex = 0;           // 0=Play, 1=Training, 2=Characters
+        this.menuIndex = 0;           // 0=Play, 1=Training, 2=Meta, 3=Shop, 4=Characters, 5=Settings
 
         // Profiles screen state
         this.profileCursor = 0;
@@ -157,6 +164,22 @@ export class Game {
             xpboost:    false,   // BIGXP  — 10× XP gain
         };
         this.cheatNotifications = [];  // [{text, timer, color}]
+
+        // ── Shop System ──
+        this.runCoins = 0;                     // reset per run
+        this.purchasedMetaBoosterId = null;    // selected meta booster for next run
+        this.activeMetaBoosterId = null;       // applied meta booster for current run
+        this.metaBoosterShieldCharges = 0;     // from shield_pack
+        this.metaBoosterWeaponCoreActive = false;  // +12% dmg until boss 3
+        this.metaBoosterTrainingActive = false;     // +20% XP until level 5
+        this.metaBoosterPanicAvailable = false;     // 1x revive
+        this.runShopDamageMult = 1;            // cumulative from sharpen_blade
+        this.runShopSpeedMult = 1;             // cumulative from light_boots
+        this.runShopTrapResistMult = 1;        // from trap_resist
+        this.bombCharges = 0;                  // from bomb item
+        this.metaShopCursor = 0;               // UI cursor for meta shop
+        this.runShopCursor = 0;                // UI cursor for in-run shop
+        this._pendingRunShop = false;          // true if shop should open after level-up chain
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -284,7 +307,7 @@ export class Game {
     // ── Menu ───────────────────────────────────────────────
 
     _updateMenu() {
-        const count = 5; // Play, Training, Characters, Settings, Meta Progress
+        const count = 6; // Play, Meta Progress, Shop, Characters, Training, Settings
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.menuIndex = (this.menuIndex - 1 + count) % count;
             Audio.playMenuNav();
@@ -298,17 +321,20 @@ export class Game {
             if (this.menuIndex === 0) {
                 this._startGame();
             } else if (this.menuIndex === 1) {
-                this._openTrainingConfig(false);
+                this._openMetaMenu(false);
             } else if (this.menuIndex === 2) {
+                this.metaShopCursor = 0;
+                this.state = STATE_META_SHOP;
+            } else if (this.menuIndex === 3) {
                 this.profileCursor = 0;
                 this.profileCreating = false;
                 this.profileDeleting = false;
                 this.state = STATE_PROFILES;
-            } else if (this.menuIndex === 3) {
+            } else if (this.menuIndex === 4) {
+                this._openTrainingConfig(false);
+            } else if (this.menuIndex === 5) {
                 this.settingsCursor = 0;
                 this.state = STATE_SETTINGS;
-            } else if (this.menuIndex === 4) {
-                this._openMetaMenu(false);
             }
         }
     }
@@ -337,6 +363,20 @@ export class Game {
         this.shieldCharges = 0;
         this.regenTimer = 0;
         this._applyMetaModifiers();
+
+        // ── Shop System: reset run state & apply meta booster ──
+        this.runCoins = 0;
+        this.runShopDamageMult = 1;
+        this.runShopSpeedMult = 1;
+        this.runShopTrapResistMult = 1;
+        this.bombCharges = 0;
+        this.metaBoosterShieldCharges = 0;
+        this.metaBoosterWeaponCoreActive = false;
+        this.metaBoosterTrainingActive = false;
+        this.metaBoosterPanicAvailable = false;
+        this.activeMetaBoosterId = this.purchasedMetaBoosterId;
+        this.purchasedMetaBoosterId = null;  // consumed
+        this._applyMetaBooster();
 
         this.state = STATE_PLAYING;
     }
@@ -789,6 +829,18 @@ export class Game {
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
+        // Shop state reset (keep purchasedMetaBoosterId — it persists across runs)
+        this.runCoins = 0;
+        this.activeMetaBoosterId = null;
+        this.metaBoosterShieldCharges = 0;
+        this.metaBoosterWeaponCoreActive = false;
+        this.metaBoosterTrainingActive = false;
+        this.metaBoosterPanicAvailable = false;
+        this.runShopDamageMult = 1;
+        this.runShopSpeedMult = 1;
+        this.runShopTrapResistMult = 1;
+        this.bombCharges = 0;
+        this._pendingRunShop = false;
         clearToasts();
     }
 
@@ -875,6 +927,242 @@ export class Game {
         }
     }
 
+    /** Apply the meta booster purchased for this run. */
+    _applyMetaBooster() {
+        if (!this.activeMetaBoosterId || !this.player) return;
+        switch (this.activeMetaBoosterId) {
+            case 'meta_booster_shield_pack':
+                this.metaBoosterShieldCharges = 3;
+                showToast('Shield Pack: 3 shield charges!', '#00bcd4', '🛡️');
+                break;
+            case 'meta_booster_weapon_core':
+                this.metaBoosterWeaponCoreActive = true;
+                showToast('Weapon Core: +12% Damage active!', '#f44336', '⚔️');
+                break;
+            case 'meta_booster_training_manual':
+                this.metaBoosterTrainingActive = true;
+                showToast('Training Manual: +20% XP active!', '#9c27b0', '📖');
+                break;
+            case 'meta_booster_panic_button':
+                this.metaBoosterPanicAvailable = true;
+                showToast('Panic Button: 1× Revive ready!', '#ffd700', '💀');
+                break;
+        }
+    }
+
+    /** Get effective damage multiplier including all shop boosts. */
+    _getShopDamageMultiplier() {
+        let mult = this.runShopDamageMult;
+        // Weapon Core: +12% until boss 3
+        if (this.metaBoosterWeaponCoreActive && this.bossesKilledThisRun < 3) {
+            mult *= 1.12;
+        }
+        return mult;
+    }
+
+    /** Get effective XP multiplier from shop boosters. */
+    _getShopXpMultiplier() {
+        // Training Manual: +20% until level 5
+        if (this.metaBoosterTrainingActive && this.player && this.player.level < 5) {
+            return 1.20;
+        }
+        return 1;
+    }
+
+    /** Update meta shop screen input. */
+    _updateMetaShop() {
+        const maxIdx = this.purchasedMetaBoosterId ? META_BOOSTER_IDS.length : META_BOOSTER_IDS.length - 1;
+
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.metaShopCursor = (this.metaShopCursor - 1 + maxIdx + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.metaShopCursor = (this.metaShopCursor + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
+        }
+        // Left/Right to navigate 2-column grid
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            if (this.metaShopCursor < META_BOOSTER_IDS.length && this.metaShopCursor % 2 === 1) {
+                this.metaShopCursor--;
+                Audio.playMenuNav();
+            }
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            if (this.metaShopCursor < META_BOOSTER_IDS.length && this.metaShopCursor % 2 === 0
+                && this.metaShopCursor + 1 < META_BOOSTER_IDS.length) {
+                this.metaShopCursor++;
+                Audio.playMenuNav();
+            }
+        }
+
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            // Clear selection
+            if (this.metaShopCursor === META_BOOSTER_IDS.length && this.purchasedMetaBoosterId) {
+                // Refund shards
+                const booster = META_BOOSTERS[this.purchasedMetaBoosterId];
+                if (booster) {
+                    const state = MetaStore.getState();
+                    state.spentCoreShards -= booster.cost;
+                    MetaStore.save();
+                }
+                this.purchasedMetaBoosterId = null;
+                showToast('Booster refunded', '#ff9800', '↩');
+                Audio.playMenuSelect();
+                return;
+            }
+
+            // Buy booster
+            if (this.metaShopCursor < META_BOOSTER_IDS.length) {
+                const id = META_BOOSTER_IDS[this.metaShopCursor];
+                if (this.purchasedMetaBoosterId) {
+                    // Already have one
+                    return;
+                }
+                const booster = META_BOOSTERS[id];
+                const state = MetaStore.getState();
+                const shards = getAvailableShards(state);
+                if (shards >= booster.cost) {
+                    state.spentCoreShards += booster.cost;
+                    MetaStore.save();
+                    this.purchasedMetaBoosterId = id;
+                    showToast(`Purchased: ${booster.name}!`, booster.color, booster.icon);
+                    Audio.playMenuSelect();
+                } else {
+                    showToast('Not enough Core Shards', '#e74c3c', '✗');
+                }
+            }
+        }
+
+        if (wasPressed('Escape')) {
+            this.state = STATE_MENU;
+            this.menuIndex = 0;
+        }
+    }
+
+    /** Update in-run shop input. */
+    _updateRunShop() {
+        const maxIdx = RUN_SHOP_ITEM_IDS.length; // 0..5 items, 6 = continue
+
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.runShopCursor = (this.runShopCursor - 1 + maxIdx + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.runShopCursor = (this.runShopCursor + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
+        }
+
+        // Number keys 1-6 quick-buy
+        let buyIdx = null;
+        if (wasPressed('Digit1')) buyIdx = 0;
+        else if (wasPressed('Digit2')) buyIdx = 1;
+        else if (wasPressed('Digit3')) buyIdx = 2;
+        else if (wasPressed('Digit4')) buyIdx = 3;
+        else if (wasPressed('Digit5')) buyIdx = 4;
+        else if (wasPressed('Digit6')) buyIdx = 5;
+
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            if (this.runShopCursor === RUN_SHOP_ITEM_IDS.length) {
+                // Continue
+                Audio.playMenuSelect();
+                this._closeRunShop();
+                return;
+            }
+            buyIdx = this.runShopCursor;
+        }
+
+        if (wasPressed('Escape')) {
+            Audio.playMenuSelect();
+            this._closeRunShop();
+            return;
+        }
+
+        if (buyIdx !== null && buyIdx < RUN_SHOP_ITEM_IDS.length) {
+            this._buyRunShopItem(buyIdx);
+        }
+    }
+
+    /** Purchase an in-run shop item by index. */
+    _buyRunShopItem(index) {
+        const id = RUN_SHOP_ITEM_IDS[index];
+        const item = RUN_SHOP_ITEMS[id];
+        if (this.runCoins < item.cost) {
+            showToast('Not enough coins!', '#e74c3c', '✗');
+            return;
+        }
+        this.runCoins -= item.cost;
+        Audio.playMenuSelect();
+
+        switch (id) {
+            case 'run_item_small_heal':
+                if (this.player) {
+                    const heal = Math.floor(this.player.maxHp * 0.25);
+                    this.player.hp = Math.min(this.player.hp + heal, this.player.maxHp);
+                }
+                break;
+            case 'run_item_repair_armor':
+                this.metaBoosterShieldCharges++;
+                break;
+            case 'run_item_sharpen_blade':
+                this.runShopDamageMult *= 1.08;
+                break;
+            case 'run_item_light_boots':
+                this.runShopSpeedMult *= 1.05;
+                if (this.player) {
+                    this.player.speed = Math.floor(this.player.speed * 1.05);
+                }
+                break;
+            case 'run_item_bomb':
+                this.bombCharges++;
+                break;
+            case 'run_item_trap_resist':
+                this.runShopTrapResistMult *= 0.85;
+                if (this.player) {
+                    this.player.shopTrapResistMult = this.runShopTrapResistMult;
+                }
+                break;
+        }
+        showToast(`Purchased: ${item.name}`, item.color, item.icon);
+    }
+
+    /** Close run shop and return to playing (player walks through door to next room). */
+    _closeRunShop() {
+        this._cachedLevelUpChoices = null;
+        this.state = STATE_PLAYING;
+    }
+
+    /** Activate bomb (B key) — AoE damage around player. */
+    _activateBomb() {
+        if (this.bombCharges <= 0) return;
+        this.bombCharges--;
+        Audio.playBossSlam();
+        triggerShake(8, 0.88);
+        this.particles.bossSlam(this.player.x, this.player.y, 120, '#ff9800');
+
+        // Deal damage to all enemies within radius 120
+        const bombRadius = 120;
+        const bombDamage = Math.floor(this.player.damage * 1.5);
+        for (const e of this.enemies) {
+            if (e.dead) continue;
+            const dx = e.x - this.player.x;
+            const dy = e.y - this.player.y;
+            if (Math.sqrt(dx * dx + dy * dy) < bombRadius + e.radius) {
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                e.takeDamage(bombDamage, (dx / dist) * 15, (dy / dist) * 15);
+            }
+        }
+        // Also damage boss if present
+        if (this.boss && !this.boss.dead) {
+            const dx = this.boss.x - this.player.x;
+            const dy = this.boss.y - this.player.y;
+            if (Math.sqrt(dx * dx + dy * dy) < bombRadius + this.boss.radius) {
+                this.boss.takeDamage(bombDamage);
+            }
+        }
+        showToast('💣 BOOM!', '#ff9800', '💣');
+    }
+
     // ── Update ─────────────────────────────────────────────
 
     update(dt) {
@@ -912,6 +1200,8 @@ export class Game {
             case STATE_BOSS_VICTORY:    this._updateBossVictory();   break;
             case STATE_META_MENU:       this._updateMetaMenu();      break;
             case STATE_SETTINGS:        this._updateSettings();      break;
+            case STATE_META_SHOP:       this._updateMetaShop();      break;
+            case STATE_SHOP_RUN:        this._updateRunShop();       break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -1136,15 +1426,20 @@ export class Game {
                 : this.enemies;
 
             // ── Cheat: One Hit Kill — temporarily set massive damage ──
+            // ── Shop damage multiplier (weapon core + sharpen blade) ──
             let savedDmg;
+            const shopDmgMult = this._getShopDamageMultiplier();
             if (this.cheats.onehitkill) {
                 savedDmg = this.player.damage;
                 this.player.damage = 999999;
+            } else if (shopDmgMult !== 1) {
+                savedDmg = this.player.damage;
+                this.player.damage = Math.floor(this.player.damage * shopDmgMult);
             }
 
             const hitCount = this.player.attack(targets);
 
-            if (this.cheats.onehitkill && savedDmg !== undefined) {
+            if (savedDmg !== undefined) {
                 this.player.damage = savedDmg;
             }
             if (hitCount >= 0) {
@@ -1184,7 +1479,17 @@ export class Game {
 
         // Ranged Attack (N key) — throw dagger
         if (wasPressed('KeyN')) {
+            // Apply shop damage multiplier for dagger
+            const shopDmgMultDagger = this._getShopDamageMultiplier();
+            let savedDmgDagger;
+            if (shopDmgMultDagger !== 1) {
+                savedDmgDagger = this.player.damage;
+                this.player.damage = Math.floor(this.player.damage * shopDmgMultDagger);
+            }
             const throwData = this.player.tryThrow();
+            if (savedDmgDagger !== undefined) {
+                this.player.damage = savedDmgDagger;
+            }
             if (throwData) {
                 const dagger = new PlayerProjectile(
                     throwData.x, throwData.y,
@@ -1205,6 +1510,11 @@ export class Game {
                     throwData.dirX, throwData.dirY,
                 );
             }
+        }
+
+        // Bomb activation (B key)
+        if (wasPressed('KeyB') && this.bombCharges > 0) {
+            this._activateBomb();
         }
 
         // Track player HP to detect damage
@@ -1244,12 +1554,20 @@ export class Game {
                     this._comboRegisterKill(e.x, e.y);
                 }
 
+                // Coin reward (real game only)
                 if (!this.trainingMode) {
-                    // Apply combo XP multiplier + cheat XP boost + meta XP multiplier
+                    const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
+                    const coinReward = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
+                    this.runCoins += coinReward;
+                }
+
+                if (!this.trainingMode) {
+                    // Apply combo XP multiplier + cheat XP boost + meta XP multiplier + shop booster
                     const xpMult = this.cheats.xpboost ? 10 : 1;
                     const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
                     const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult);
+                    const shopXpMult = this._getShopXpMultiplier();
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
@@ -1333,6 +1651,8 @@ export class Game {
 
             // ── Meta Progression: boss kill rewards ──
             this.bossesKilledThisRun++;
+            // Coin reward for boss kill
+            this.runCoins += COIN_REWARD_BOSS;
             const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
             this.lastBossReward = reward;
             // Toast for shards
@@ -1389,6 +1709,17 @@ export class Game {
             if (h.justFired) {
                 Audio.playArrowTrap();
             }
+        }
+
+        // Meta booster shield: absorb hit if shield charges available
+        if (this.player.hp < hpBefore && this.metaBoosterShieldCharges > 0) {
+            // Undo the damage — restore HP to before
+            this.player.hp = hpBefore;
+            this.metaBoosterShieldCharges--;
+            this.player.invulnTimer = PLAYER_INVULN_TIME;
+            Audio.playShieldBlock();
+            this.particles.shieldBlock(this.player.x, this.player.y);
+            showToast(`Shield absorbed! (${this.metaBoosterShieldCharges} left)`, '#00bcd4', '🛡️');
         }
 
         // Detect player damage — apply meta damage reduction
@@ -1476,14 +1807,25 @@ export class Game {
 
         // Death (only in real game)
         if (!this.trainingMode && this.player.hp <= 0) {
-            this._saveHighscore();
-            this.player.clearBuffs();
-            this._comboReset();
-            Audio.playGameOver();
-            triggerShake(10, 0.9);
-            // Meta: finalize run
-            RewardSystem.onRunEnd(this.stage);
-            this.state = STATE_GAME_OVER;
+            // Meta booster: Panic Button — revive once
+            if (this.metaBoosterPanicAvailable) {
+                this.metaBoosterPanicAvailable = false;
+                this.player.hp = Math.floor(this.player.maxHp * 0.5);
+                this.player.invulnTimer = 1500; // generous i-frames after revive
+                Audio.playLevelUp();
+                this.particles.levelUp(this.player.x, this.player.y);
+                triggerShake(10, 0.92);
+                showBigToast('💀 REVIVED! 💀', '#ffd700', '💀');
+            } else {
+                this._saveHighscore();
+                this.player.clearBuffs();
+                this._comboReset();
+                Audio.playGameOver();
+                triggerShake(10, 0.9);
+                // Meta: finalize run
+                RewardSystem.onRunEnd(this.stage);
+                this.state = STATE_GAME_OVER;
+            }
         }
 
         // Death in training with damage on → full heal + respawn enemies
@@ -1645,7 +1987,14 @@ export class Game {
             this.state = STATE_LEVEL_UP;
         } else {
             this._cachedLevelUpChoices = null;
-            this.state = STATE_PLAYING;
+            // Check if a run shop was pending (deferred from boss victory)
+            if (this._pendingRunShop) {
+                this._pendingRunShop = false;
+                this.runShopCursor = 0;
+                this.state = STATE_SHOP_RUN;
+            } else {
+                this.state = STATE_PLAYING;
+            }
         }
     }
 
@@ -1829,7 +2178,8 @@ export class Game {
         const bossXpMult = this.cheats.xpboost ? 10 : 1;
         const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
         const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
-        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult);
+        const shopXpMult = this._getShopXpMultiplier();
+        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult);
         if (this.player.addXp(xp)) {
             Audio.playLevelUp();
             this.particles.levelUp(this.player.x, this.player.y);
@@ -1840,11 +2190,22 @@ export class Game {
             }
             this.upgradeIndex = 0;
             this._cachedLevelUpChoices = this._getLevelUpChoices();
+            // If shop should open after this boss, flag it for after level-up chain
+            if (this.bossesKilledThisRun >= 2 && this.bossesKilledThisRun % 2 === 0) {
+                this._pendingRunShop = true;
+            }
             this.state = STATE_LEVEL_UP;
             return;
         }
 
-        // No level-up → back to playing (door is unlocked, walk through to continue)
+        // Check if in-run shop should open (every 2nd boss: boss 2, 4, 6, ...)
+        if (this.bossesKilledThisRun >= 2 && this.bossesKilledThisRun % 2 === 0) {
+            this.runShopCursor = 0;
+            this.state = STATE_SHOP_RUN;
+            return;
+        }
+
+        // No level-up, no shop → back to playing (door is unlocked, walk through to continue)
         this._cachedLevelUpChoices = null;
         this.state = STATE_PLAYING;
     }
@@ -1867,7 +2228,7 @@ export class Game {
                 break;
             case STATE_SETTINGS:
             default:
-                // Menu/profiles/meta/settings: silent
+                // Menu/profiles/meta/settings/shops: silent
                 Music.setDanger(0);
                 break;
         }
@@ -1926,7 +2287,10 @@ export class Game {
         if (this.state === STATE_MENU) {
             const profileName = this.activeProfile ? this.activeProfile.name : null;
             const shards = getAvailableShards(MetaStore.getState());
-            renderMenu(ctx, this.menuIndex, this.highscore, profileName, shards);
+            const boosterName = this.purchasedMetaBoosterId
+                ? (META_BOOSTERS[this.purchasedMetaBoosterId]?.name || null)
+                : null;
+            renderMenu(ctx, this.menuIndex, this.highscore, profileName, shards, boosterName);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -1972,6 +2336,14 @@ export class Game {
             return;
         }
 
+        if (this.state === STATE_META_SHOP) {
+            const shards = getAvailableShards(MetaStore.getState());
+            renderMetaShop(ctx, this.metaShopCursor, shards, this.purchasedMetaBoosterId);
+            renderToasts(ctx);
+            this._renderCheatNotifications(ctx);
+            return;
+        }
+
         renderRoom(ctx, this.grid, this.currentBiome, this.stage || 0);
         for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
@@ -2013,7 +2385,8 @@ export class Game {
         const biomeColor = this.currentBiome ? this.currentBiome.nameColor : null;
         renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
                   this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
-                  biomeName, biomeColor);
+                  biomeName, biomeColor,
+                  this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
 
         // Boss HP bar
         if (this.boss && !this.boss.dead) {
@@ -2091,6 +2464,9 @@ export class Game {
             renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
                 this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
                 this.lastBossReward, RELIC_DEFINITIONS, RUN_UPGRADE_DEFINITIONS);
+        } else if (this.state === STATE_SHOP_RUN) {
+            renderRunShop(ctx, this.runShopCursor, this.runCoins, this.stage,
+                this.metaBoosterShieldCharges, this.bombCharges);
         }
     }
 

@@ -114,6 +114,10 @@ export class Hazard {
             if (player.metaSpikeDamageMultiplier && player.metaSpikeDamageMultiplier < 1) {
                 dmg = Math.max(1, Math.floor(dmg * player.metaSpikeDamageMultiplier));
             }
+            // Shop: trap resist
+            if (player.shopTrapResistMult && player.shopTrapResistMult < 1) {
+                dmg = Math.max(1, Math.floor(dmg * player.shopTrapResistMult));
+            }
             player.takeDamage(dmg);
         }
     }
@@ -133,6 +137,10 @@ export class Hazard {
                     // Meta relic: lava damage reduction
                     if (player.metaLavaDotMultiplier && player.metaLavaDotMultiplier < 1) {
                         dmg = Math.max(1, Math.floor(dmg * player.metaLavaDotMultiplier));
+                    }
+                    // Shop: trap resist
+                    if (player.shopTrapResistMult && player.shopTrapResistMult < 1) {
+                        dmg = Math.max(1, Math.floor(dmg * player.shopTrapResistMult));
                     }
                     player.takeDamage(dmg);
                 }
