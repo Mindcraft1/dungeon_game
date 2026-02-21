@@ -11,7 +11,7 @@
 - **Mechanik:** Kurzer Dash in Bewegungsrichtung mit ~200ms i-Frames
 - **Warum:** Gibt dem Spieler ein aktives Defensiv-Tool, macht Gameplay deutlich dynamischer
 - **Aufwand:** ~1h — neuer Timer + Cooldown in `constants.js`, Logik in `player.js`
-- **Status:** ⬜ Offen
+- **Status:** ⬜ Offend
 
 ---
 

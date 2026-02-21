@@ -599,7 +599,6 @@ export class Game {
                             this.particles.hitSparks(e.x, e.y, dx / d, dy / d);
                         }
                     }
-                    triggerShake(2.5, 0.85);
                 }
             }
         }
@@ -622,10 +621,9 @@ export class Game {
                 e.xpGiven = true;
                 Audio.playEnemyDeath();
 
-                // Death explosion particles + screen shake
+                // Death explosion particles
                 const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
                 this.particles.enemyDeath(e.x, e.y, eColor, e.radius);
-                triggerShake(4, 0.87);
 
                 // Try to spawn a pickup drop
                 if (dropsEnabled) {
@@ -638,7 +636,6 @@ export class Game {
                         Audio.playLevelUp();
                         // Level-up particles
                         this.particles.levelUp(this.player.x, this.player.y);
-                        triggerShake(3, 0.9);
                         this.state = STATE_LEVEL_UP;
                         return;
                     }
@@ -668,7 +665,6 @@ export class Game {
         } else if (shieldBefore && !this.player.phaseShieldActive) {
             Audio.playShieldBlock();
             this.particles.shieldBlock(this.player.x, this.player.y);
-            triggerShake(3, 0.88);
         }
 
         // Pickups: update lifetime + check collection
