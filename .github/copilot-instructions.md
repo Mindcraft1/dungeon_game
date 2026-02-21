@@ -13,7 +13,7 @@ A 2D top-down dungeon room-clearing game built with **HTML5 Canvas** and **Vanil
 - **Game loop:** `requestAnimationFrame` with delta-time (capped at 50 ms)
 - **Dev server:** `npm start` → `npx serve -l 6969`
 - **Persistence:** `localStorage` key `dungeon_profiles` (JSON)
-- **Total:** ~3,000 lines across 18 files
+- **Total:** ~2,000 lines across 17 files
 
 ---
 
@@ -29,20 +29,18 @@ game_test/
     ├── constants.js        # All tunable values + game state enums
     ├── input.js            # Keyboard abstraction (keysDown, wasPressed, getMovement, getLastKey)
     ├── collision.js        # Circle-vs-grid wall resolution, circle-circle, circle-rect
-    ├── rooms.js            # 14 ASCII room templates + 1 training template, parsing, enemy spawn logic
+    ├── rooms.js            # 6 ASCII room templates + 1 training template, parsing, enemy spawn logic
     ├── render.js           # Room grid renderer (floor tiles + bevelled wall tiles)
-    ├── game.js             # ⭐ Core Game class — state machine, all logic orchestration (~950 lines)
+    ├── game.js             # ⭐ Core Game class — state machine, all logic orchestration (~745 lines)
     ├── entities/
     │   ├── player.js       # Player class: movement, 120° arc melee, XP/leveling, rendering
-    │   ├── enemy.js        # Enemy class: 4 types (basic/shooter/tank/dasher), type-specific AI + rendering
-    │   ├── projectile.js   # Projectile class: linear movement, wall/player collision, glow rendering
+    │   ├── enemy.js        # Enemy class: seek AI, contact damage, separation, knockback
     │   └── door.js         # Door class: lock/unlock, collision, lock icon / arrow animation
     └── ui/
         ├── hud.js          # In-game HUD: HP/XP bars, level, stage, enemy count, stats
         ├── levelup.js      # Level-Up overlay (3 upgrade choices) + Game Over overlay
         ├── menu.js         # Main menu: 3 options (Start / Training / Characters) + highscore
-        ├── profiles.js     # Character profile screen: list, create (text input), delete
-        └── training-config.js  # Training config screen: room/enemy/count selection UI
+        └── profiles.js     # Character profile screen: list, create (text input), delete
 ```
 
 ---
@@ -61,14 +59,12 @@ index.html
               ├── src/render.js        ← constants.js
               ├── src/collision.js     (imported by entities, not game.js)
               ├── src/entities/player.js  ← constants.js, collision.js
-              ├── src/entities/enemy.js   ← constants.js, collision.js, projectile.js
-              ├── src/entities/projectile.js ← constants.js, collision.js
+              ├── src/entities/enemy.js   ← constants.js, collision.js
               ├── src/entities/door.js    ← constants.js, collision.js
               ├── src/ui/hud.js           ← constants.js
               ├── src/ui/levelup.js       ← constants.js
               ├── src/ui/menu.js          ← constants.js
-              ├── src/ui/profiles.js      ← constants.js
-              └── src/ui/training-config.js ← constants.js
+              └── src/ui/profiles.js      ← constants.js
 ```
 
 `game.js` is the **sole orchestrator**. No other module imports `game.js`. All UI modules are pure render functions — they receive data, draw to canvas, and return.
@@ -77,7 +73,7 @@ index.html
 
 ## State Machine
 
-The game runs on a 7-state FSM controlled by `Game.state`:
+The game runs on a 6-state FSM controlled by `Game.state`:
 
 ```
 STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYING ◄──Resume──► STATE_PAUSED
@@ -89,10 +85,6 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
                                 └───────────Enter───────────────────────┘                             │
                                                                                                       │
                                                      STATE_PLAYING ◄──────────────────────────────────┘
-                                                          ▲
-                                                          │
-               STATE_MENU ──Training──► STATE_TRAINING_CONFIG ──Start──► STATE_PLAYING (training)
-               STATE_PLAYING ──T key──► STATE_TRAINING_CONFIG ──Start──► STATE_PLAYING (training)
 ```
 
 | State | Value | Triggered by | Input handling |
@@ -103,7 +95,6 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 | `STATE_PAUSED` | `'PAUSED'` | Esc or P during gameplay (non-training) | W/S navigate, Enter/Space/Esc confirm, P quick-resume |
 | `STATE_LEVEL_UP` | `'LEVEL_UP'` | XP reaches threshold | W/S navigate, Enter/Space/1-2-3 choose upgrade |
 | `STATE_GAME_OVER` | `'GAME_OVER'` | Player HP ≤ 0 (non-training) | Enter/Space → menu |
-| `STATE_TRAINING_CONFIG` | `'TRAINING_CONFIG'` | Training menu option or T key mid-game | W/S navigate rows, A/D change values, Enter start, Esc back |
 
 ---
 
@@ -118,8 +109,6 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 | Attack | `ATTACK_RANGE / ARC / COOLDOWN / DURATION` | `50 / 120° / 350ms / 150ms` |
 | Enemy | `ENEMY_RADIUS / SPEED / HP / DAMAGE` | `12 / 70 / 50 / 10` |
 | | `ENEMY_XP` | `15` |
-| Enemy types | `SHOOTER_INTRO_STAGE / DASHER / TANK` | `4 / 6 / 8` |
-| Projectile | `PROJECTILE_SPEED / DAMAGE / RADIUS` | `200 / 8 / 4` |
 | Leveling | `XP_BASE / XP_MULTIPLIER` | `30 / 1.25` |
 | | `UPGRADE_HP / SPEED / DAMAGE` | `25 / 15 / 8` |
 | Training | `TRAINING_ENEMY_COUNT / RESPAWN_DELAY` | `3 / 2000ms` |
@@ -138,32 +127,10 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 
 ### Enemy (src/entities/enemy.js)
 
-Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multipliers:
-
-| Type | Shape | Color | Intro Stage | HP | Speed | Damage | Special Ability |
-|------|-------|-------|-------------|-----|-------|--------|----------------|
-| **Basic** | Circle | Red `#e74c3c` | 1 | 1× | 1× | 1× | Seek player |
-| **Shooter** | Diamond | Purple `#9b59b6` | 4 | 0.7× | 0.55× | 0.5× contact | Fires projectiles, keeps distance, strafes |
-| **Tank** | Hexagon | Orange `#e67e22` | 8 | 2× | 0.45× | 1.5× | Charges at 2.5× speed, resists knockback while charging |
-| **Dasher** | Triangle | Green `#2ecc71` | 6 | 0.6× | 0.55× | 1.2× | Fast dashes (3.5× speed) toward player |
-
-- **Base stat scaling per stage:** Count `min(2 + floor((stage-1)*0.75), 10)`, HP `×(1 + (stage-1)*0.15)`, Speed `×(1 + (stage-1)*0.05)` (max ×2), Damage `+(stage-1)*0.5`
-- **Type multipliers** are applied on top of stage scaling
-- **XP per type:** Basic=15, Shooter=19, Dasher=22, Tank=30
-- **Spawn composition** (`_getEnemyTypes`): Weighted random per stage, at least 1 basic guaranteed
-  - Stage 1–3: 100% basic
-  - Stage 4+: ~15–30% shooters
-  - Stage 6+: ~12–22% dashers
-  - Stage 8+: ~8–15% tanks
-- **Rendering:** Type-specific shapes, damage flash, HP bar, plus ability indicators (shooter glow, tank charge ring, dasher trail)
-
-### Projectile (src/entities/projectile.js)
-
-- Created by Shooter enemies, stored in `Game.projectiles[]`
-- **Movement:** Linear (dirX/dirY × `PROJECTILE_SPEED`), destroyed on wall collision or player hit
-- **Damage:** Base 8 + `0.4 × (stage - 4)`, skipped in training mode
-- **Lifetime:** Max 3000ms
-- **Rendering:** Purple glow circle with bright white center
+- **AI:** Simple seek toward player with separation push from other enemies
+- **Damage:** Contact damage to player on collision (skipped if `trainingMode`)
+- **Scaling per stage:** Count `min(2 + floor((stage-1)*0.75), 10)`, HP `×(1 + (stage-1)*0.15)`, Speed `×(1 + (stage-1)*0.05)` (max ×2), Damage `+(stage-1)*0.5`
+- **Rendering:** Red circle, white flash on hit, HP bar when damaged (green → orange → red)
 
 ### Door (src/entities/door.js)
 
@@ -173,12 +140,9 @@ Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multip
 
 ### Rooms (src/rooms.js)
 
-- 14 room templates (ASCII art, 20×15 grid): `#`=wall, `.`=floor, `S`=spawn, `D`=door
+- 6 room templates (ASCII art, 20×15 grid): `#`=wall, `.`=floor, `S`=spawn, `D`=door
 - 1 training template (open arena with pillars)
-- `ROOM_NAMES[]`: Display names for all 14 rooms (e.g. 'Open Arena', 'Central Block', etc.)
-- `TRAINING_ROOM_NAME`: Display name for training room
-- `getRoomCount()`: Returns number of game room templates (14)
-- Room cycling: `templates[stageIndex % 14]`
+- Room cycling: `templates[stageIndex % 6]`
 - Enemy spawns: random floor tiles ≥5 tiles from player spawn, Fisher-Yates shuffled
 
 ### Collision (src/collision.js)
@@ -200,16 +164,9 @@ Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multip
 
 ## Training Mode
 
-- Accessed via menu option or **T key** mid-game → opens **Training Config screen** first
-- **Config screen** (`STATE_TRAINING_CONFIG`): choose room, enemy type, enemy count, and damage toggle
-  - **Room**: Training Room (default) or any of the 14 game rooms (cycle with A/D)
-  - **Enemies**: All (random mix), Basic, Shooter, Dasher, or Tank (cycle with A/D)
-  - **Count**: 1–10 (default 3, adjust with A/D)
-  - **Damage**: OFF (default, green) or ON (red) — toggles whether the player takes damage from enemies/projectiles
-  - Settings persist across sessions (stored on Game instance: `trainingDamage`)
-- **Damage OFF (default):** Enemies skip contact damage, projectiles skip damage — player is invulnerable
-- **Damage ON:** Enemies and projectiles deal normal damage. If HP ≤ 0, player respawns at spawn point with full HP (no game over in training)
-- Enemies respawn after `TRAINING_RESPAWN_DELAY` (2s) when all dead, using configured type/count
+- Accessed via menu option or **T key** mid-game (teleports, saves game state)
+- **No damage** to player (enemies skip contact damage)
+- Enemies respawn after `TRAINING_RESPAWN_DELAY` (2s) when all dead
 - Door always open (`forceUnlock`)
 - Door / ESC returns to saved game (full heal) or menu
 - Player keeps XP/level progress (XP not awarded in training)
@@ -234,8 +191,7 @@ All rendering is immediate-mode Canvas 2D. The render pipeline per frame:
 3. **In-game:**
    - `renderRoom(ctx, grid)` — floor + wall tiles
    - `door.render(ctx)` — door entity
-   - `enemies.forEach(e => e.render(ctx))` — enemy entities (type-specific shapes)
-   - `projectiles.forEach(p => p.render(ctx))` — shooter projectiles
+   - `enemies.forEach(e => e.render(ctx))` — enemy entities
    - `player.render(ctx)` — player entity (drawn last = on top)
    - Door tooltips (LOCKED / EXIT hints)
    - `renderHUD(ctx, ...)` — HP/XP bars, stats
