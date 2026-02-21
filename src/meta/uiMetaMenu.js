@@ -194,7 +194,7 @@ function _renderRelicsTab(ctx, startY) {
 
     const cols = 4;
     const cellW = 110;
-    const cellH = 80;
+    const cellH = 90;
     const gridW = cols * cellW;
     const gridX = CANVAS_WIDTH / 2 - gridW / 2;
     const gridY = startY + 28;
@@ -224,11 +224,25 @@ function _renderRelicsTab(ctx, startY) {
         ctx.font = '9px monospace';
         ctx.fillText(unlocked ? def.name : '???', cx, cy + 42);
 
-        // Description
+        // Description (word-wrapped)
         if (unlocked) {
             ctx.fillStyle = '#999';
             ctx.font = '8px monospace';
-            ctx.fillText(def.desc, cx, cy + 56);
+            const maxTextW = cellW - 16;
+            const words = def.desc.split(' ');
+            let line = '';
+            let lineY = cy + 56;
+            for (let w = 0; w < words.length; w++) {
+                const test = line ? line + ' ' + words[w] : words[w];
+                if (ctx.measureText(test).width > maxTextW && line) {
+                    ctx.fillText(line, cx, lineY);
+                    line = words[w];
+                    lineY += 11;
+                } else {
+                    line = test;
+                }
+            }
+            if (line) ctx.fillText(line, cx, lineY);
         }
     });
 

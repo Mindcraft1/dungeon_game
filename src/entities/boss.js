@@ -2,6 +2,7 @@ import {
     BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
     BOSS_BASE_HP, BOSS_BASE_SPEED, BOSS_BASE_DAMAGE,
     BOSS_HP_SCALE, BOSS_DMG_SCALE, BOSS_SPD_SCALE,
+    BOSS_STAGE_HP_SCALE, BOSS_STAGE_DMG_SCALE, BOSS_STAGE_SPD_SCALE,
     BOSS_BRUTE_HP_MULT, BOSS_BRUTE_SPD_MULT, BOSS_BRUTE_DMG_MULT, BOSS_BRUTE_RADIUS,
     BOSS_WARLOCK_HP_MULT, BOSS_WARLOCK_SPD_MULT, BOSS_WARLOCK_DMG_MULT, BOSS_WARLOCK_RADIUS,
     BOSS_PHANTOM_HP_MULT, BOSS_PHANTOM_SPD_MULT, BOSS_PHANTOM_DMG_MULT, BOSS_PHANTOM_RADIUS,
@@ -41,9 +42,10 @@ export class Boss {
         this.isBoss = true;
 
         // ── Stat scaling ──
-        const hpScale  = 1 + encounter * BOSS_HP_SCALE;
-        const dmgScale = 1 + encounter * BOSS_DMG_SCALE;
-        const spdScale = 1 + encounter * BOSS_SPD_SCALE;
+        // Encounter scaling (grows per boss beaten) + stage scaling (keeps pace with regular enemy difficulty)
+        const hpScale  = (1 + encounter * BOSS_HP_SCALE)  * (1 + stage * BOSS_STAGE_HP_SCALE);
+        const dmgScale = (1 + encounter * BOSS_DMG_SCALE) * (1 + stage * BOSS_STAGE_DMG_SCALE);
+        const spdScale = (1 + encounter * BOSS_SPD_SCALE) * (1 + stage * BOSS_STAGE_SPD_SCALE);
 
         switch (bossType) {
             case BOSS_TYPE_BRUTE:

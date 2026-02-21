@@ -210,9 +210,14 @@ export const BOSS_BASE_SPEED   = 55;
 export const BOSS_BASE_DAMAGE  = 15;
 
 // Boss scaling per encounter (0, 1, 2, ...)
-export const BOSS_HP_SCALE  = 0.3;              // +30% HP per encounter
-export const BOSS_DMG_SCALE = 0.2;              // +20% damage per encounter
-export const BOSS_SPD_SCALE = 0.08;             // +8% speed per encounter
+export const BOSS_HP_SCALE  = 0.45;             // +45% HP per encounter
+export const BOSS_DMG_SCALE = 0.3;              // +30% damage per encounter
+export const BOSS_SPD_SCALE = 0.12;             // +12% speed per encounter
+
+// Boss scaling per stage (stacks with encounter scaling)
+export const BOSS_STAGE_HP_SCALE  = 0.04;       // +4% HP per game stage
+export const BOSS_STAGE_DMG_SCALE = 0.025;      // +2.5% damage per game stage
+export const BOSS_STAGE_SPD_SCALE = 0.015;      // +1.5% speed per game stage
 
 // Boss type-specific multipliers
 export const BOSS_BRUTE_HP_MULT   = 1.3;
@@ -220,7 +225,7 @@ export const BOSS_BRUTE_SPD_MULT  = 0.8;
 export const BOSS_BRUTE_DMG_MULT  = 1.4;
 export const BOSS_BRUTE_RADIUS    = 28;
 export const BOSS_WARLOCK_HP_MULT  = 0.9;
-export const BOSS_WARLOCK_SPD_MULT = 0.7;
+export const BOSS_WARLOCK_SPD_MULT = 0.85;
 export const BOSS_WARLOCK_DMG_MULT = 1.0;
 export const BOSS_WARLOCK_RADIUS   = 22;
 export const BOSS_PHANTOM_HP_MULT  = 0.75;
