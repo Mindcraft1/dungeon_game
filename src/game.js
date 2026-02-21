@@ -62,6 +62,9 @@ export class Game {
         this.activeProfileIndex = 0;
         this._loadProfiles();
 
+        // Load meta progression for the active profile
+        MetaStore.load(this.activeProfileIndex);
+
         // Start at profiles screen if no profiles exist, otherwise menu
         this.state = this.profiles.length === 0 ? STATE_PROFILES : STATE_MENU;
         this.menuIndex = 0;           // 0=Play, 1=Training, 2=Characters
@@ -952,6 +955,7 @@ export class Game {
                 // Select this profile
                 this.activeProfileIndex = this.profileCursor;
                 this._saveProfiles();
+                MetaStore.load(this.activeProfileIndex);
                 this.state = STATE_MENU;
                 this.menuIndex = 0;
             } else {
@@ -988,6 +992,7 @@ export class Game {
                 this.profiles.push({ name, highscore: 0 });
                 this.activeProfileIndex = this.profiles.length - 1;
                 this._saveProfiles();
+                MetaStore.load(this.activeProfileIndex);
                 this.profileCreating = false;
                 this.profileCursor = this.activeProfileIndex;
             }
@@ -1012,6 +1017,8 @@ export class Game {
 
     _deleteProfile(index) {
         if (index < 0 || index >= this.profiles.length) return;
+        // Delete meta data for this profile (and shift higher indices)
+        MetaStore.deleteProfileMeta(index, this.profiles.length);
         this.profiles.splice(index, 1);
         // Adjust active index
         if (this.activeProfileIndex >= this.profiles.length) {
@@ -1024,6 +1031,8 @@ export class Game {
             this.profileCursor = Math.max(0, this.profiles.length - 1);
         }
         this._saveProfiles();
+        // Reload meta for the (possibly changed) active profile
+        MetaStore.load(this.activeProfileIndex);
     }
 
     _updatePlaying(dt) {
