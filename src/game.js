@@ -20,6 +20,11 @@ import {
     PLAYER_INVULN_TIME,
     BOMB_RADIUS, BOMB_DAMAGE_MULT, BOMB_STUN_DURATION, BOMB_KNOCKBACK,
     COIN_DROP_LIFETIME,
+    PICKUP_RAGE_SHARD, PICKUP_PIERCING_SHOT, PICKUP_SWIFT_BOOTS,
+    PICKUP_SPEED_SURGE, PICKUP_IRON_SKIN,
+    BUFF_RAGE_DAMAGE_MULT, BUFF_PIERCING_DAMAGE_MULT, BUFF_PIERCING_RANGE_MULT,
+    BUFF_SWIFT_SPEED_MULT, BUFF_SPEED_SURGE_CD_MULT, BUFF_IRON_SKIN_REDUCE,
+    HAZARD_LAVA_SLOW,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
@@ -53,6 +58,7 @@ import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from
 import { getAvailableShards } from './meta/metaState.js';
 import { renderMetaShop } from './ui/metaShop.js';
 import { renderRunShop } from './ui/runShop.js';
+import { renderBuffSummary } from './ui/buffSummary.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -978,6 +984,83 @@ export class Game {
             return 1.20;
         }
         return 1;
+    }
+
+    /**
+     * Compute net stat modifiers from ALL sources for the buff summary HUD.
+     * Returns a flat object with multiplier values + special effect list.
+     */
+    _computeNetModifiers() {
+        if (!this.player) return null;
+        const p = this.player;
+        const m = this.metaModifiers || {};
+
+        // ── Damage multiplier ──
+        let damage = (m.damageMultiplier || 1);
+        damage *= this.runShopDamageMult;
+        if (this.metaBoosterWeaponCoreActive && this.bossesKilledThisRun < 3) damage *= 1.12;
+        if (p.hasBuff(PICKUP_RAGE_SHARD))    damage *= BUFF_RAGE_DAMAGE_MULT;
+        if (p.hasBuff(PICKUP_PIERCING_SHOT)) damage *= BUFF_PIERCING_DAMAGE_MULT;
+
+        // ── Speed multiplier ──
+        let speed = (m.speedMultiplier || 1);
+        speed *= this.runShopSpeedMult;
+        if (p.hasBuff(PICKUP_SWIFT_BOOTS)) speed *= BUFF_SWIFT_SPEED_MULT;
+        if (p.biomeSpeedMult !== 1.0) speed *= p.biomeSpeedMult;
+        if (p.onLava) speed *= HAZARD_LAVA_SLOW;
+
+        // ── Max HP multiplier ──
+        const maxHp = (m.hpMultiplier || 1);
+
+        // ── XP gain multiplier ──
+        let xpGain = (m.xpMultiplier || 1);
+        xpGain *= this._getShopXpMultiplier();
+        if (this.runUpgradesActive.upgrade_xp_magnet) xpGain *= 1.15;
+
+        // ── Defense (damage-taken multiplier, < 1 is a buff) ──
+        let defense = (m.damageTakenMultiplier || 1);
+        if (p.hasBuff(PICKUP_IRON_SKIN)) defense *= BUFF_IRON_SKIN_REDUCE;
+
+        // ── Trap resist (spike + lava damage multiplier, < 1 is a buff) ──
+        let trapResist = (m.spikeDamageMultiplier || 1);
+        trapResist *= (m.lavaDotMultiplier || 1);
+        trapResist *= this.runShopTrapResistMult;
+        // Average the two trap types for a single display value
+        // (they stack multiplicatively from different sources)
+
+        // ── Boss damage multiplier ──
+        const bossDamage = (m.bossDamageMultiplier || 1);
+
+        // ── Attack range multiplier ──
+        let attackRange = (p.attackRangeMultiplier || 1);
+        if (p.hasBuff(PICKUP_PIERCING_SHOT)) attackRange *= BUFF_PIERCING_RANGE_MULT;
+
+        // ── Attack speed (inverse of cooldown mult, > 1 = faster) ──
+        let attackSpeed = 1;
+        if (p.hasBuff(PICKUP_SPEED_SURGE)) attackSpeed *= (1 / BUFF_SPEED_SURGE_CD_MULT);
+
+        // ── Special effects (non-percentage abilities) ──
+        const specials = [];
+        if (this.runUpgradesActive.upgrade_lifesteal) {
+            specials.push({ icon: '🩸', name: 'Lifesteal', color: '#e91e63' });
+        }
+        if (this.runUpgradesActive.upgrade_thorns) {
+            specials.push({ icon: '🌵', name: 'Thorns', color: '#795548' });
+        }
+        if (this.runUpgradesActive.upgrade_regen) {
+            specials.push({ icon: '💗', name: 'Regen', color: '#4caf50' });
+        }
+        if (this.runUpgradesActive.upgrade_shield) {
+            specials.push({ icon: '🔷', name: 'Barrier', color: '#00bcd4' });
+        }
+        if (p.phaseShieldActive) {
+            specials.push({ icon: '🟣', name: 'Phase Shield', color: '#7c4dff' });
+        }
+        if (p.crushingBlowReady) {
+            specials.push({ icon: '🟠', name: 'Next Hit 3×', color: '#e67e22' });
+        }
+
+        return { damage, speed, maxHp, xpGain, defense, trapResist, bossDamage, attackRange, attackSpeed, specials };
     }
 
     /** Update meta shop screen input. */
@@ -2411,6 +2494,9 @@ export class Game {
                   this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
                   biomeName, biomeColor,
                   this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
+
+        // Stat modifier summary (net buffs/nerfs from all sources)
+        renderBuffSummary(ctx, this._computeNetModifiers());
 
         // Boss HP bar
         if (this.boss && !this.boss.dead) {
