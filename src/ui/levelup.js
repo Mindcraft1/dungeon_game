@@ -4,7 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE 
  * Draw the Level-Up overlay (game is paused while visible).
  * @param {Array} [choices] – dynamic choices array from game.js, or null for default
  */
-export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null) {
+export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null, spaceConfirmReady = false) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -50,11 +50,21 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
 
         // Selection highlight
         if (selected) {
-            ctx.fillStyle = 'rgba(255,255,255,0.06)';
-            ctx.fillRect(bx + 10, oy - 16, bw - 20, rowH - 4);
-            ctx.strokeStyle = o.color;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+            // Pulsing confirm glow when Space has been pressed once
+            if (spaceConfirmReady) {
+                const pulse = Math.sin(Date.now() * 0.008) * 0.15 + 0.25;
+                ctx.fillStyle = `rgba(255,215,0,${pulse})`;
+                ctx.fillRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+            } else {
+                ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                ctx.fillRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+                ctx.strokeStyle = o.color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+            }
 
             ctx.fillStyle = o.color;
             ctx.font = 'bold 16px monospace';
@@ -68,9 +78,15 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
         ctx.fillText(`[${o.key}]  ${o.text}`, CANVAS_WIDTH / 2, oy + 2);
     });
 
+    // Hint text — changes when Space-confirm is primed
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+    if (spaceConfirmReady) {
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('Press SPACE again to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+    } else {
+        ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+    }
     ctx.textAlign = 'left';
 }
 

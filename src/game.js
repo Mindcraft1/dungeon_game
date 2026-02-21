@@ -92,6 +92,7 @@ export class Game {
 
         // Level-up selection
         this.upgradeIndex = 0;
+        this._levelUpSpaceReady = false; // true after first Space press, confirm on second
         this._cachedLevelUpChoices = null; // cached to avoid different random choices between update & render
 
         // Pause menu selection
@@ -1592,10 +1593,12 @@ export class Game {
         // Navigate with W/S or arrows
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.upgradeIndex = (this.upgradeIndex - 1 + count) % count;
+            this._levelUpSpaceReady = false;
             Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.upgradeIndex = (this.upgradeIndex + 1) % count;
+            this._levelUpSpaceReady = false;
             Audio.playMenuNav();
         }
 
@@ -1603,6 +1606,14 @@ export class Game {
         let choiceIdx = null;
         if (wasPressed('Enter')) {
             choiceIdx = this.upgradeIndex;
+        } else if (wasPressed('Space')) {
+            // Double-press Space: first press readies, second confirms
+            if (this._levelUpSpaceReady) {
+                choiceIdx = this.upgradeIndex;
+            } else {
+                this._levelUpSpaceReady = true;
+                Audio.playMenuNav();
+            }
         } else if (wasPressed('Digit1')) { choiceIdx = 0; }
         else if (wasPressed('Digit2')) { choiceIdx = 1; }
         else if (wasPressed('Digit3')) { choiceIdx = 2; }
@@ -1626,6 +1637,7 @@ export class Game {
         }
 
         this.upgradeIndex = 0;
+        this._levelUpSpaceReady = false;
 
         // Chain level-ups
         if (this.player.xp >= this.player.xpToNext) {
@@ -2071,7 +2083,7 @@ export class Game {
             this._renderPauseOverlay(ctx);
         } else if (this.state === STATE_LEVEL_UP) {
             const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
-            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices);
+            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady);
         } else if (this.state === STATE_GAME_OVER) {
             const runRewards = RewardSystem.getRunRewards();
             renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards);
