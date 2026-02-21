@@ -67,10 +67,10 @@ export class Player {
 
     /**
      * Directional melee attack (120° arc in facing direction).
-     * Returns true if the attack was executed (cooldown was ready).
+     * Returns the number of enemies hit, or -1 if on cooldown.
      */
     attack(enemies) {
-        if (this.attackTimer > 0) return false;
+        if (this.attackTimer > 0) return -1;
 
         // Cooldown (may be reduced by Speed Surge buff)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
@@ -97,6 +97,7 @@ export class Player {
 
         const facingAngle = Math.atan2(this.facingY, this.facingX);
 
+        let hitCount = 0;
         for (const enemy of enemies) {
             if (enemy.dead) continue;
             const dx = enemy.x - this.x;
@@ -113,8 +114,9 @@ export class Player {
             const kbX = dist > 0 ? (dx / dist) * ATTACK_KNOCKBACK * kbMult : 0;
             const kbY = dist > 0 ? (dy / dist) * ATTACK_KNOCKBACK * kbMult : 0;
             enemy.takeDamage(dmg, kbX, kbY);
+            hitCount++;
         }
-        return true;
+        return hitCount;
     }
 
     takeDamage(amount) {

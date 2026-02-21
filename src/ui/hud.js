@@ -1,10 +1,10 @@
-import { CANVAS_WIDTH } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
  * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs).
  */
-export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false) {
+export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -70,6 +70,9 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
 
     // ── Active buffs (below stats, top-right) ──
     _renderActiveBuffs(ctx, player, pad);
+
+    // ── Mute indicator (bottom-right corner) ──
+    _renderMuteIcon(ctx, muted);
 
     ctx.textAlign = 'left'; // reset
 }
@@ -140,4 +143,23 @@ function _renderActiveBuffs(ctx, player, pad) {
         ctx.fillStyle = ratio > 0.5 ? info.color : ratio > 0.25 ? '#ff9800' : '#f44336';
         ctx.fillRect(barX, barY, barW * ratio, barH);
     });
+}
+
+/**
+ * Render a small speaker/mute icon in the bottom-right corner.
+ */
+function _renderMuteIcon(ctx, muted) {
+    const x = CANVAS_WIDTH - 30;
+    const y = CANVAS_HEIGHT - 22;
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = muted ? '#e74c3c' : '#888';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(muted ? '🔇' : '🔊', x, y);
+    ctx.fillStyle = '#555';
+    ctx.font = '8px monospace';
+    ctx.fillText('[M]', x, y + 10);
+    ctx.restore();
 }

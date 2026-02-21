@@ -20,6 +20,7 @@ import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
+import * as Audio from './audio.js';
 
 export class Game {
     constructor(ctx) {
@@ -70,6 +71,9 @@ export class Game {
         this.trainingDamage = false;    // false = no damage (default), true = take damage
         this.trainingDrops = false;     // false = no drops in training (default), true = drops enabled
         this._trainingFromGame = false; // true if opened via T key mid-game
+
+        // ── Audio ──
+        this.muted = Audio.isMuted();
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -133,11 +137,14 @@ export class Game {
         const count = 3; // Play, Training, Characters
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.menuIndex = (this.menuIndex - 1 + count) % count;
+            Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.menuIndex = (this.menuIndex + 1) % count;
+            Audio.playMenuNav();
         }
         if (wasPressed('Enter') || wasPressed('Space')) {
+            Audio.playMenuSelect();
             if (this.menuIndex === 0) {
                 this._startGame();
             } else if (this.menuIndex === 1) {
@@ -399,6 +406,12 @@ export class Game {
     update(dt) {
         if (this.controlsHintTimer > 0) this.controlsHintTimer -= dt * 1000;
 
+        // Audio init on any key press + mute toggle (M)
+        Audio.init();
+        if (wasPressed('KeyM')) {
+            this.muted = Audio.toggleMute();
+        }
+
         switch (this.state) {
             case STATE_MENU:            this._updateMenu();           break;
             case STATE_PROFILES:        this._updateProfiles();       break;
@@ -434,13 +447,16 @@ export class Game {
         const maxIdx = Math.min(this.profiles.length, 5); // profiles + "+New" row
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.profileCursor = (this.profileCursor - 1 + maxIdx + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.profileCursor = (this.profileCursor + 1) % (maxIdx + 1);
+            Audio.playMenuNav();
         }
 
         // Select / Create
         if (wasPressed('Enter') || wasPressed('Space')) {
+            Audio.playMenuSelect();
             if (this.profileCursor < this.profiles.length) {
                 // Select this profile
                 this.activeProfileIndex = this.profileCursor;
@@ -542,8 +558,20 @@ export class Game {
 
         // Attack
         if (isDown('Space')) {
-            this.player.attack(this.enemies);
+            const hitCount = this.player.attack(this.enemies);
+            if (hitCount >= 0) {
+                Audio.playAttack();
+                if (hitCount > 0) Audio.playHit();
+            }
         }
+
+        // Track player HP to detect damage
+        const hpBefore = this.player.hp;
+        const shieldBefore = this.player.phaseShieldActive;
+        const projCountBefore = this.projectiles.length;
+
+        // Track door lock state
+        const doorWasLocked = this.door.locked;
 
         // Enemies
         const noDamage = this.trainingMode && !this.trainingDamage;
@@ -553,6 +581,7 @@ export class Game {
 
             if (e.dead && !e.xpGiven) {
                 e.xpGiven = true;
+                Audio.playEnemyDeath();
 
                 // Try to spawn a pickup drop
                 if (dropsEnabled) {
@@ -562,11 +591,17 @@ export class Game {
 
                 if (!this.trainingMode) {
                     if (this.player.addXp(e.xpValue)) {
+                        Audio.playLevelUp();
                         this.state = STATE_LEVEL_UP;
                         return;
                     }
                 }
             }
+        }
+
+        // Detect new projectiles fired by shooters
+        if (this.projectiles.length > projCountBefore) {
+            Audio.playProjectile();
         }
 
         // Projectiles
@@ -575,10 +610,23 @@ export class Game {
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
 
+        // Detect player damage
+        if (this.player.hp < hpBefore) {
+            Audio.playPlayerHurt();
+        } else if (shieldBefore && !this.player.phaseShieldActive) {
+            Audio.playShieldBlock();
+        }
+
         // Pickups: update lifetime + check collection
         for (const pk of this.pickups) {
             pk.update(dt);
             if (!pk.dead && pk.checkCollection(this.player)) {
+                // Heart Fragment = heal sound, others = pickup chime
+                if (pk.type === 'heart_fragment') {
+                    Audio.playHeal();
+                } else {
+                    Audio.playPickup();
+                }
                 this.player.applyBuff(pk.type);
                 pk.dead = true;
             }
@@ -599,13 +647,20 @@ export class Game {
         // Door
         this.door.update(dt, this.enemies, this.trainingMode);
 
+        // Door unlock sound
+        if (doorWasLocked && !this.door.locked) {
+            Audio.playDoorUnlock();
+        }
+
         if (this.trainingMode) {
             // In training the door is always open and returns to game/menu
             if (this.door.checkCollision(this.player)) {
+                Audio.playDoorEnter();
                 this._returnFromTraining();
             }
         } else {
             if (this.door.checkCollision(this.player)) {
+                Audio.playDoorEnter();
                 this.nextRoom();
             }
         }
@@ -614,6 +669,7 @@ export class Game {
         if (!this.trainingMode && this.player.hp <= 0) {
             this._saveHighscore();
             this.player.clearBuffs();
+            Audio.playGameOver();
             this.state = STATE_GAME_OVER;
         }
 
@@ -657,13 +713,16 @@ export class Game {
         // Navigate
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.pauseIndex = (this.pauseIndex - 1 + 2) % 2;
+            Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.pauseIndex = (this.pauseIndex + 1) % 2;
+            Audio.playMenuNav();
         }
 
         // Confirm
         if (wasPressed('Enter') || wasPressed('Space') || wasPressed('Escape')) {
+            Audio.playMenuSelect();
             if (this.pauseIndex === 0) {
                 this.state = STATE_PLAYING;
             } else {
@@ -679,9 +738,11 @@ export class Game {
         // Navigate with W/S or arrows
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.upgradeIndex = (this.upgradeIndex - 1 + 3) % 3;
+            Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.upgradeIndex = (this.upgradeIndex + 1) % 3;
+            Audio.playMenuNav();
         }
 
         // Confirm with Space, Enter, or number keys
@@ -693,6 +754,7 @@ export class Game {
         else if (wasPressed('Digit3')) { choice = 'damage'; }
 
         if (!choice) return;
+        Audio.playMenuSelect();
         this.player.levelUp(choice);
         this.upgradeIndex = 0;
 
@@ -712,9 +774,11 @@ export class Game {
         // Navigate rows (W/S)
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.trainingConfigCursor = (this.trainingConfigCursor - 1 + ROWS) % ROWS;
+            Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
             this.trainingConfigCursor = (this.trainingConfigCursor + 1) % ROWS;
+            Audio.playMenuNav();
         }
 
         // Change values (A/D or Left/Right)
@@ -741,8 +805,12 @@ export class Game {
             if (left || right) this.trainingDrops = !this.trainingDrops;
         }
 
+        // Play nav sound for A/D value changes
+        if (left || right) Audio.playMenuNav();
+
         // Confirm (Enter / Space) — start training from any row
         if (wasPressed('Enter') || wasPressed('Space')) {
+            Audio.playMenuSelect();
             if (this._trainingFromGame) {
                 this._enterTrainingFromGame();
             } else {
@@ -772,7 +840,10 @@ export class Game {
     }
 
     _updateGameOver() {
-        if (wasPressed('Enter') || wasPressed('Space')) this.restart();
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            Audio.playMenuSelect();
+            this.restart();
+        }
     }
 
     // ── Render ─────────────────────────────────────────────
@@ -840,7 +911,7 @@ export class Game {
         }
 
         const alive = this.enemies.filter(e => !e.dead).length;
-        renderHUD(ctx, this.player, this.stage, alive, this.trainingMode);
+        renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted);
 
         // Training mode banner
         if (this.trainingMode) {
@@ -995,8 +1066,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD / Arrows = Move    SPACE = Attack    ESC = Exit'
-            : 'WASD / Arrows = Move    SPACE = Attack    T = Training    P = Pause';
+            ? 'WASD = Move   SPACE = Attack   M = Mute   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();
