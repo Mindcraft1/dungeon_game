@@ -2,8 +2,10 @@ import {
     CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE,
     ENEMY_HP, ENEMY_SPEED, ENEMY_DAMAGE, ENEMY_XP,
     ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_TANK, ENEMY_TYPE_DASHER,
+    ENEMY_COLOR, SHOOTER_COLOR, TANK_COLOR, DASHER_COLOR,
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
+    ATTACK_RANGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG,
 } from './constants.js';
@@ -14,13 +16,23 @@ import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
-import { trySpawnPickup } from './entities/pickup.js';
+import { trySpawnPickup, PICKUP_INFO } from './entities/pickup.js';
+import { ParticleSystem } from './entities/particle.js';
+import { triggerShake } from './shake.js';
 import { renderHUD } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
 import * as Audio from './audio.js';
+
+// ── Enemy type → color mapping for particles ──
+const ENEMY_COLORS = {
+    [ENEMY_TYPE_BASIC]:   ENEMY_COLOR,
+    [ENEMY_TYPE_SHOOTER]: SHOOTER_COLOR,
+    [ENEMY_TYPE_TANK]:    TANK_COLOR,
+    [ENEMY_TYPE_DASHER]:  DASHER_COLOR,
+};
 
 export class Game {
     constructor(ctx) {
@@ -74,6 +86,9 @@ export class Game {
 
         // ── Audio ──
         this.muted = Audio.isMuted();
+
+        // ── Particles ──
+        this.particles = new ParticleSystem();
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -196,6 +211,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this._spawnEnemies(grid, spawnPos, doorPos);
         this.pickups = [];
+        this.particles.clear();
     }
 
     _loadTrainingRoom() {
@@ -226,6 +242,7 @@ export class Game {
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
         this.pickups = [];
+        this.particles.clear();
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
     }
@@ -399,6 +416,7 @@ export class Game {
         this._savedGame = null;
         this.projectiles = [];
         this.pickups = [];
+        this.particles.clear();
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -411,6 +429,9 @@ export class Game {
         if (wasPressed('KeyM')) {
             this.muted = Audio.toggleMute();
         }
+
+        // Always update particles (they should animate even on overlays)
+        this.particles.update(dt);
 
         switch (this.state) {
             case STATE_MENU:            this._updateMenu();           break;
@@ -561,7 +582,25 @@ export class Game {
             const hitCount = this.player.attack(this.enemies);
             if (hitCount >= 0) {
                 Audio.playAttack();
-                if (hitCount > 0) Audio.playHit();
+                // Attack arc particles
+                this.particles.attackArc(
+                    this.player.x, this.player.y,
+                    this.player.facingX, this.player.facingY,
+                    ATTACK_RANGE,
+                );
+                if (hitCount > 0) {
+                    Audio.playHit();
+                    // Hit sparks on each damaged enemy
+                    for (const e of this.enemies) {
+                        if (!e.dead && e.damageFlashTimer > 100) {
+                            const dx = e.x - this.player.x;
+                            const dy = e.y - this.player.y;
+                            const d = Math.sqrt(dx * dx + dy * dy) || 1;
+                            this.particles.hitSparks(e.x, e.y, dx / d, dy / d);
+                        }
+                    }
+                    triggerShake(2.5, 0.85);
+                }
             }
         }
 
@@ -583,6 +622,11 @@ export class Game {
                 e.xpGiven = true;
                 Audio.playEnemyDeath();
 
+                // Death explosion particles + screen shake
+                const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
+                this.particles.enemyDeath(e.x, e.y, eColor, e.radius);
+                triggerShake(4, 0.87);
+
                 // Try to spawn a pickup drop
                 if (dropsEnabled) {
                     const pickup = trySpawnPickup(e.x, e.y, e.type);
@@ -592,6 +636,9 @@ export class Game {
                 if (!this.trainingMode) {
                     if (this.player.addXp(e.xpValue)) {
                         Audio.playLevelUp();
+                        // Level-up particles
+                        this.particles.levelUp(this.player.x, this.player.y);
+                        triggerShake(3, 0.9);
                         this.state = STATE_LEVEL_UP;
                         return;
                     }
@@ -604,17 +651,24 @@ export class Game {
             Audio.playProjectile();
         }
 
-        // Projectiles
+        // Projectiles — update + trail particles
         for (const p of this.projectiles) {
             p.update(dt, this.player, this.grid, noDamage);
+            if (!p.dead) {
+                this.particles.projectileTrail(p.x, p.y);
+            }
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
 
         // Detect player damage
         if (this.player.hp < hpBefore) {
             Audio.playPlayerHurt();
+            this.particles.playerDamage(this.player.x, this.player.y);
+            triggerShake(6, 0.86);
         } else if (shieldBefore && !this.player.phaseShieldActive) {
             Audio.playShieldBlock();
+            this.particles.shieldBlock(this.player.x, this.player.y);
+            triggerShake(3, 0.88);
         }
 
         // Pickups: update lifetime + check collection
@@ -626,6 +680,11 @@ export class Game {
                     Audio.playHeal();
                 } else {
                     Audio.playPickup();
+                }
+                // Pickup collection particles
+                const info = PICKUP_INFO[pk.type];
+                if (info) {
+                    this.particles.pickupCollect(pk.x, pk.y, info.color, info.glow);
                 }
                 this.player.applyBuff(pk.type);
                 pk.dead = true;
@@ -647,9 +706,13 @@ export class Game {
         // Door
         this.door.update(dt, this.enemies, this.trainingMode);
 
-        // Door unlock sound
+        // Door unlock sound + particles
         if (doorWasLocked && !this.door.locked) {
             Audio.playDoorUnlock();
+            this.particles.doorUnlock(
+                this.door.x + this.door.width / 2,
+                this.door.y + this.door.height / 2,
+            );
         }
 
         if (this.trainingMode) {
@@ -670,6 +733,7 @@ export class Game {
             this._saveHighscore();
             this.player.clearBuffs();
             Audio.playGameOver();
+            triggerShake(10, 0.9);
             this.state = STATE_GAME_OVER;
         }
 
@@ -889,6 +953,7 @@ export class Game {
         for (const e of this.enemies) e.render(ctx);
         for (const p of this.projectiles) p.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
+        this.particles.render(ctx);
         this.player.render(ctx);
 
         // Locked-door hint (real game only)
