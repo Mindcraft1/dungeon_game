@@ -9,7 +9,7 @@ import {
     UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
-    STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS,
+    STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS, STATE_LOADOUT,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
@@ -74,6 +74,8 @@ import * as Impact from './combat/impactSystem.js';
 import { ABILITY_IDS } from './combat/abilities.js';
 import { PROC_IDS } from './combat/procs.js';
 import { renderAbilityBar } from './ui/uiAbilityBar.js';
+import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout } from './combat/combatUnlocks.js';
+import { renderLoadoutScreen } from './ui/loadoutScreen.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -217,9 +219,12 @@ export class Game {
         // ── Combat System ──
         this.abilitySystem = new AbilitySystem();
         this.procSystem = new ProcSystem();
-        // Default starting loadout: shockwave + explosive strikes
-        this.abilitySystem.equip(0, 'shockwave');
-        this.procSystem.equip(0, 'explosive_strikes');
+
+        // ── Loadout Screen state ──
+        this.loadoutCursor = 0;
+        this.loadoutAbilities = [];   // selected ability IDs (max 2)
+        this.loadoutProcs = [];       // selected proc IDs (max 2)
+        this.loadoutRejectFlash = 0;  // ms remaining for "full" feedback
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -371,7 +376,7 @@ export class Game {
         if (wasPressed('Enter') || wasPressed('Space')) {
             Audio.playMenuSelect();
             if (this.menuIndex === 0) {
-                this._startGame();
+                this._openLoadout();
             } else if (this.menuIndex === 1) {
                 this._openMetaMenu(false);
             } else if (this.menuIndex === 2) {
@@ -435,12 +440,8 @@ export class Game {
         this.purchasedMetaBoosterId = null;  // consumed
         this._applyMetaBooster();
 
-        // ── Combat System: reset for new run ──
-        this.abilitySystem.reset();
-        this.procSystem.reset();
-        // Default loadout
-        this.abilitySystem.equip(0, 'shockwave');
-        this.procSystem.equip(0, 'explosive_strikes');
+        // ── Combat System: equip from saved loadout ──
+        this._equipSavedLoadout();
 
         // ── Achievement event: run start ──
         achEmit('run_start', { metaBoosterActive: !!this.activeMetaBoosterId });
@@ -473,6 +474,7 @@ export class Game {
         if (!this._trainingFromGame) {
             this._savedGame = null;
             this.player = null;
+            this._equipSavedLoadout();
         }
         this.stage = 0;
         this.currentBiome = null;
@@ -946,11 +948,123 @@ export class Game {
         this._pendingRunShop = false;
         clearToasts();
 
-        // Combat system reset
+        // Combat system reset (equip happens later via loadout screen)
         this.abilitySystem.reset();
         this.procSystem.reset();
-        this.abilitySystem.equip(0, 'shockwave');
-        this.procSystem.equip(0, 'explosive_strikes');
+    }
+
+    // ── Loadout Screen ────────────────────────────────────────
+
+    _openLoadout() {
+        const meta = MetaStore.getState();
+        const loadout = sanitizeLoadout(meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] }, meta.stats);
+        this.loadoutAbilities = [...loadout.abilities];
+        this.loadoutProcs = [...loadout.procs];
+        this.loadoutCursor = TOTAL_LOADOUT_ITEMS - 1; // cursor on START
+        this.loadoutRejectFlash = 0;
+        this.state = STATE_LOADOUT;
+    }
+
+    _updateLoadout() {
+        const totalItems = TOTAL_LOADOUT_ITEMS; // abilities + procs + START button
+        const startIdx = totalItems - 1;
+
+        // Navigation
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.loadoutCursor = (this.loadoutCursor - 1 + totalItems) % totalItems;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.loadoutCursor = (this.loadoutCursor + 1) % totalItems;
+            Audio.playMenuNav();
+        }
+
+        // Escape → back to menu
+        if (wasPressed('Escape')) {
+            Audio.playMenuNav();
+            this.state = STATE_MENU;
+            return;
+        }
+
+        // Toggle selection (Space or Enter on a non-start item)
+        const togglePressed = wasPressed('Space') || (wasPressed('Enter') && this.loadoutCursor !== startIdx);
+        if (togglePressed && this.loadoutCursor < startIdx) {
+            this._loadoutToggle(this.loadoutCursor);
+        }
+
+        // Confirm (Enter on START)
+        if (wasPressed('Enter') && this.loadoutCursor === startIdx) {
+            if (this.loadoutAbilities.length >= 1) {
+                // Save loadout to meta
+                const meta = MetaStore.getState();
+                meta.selectedLoadout = { abilities: [...this.loadoutAbilities], procs: [...this.loadoutProcs] };
+                MetaStore.save();
+                Audio.playMenuSelect();
+                this._startGame();
+            } else {
+                this.loadoutRejectFlash = 400;
+            }
+            return;
+        }
+
+        // Reject flash decay
+        if (this.loadoutRejectFlash > 0) {
+            this.loadoutRejectFlash = Math.max(0, this.loadoutRejectFlash - 16);
+        }
+    }
+
+    _loadoutToggle(index) {
+        const meta = MetaStore.getState();
+        const stats = meta.stats;
+
+        if (index < ABILITY_ORDER.length) {
+            // It's an ability
+            const id = ABILITY_ORDER[index];
+            if (!isAbilityUnlocked(id, stats)) return; // locked
+
+            const pos = this.loadoutAbilities.indexOf(id);
+            if (pos >= 0) {
+                // Deselect
+                this.loadoutAbilities.splice(pos, 1);
+                Audio.playMenuNav();
+            } else if (this.loadoutAbilities.length < 2) {
+                // Select
+                this.loadoutAbilities.push(id);
+                Audio.playMenuSelect();
+            } else {
+                // Full → flash
+                this.loadoutRejectFlash = 300;
+            }
+        } else {
+            // It's a proc
+            const procIndex = index - ABILITY_ORDER.length;
+            const id = PROC_ORDER[procIndex];
+            if (!isProcUnlocked(id, stats)) return; // locked
+
+            const pos = this.loadoutProcs.indexOf(id);
+            if (pos >= 0) {
+                this.loadoutProcs.splice(pos, 1);
+                Audio.playMenuNav();
+            } else if (this.loadoutProcs.length < 2) {
+                this.loadoutProcs.push(id);
+                Audio.playMenuSelect();
+            } else {
+                this.loadoutRejectFlash = 300;
+            }
+        }
+    }
+
+    /** Equip abilities/procs from the saved loadout in metaState. */
+    _equipSavedLoadout() {
+        const meta = MetaStore.getState();
+        const loadout = sanitizeLoadout(
+            meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] },
+            meta.stats,
+        );
+        this.abilitySystem.reset();
+        this.procSystem.reset();
+        loadout.abilities.forEach((id, i) => this.abilitySystem.equip(i, id));
+        loadout.procs.forEach((id, i) => this.procSystem.equip(i, id));
     }
 
     // ── Meta Progression helpers ──────────────────────────────
@@ -1406,6 +1520,7 @@ export class Game {
             case STATE_META_SHOP:       this._updateMetaShop();      break;
             case STATE_SHOP_RUN:        this._updateRunShop();       break;
             case STATE_ACHIEVEMENTS:    this._updateAchievements();  break;
+            case STATE_LOADOUT:         this._updateLoadout();       break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -2722,6 +2837,13 @@ export class Game {
         if (this.state === STATE_ACHIEVEMENTS) {
             renderAchievements(ctx, this.achievementCursor, this.achievementFilter);
             this._renderAchievementToasts(ctx);
+            this._renderCheatNotifications(ctx);
+            return;
+        }
+
+        if (this.state === STATE_LOADOUT) {
+            const stats = MetaStore.getState().stats;
+            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, stats, this.loadoutRejectFlash);
             this._renderCheatNotifications(ctx);
             return;
         }

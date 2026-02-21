@@ -23,6 +23,10 @@ export function createDefaultMetaState() {
             highestStage:      0,
             runsPlayed:        0,
         },
+        selectedLoadout: {
+            abilities: ['shockwave'],       // max 2 IDs
+            procs:     ['explosive_strikes'], // max 2 IDs
+        },
     };
 }
 
@@ -50,6 +54,7 @@ export function validateMetaState(raw) {
             highestStage:      _int(raw.stats?.highestStage, 0),
             runsPlayed:        _int(raw.stats?.runsPlayed, 0),
         },
+        selectedLoadout: _validateLoadout(raw.selectedLoadout),
     };
 }
 
@@ -59,6 +64,19 @@ export function getAvailableShards(state) {
 }
 
 // ── Helpers ──
+
+function _validateLoadout(raw) {
+    const def = { abilities: ['shockwave'], procs: ['explosive_strikes'] };
+    if (!raw || typeof raw !== 'object') return def;
+    return {
+        abilities: Array.isArray(raw.abilities)
+            ? raw.abilities.filter(v => typeof v === 'string').slice(0, 2)
+            : def.abilities,
+        procs: Array.isArray(raw.procs)
+            ? raw.procs.filter(v => typeof v === 'string').slice(0, 2)
+            : def.procs,
+    };
+}
 
 function _int(v, fallback) {
     const n = parseInt(v);
