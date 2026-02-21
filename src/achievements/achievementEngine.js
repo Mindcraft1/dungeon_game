@@ -142,10 +142,10 @@ function _onStageEntered(payload) {
     if (stage >= 15) _tryUnlock('reach_stage_15');
     if (stage >= 20) _tryUnlock('reach_stage_20');
 
-    // Speed runner: stage 10 within 8 minutes
+    // Speed runner: stage 10 within 6 minutes
     if (stage >= 10) {
         const elapsed = Date.now() - _currentRun.runStartTime;
-        if (elapsed <= 8 * 60 * 1000) {
+        if (elapsed <= 6 * 60 * 1000) {
             _tryUnlock('reach_stage_10_fast');
         }
     }
@@ -155,8 +155,8 @@ function _onStageEntered(payload) {
         _tryUnlock('no_revive_to_stage_15');
     }
 
-    // Minimalist: stage 10 without meta booster
-    if (stage >= 10 && !_currentRun.metaBoosterUsedThisRun) {
+    // Minimalist: stage 15 without meta booster
+    if (stage >= 15 && !_currentRun.metaBoosterUsedThisRun) {
         _tryUnlock('minimalist_stage_10');
     }
 

@@ -186,9 +186,9 @@ export const ACHIEVEMENTS = [
         name: 'Speed Runner I',
         icon: '⏱️',
         tier: 'medium',
-        description: 'Reach Stage 10 within 8 minutes.',
+        description: 'Reach Stage 10 within 6 minutes.',
         type: 'challenge',
-        target: 8 * 60 * 1000,  // 8 min in ms
+        target: 6 * 60 * 1000,  // 6 min in ms
     },
 
     // ═══════════════════════════════════════════════
@@ -274,7 +274,7 @@ export const ACHIEVEMENTS = [
         name: 'Minimalist',
         icon: '🧘',
         tier: 'hard',
-        description: 'Reach Stage 10 without using a meta booster.',
+        description: 'Reach Stage 15 without using a meta booster.',
         type: 'challenge',
     },
 

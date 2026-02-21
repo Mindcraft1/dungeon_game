@@ -2431,7 +2431,7 @@ export class Game {
         }
 
         let choice = null;
-        if (wasPressed('Enter')) {
+        if (wasPressed('Enter') || wasPressed('Space')) {
             choice = choices[this.bossRewardIndex];
         } else if (wasPressed('Digit1')) { choice = 'hp'; }
         else if (wasPressed('Digit2')) { choice = 'damage'; }
