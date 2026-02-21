@@ -2,8 +2,17 @@ import { TILE_SIZE, COLOR_FLOOR, COLOR_WALL, COLOR_WALL_LIGHT, COLOR_WALL_DARK }
 
 /**
  * Draw the room grid (floor + bevelled wall tiles).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number[][]} grid
+ * @param {object|null} [biome] - Optional biome object with color overrides
  */
-export function renderRoom(ctx, grid) {
+export function renderRoom(ctx, grid, biome = null) {
+    const floorColor = biome ? biome.floorColor : COLOR_FLOOR;
+    const wallColor  = biome ? biome.wallColor  : COLOR_WALL;
+    const wallLight  = biome ? biome.wallLight  : COLOR_WALL_LIGHT;
+    const wallDark   = biome ? biome.wallDark   : COLOR_WALL_DARK;
+    const gridTint   = biome ? biome.gridTint   : 'rgba(255,255,255,0.03)';
+
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
             const x = col * TILE_SIZE;
@@ -11,25 +20,25 @@ export function renderRoom(ctx, grid) {
 
             if (grid[row][col]) {
                 // Wall – base fill
-                ctx.fillStyle = COLOR_WALL;
+                ctx.fillStyle = wallColor;
                 ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
                 // Light edge (top + left)
-                ctx.fillStyle = COLOR_WALL_LIGHT;
+                ctx.fillStyle = wallLight;
                 ctx.fillRect(x, y, TILE_SIZE, 2);
                 ctx.fillRect(x, y, 2, TILE_SIZE);
 
                 // Dark edge (bottom + right)
-                ctx.fillStyle = COLOR_WALL_DARK;
+                ctx.fillStyle = wallDark;
                 ctx.fillRect(x, y + TILE_SIZE - 2, TILE_SIZE, 2);
                 ctx.fillRect(x + TILE_SIZE - 2, y, 2, TILE_SIZE);
             } else {
                 // Floor
-                ctx.fillStyle = COLOR_FLOOR;
+                ctx.fillStyle = floorColor;
                 ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
                 // Subtle tile grid
-                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.strokeStyle = gridTint;
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
             }

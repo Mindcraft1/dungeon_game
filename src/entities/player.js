@@ -57,6 +57,7 @@ export class Player {
         this.phaseShieldActive = false;   // blocks next hit
         this.crushingBlowReady = false;   // next attack = 3× damage
         this.onLava = false;              // set per frame by hazard system
+        this.biomeSpeedMult = 1.0;        // set per room by biome system
     }
 
     update(dt, movement, grid) {
@@ -353,9 +354,10 @@ export class Player {
         return this.activeBuffs.some(b => b.type === type);
     }
 
-    /** Effective move speed accounting for Swift Boots buff and lava slow. */
+    /** Effective move speed accounting for biome, Swift Boots buff, and lava slow. */
     getEffectiveSpeed() {
         let spd = this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
+        if (this.biomeSpeedMult !== 1.0) spd *= this.biomeSpeedMult;
         if (this.onLava) spd *= HAZARD_LAVA_SLOW;
         return spd;
     }

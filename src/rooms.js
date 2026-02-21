@@ -412,20 +412,27 @@ export function getEnemySpawns(grid, spawnPos, doorPos, count) {
  * @param {number} stage - Current game stage
  * @returns {Hazard[]}
  */
-export function generateHazards(grid, spawnPos, doorPos, stage) {
+export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = null) {
     if (stage < HAZARD_SPIKE_INTRO_STAGE) return [];
 
-    // ── Determine counts per type ──
+    // ── Determine base counts per type ──
     const spikeDiff = stage - HAZARD_SPIKE_INTRO_STAGE;
-    const spikeCount = Math.min(2 + Math.floor(spikeDiff * 0.6), 6);
+    let spikeCount = Math.min(2 + Math.floor(spikeDiff * 0.6), 6);
 
-    const lavaCount = stage >= HAZARD_LAVA_INTRO_STAGE
+    let lavaCount = stage >= HAZARD_LAVA_INTRO_STAGE
         ? Math.min(1 + Math.floor((stage - HAZARD_LAVA_INTRO_STAGE) * 0.4), 3)
         : 0;
 
-    const arrowCount = stage >= HAZARD_ARROW_INTRO_STAGE
+    let arrowCount = stage >= HAZARD_ARROW_INTRO_STAGE
         ? Math.min(1 + Math.floor((stage - HAZARD_ARROW_INTRO_STAGE) * 0.35), 3)
         : 0;
+
+    // ── Apply biome hazard weight modifiers ──
+    if (hazardWeights) {
+        spikeCount = Math.max(0, Math.round(spikeCount * (hazardWeights.spikes || 1)));
+        lavaCount  = Math.max(0, Math.round(lavaCount  * (hazardWeights.lava   || 1)));
+        arrowCount = Math.max(0, Math.round(arrowCount * (hazardWeights.arrow  || 1)));
+    }
 
     // ── Collect valid floor tiles ──
     const floorTiles = [];

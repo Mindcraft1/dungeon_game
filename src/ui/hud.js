@@ -6,7 +6,7 @@ import { PICKUP_INFO } from '../entities/pickup.js';
  */
 export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false,
                           comboCount = 0, comboTier = 0, comboMultiplier = 1, comboTimer = 0,
-                          isBossRoom = false) {
+                          isBossRoom = false, biomeName = null, biomeColor = null) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -49,8 +49,18 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.font = 'bold 13px monospace';
     ctx.fillStyle = '#ffd700';
     ctx.fillText(`LVL ${player.level}`, pad, infoY);
-    ctx.fillStyle = '#aaa';
-    ctx.fillText(trainingMode ? 'TRAINING' : `Stage ${stage}`, pad + 76, infoY);
+    if (trainingMode) {
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('TRAINING', pad + 76, infoY);
+    } else if (biomeName) {
+        ctx.fillStyle = biomeColor || '#aaa';
+        ctx.fillText(`${biomeName}`, pad + 76, infoY);
+        ctx.fillStyle = '#777';
+        ctx.fillText(`${stage}`, pad + 76 + ctx.measureText(`${biomeName} `).width, infoY);
+    } else {
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(`Stage ${stage}`, pad + 76, infoY);
+    }
 
     if (enemiesAlive > 0) {
         ctx.fillStyle = isBossRoom ? '#ff6600' : '#e74c3c';

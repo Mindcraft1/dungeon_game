@@ -31,6 +31,7 @@ import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
+import { getBiomeForStage } from './biomes.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -111,6 +112,10 @@ export class Game {
         this.boss = null;
         this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
         this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
+
+        // ── Biome system ──
+        this.currentBiome = null;          // biome object for current stage
+        this.biomeAnnounceTimer = 0;       // ms remaining for biome banner
 
         // ── Cheat codes ──
         this.cheats = {
@@ -283,8 +288,20 @@ export class Game {
         this.comboFlash = 0;
         this.boss = null;
         this.bossVictoryDelay = 0;
+        this._updateBiome();
+        this.biomeAnnounceTimer = 3000;  // announce first biome
         this.loadRoom(0);
         this.state = STATE_PLAYING;
+    }
+
+    /** Compute the current biome from stage and apply player modifiers */
+    _updateBiome() {
+        this.currentBiome = getBiomeForStage(this.stage);
+        if (this.player) {
+            this.player.biomeSpeedMult = this.currentBiome
+                ? this.currentBiome.playerSpeedMult
+                : 1.0;
+        }
     }
 
     _openTrainingConfig(fromGame) {
@@ -300,6 +317,8 @@ export class Game {
             this.player = null;
         }
         this.stage = 0;
+        this.currentBiome = null;
+        if (this.player) this.player.biomeSpeedMult = 1.0;
         this.controlsHintTimer = 6000;
         this._loadConfiguredTrainingRoom();
         this.state = STATE_PLAYING;
@@ -313,7 +332,8 @@ export class Game {
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this._spawnEnemies(grid, spawnPos, doorPos);
-        this.hazards = generateHazards(grid, spawnPos, doorPos, this.stage);
+        const hazardWeights = this.currentBiome ? this.currentBiome.hazardWeights : null;
+        this.hazards = generateHazards(grid, spawnPos, doorPos, this.stage, hazardWeights);
         this.pickups = [];
         this.playerProjectiles = [];
         this.particles.clear();
@@ -386,6 +406,10 @@ export class Game {
             this.player.attackTimer = 0;
             this.player.attackVisualTimer = 0;
         }
+        // Apply biome speed modifier
+        this.player.biomeSpeedMult = this.currentBiome
+            ? this.currentBiome.playerSpeedMult
+            : 1.0;
     }
 
     _spawnEnemies(grid, spawnPos, doorPos) {
@@ -394,7 +418,7 @@ export class Game {
         const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2);
         const dmgBase = ENEMY_DAMAGE + Math.floor((this.stage - 1) * 0.5);
 
-        const types = this._getEnemyTypes(this.stage, count);
+        const types = this._getEnemyTypes(this.stage, count, this.currentBiome);
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, count);
 
         this.enemies = spawns.map((p, i) => new Enemy(
@@ -412,24 +436,39 @@ export class Game {
      *   Stage 8+:   tanks mixed in
      * At least one basic enemy is always guaranteed.
      */
-    _getEnemyTypes(stage, count) {
+    _getEnemyTypes(stage, count, biome = null) {
         if (stage < SHOOTER_INTRO_STAGE) {
             return Array(count).fill(ENEMY_TYPE_BASIC);
         }
 
-        // Build cumulative probability thresholds
-        const pShooter = stage >= SHOOTER_INTRO_STAGE
+        // Build base probability for each type
+        let pShooter = stage >= SHOOTER_INTRO_STAGE
             ? Math.min(0.15 + (stage - SHOOTER_INTRO_STAGE) * 0.02, 0.30) : 0;
-        const pDasher = stage >= DASHER_INTRO_STAGE
+        let pDasher = stage >= DASHER_INTRO_STAGE
             ? Math.min(0.12 + (stage - DASHER_INTRO_STAGE) * 0.02, 0.22) : 0;
-        const pTank = stage >= TANK_INTRO_STAGE
+        let pTank = stage >= TANK_INTRO_STAGE
             ? Math.min(0.08 + (stage - TANK_INTRO_STAGE) * 0.02, 0.15) : 0;
+        let pBasic = 1 - pShooter - pDasher - pTank;
 
-        const total = pTank + pDasher + pShooter + (1 - pTank - pDasher - pShooter);
+        // Apply biome enemy weight modifiers (multiply + renormalize)
+        if (biome && biome.enemyWeights) {
+            const w = biome.enemyWeights;
+            pBasic   *= (w.basic   || 1);
+            pShooter *= (w.shooter || 1);
+            pDasher  *= (w.dasher  || 1);
+            pTank    *= (w.tank    || 1);
+            const total = pBasic + pShooter + pDasher + pTank;
+            if (total > 0) {
+                pBasic   /= total;
+                pShooter /= total;
+                pDasher  /= total;
+                pTank    /= total;
+            }
+        }
 
         const types = [];
         for (let i = 0; i < count; i++) {
-            const roll = Math.random() * total;
+            const roll = Math.random();
             if (roll < pTank) types.push(ENEMY_TYPE_TANK);
             else if (roll < pTank + pDasher) types.push(ENEMY_TYPE_DASHER);
             else if (roll < pTank + pDasher + pShooter) types.push(ENEMY_TYPE_SHOOTER);
@@ -537,8 +576,16 @@ export class Game {
     }
 
     nextRoom() {
+        const oldBiome = this.currentBiome;
         this.stage++;
         this._saveHighscore();
+        this._updateBiome();
+
+        // Announce biome change
+        if (this.currentBiome && (!oldBiome || oldBiome.id !== this.currentBiome.id)) {
+            this.biomeAnnounceTimer = 3000;
+        }
+
         if (this._isBossStage(this.stage)) {
             this._loadBossRoom();
         } else {
@@ -598,6 +645,8 @@ export class Game {
         this.projectiles = [];
         this.playerProjectiles = [];
         this.stage = 0;
+        this.currentBiome = null;
+        this.player.biomeSpeedMult = 1.0;
         this.controlsHintTimer = 4000;
 
         let grid, spawnPos, doorPos;
@@ -652,6 +701,7 @@ export class Game {
         this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
         this.player.hp = this.player.maxHp;
         this.controlsHintTimer = 0;
+        this._updateBiome();  // restore biome from saved stage
         this.state = STATE_PLAYING;
     }
 
@@ -670,6 +720,8 @@ export class Game {
         this.comboFlash = 0;
         this.boss = null;
         this.bossVictoryDelay = 0;
+        this.currentBiome = null;
+        this.biomeAnnounceTimer = 0;
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -875,6 +927,10 @@ export class Game {
         }
         if (this.comboFlash > 0) {
             this.comboFlash -= dt * 1000;
+        }
+        // Biome announcement timer
+        if (this.biomeAnnounceTimer > 0) {
+            this.biomeAnnounceTimer -= dt * 1000;
         }
         // Update floating combo popups
         for (const p of this.comboPopups) {
@@ -1355,6 +1411,7 @@ export class Game {
                     this.projectiles = this._savedGame.projectiles || [];
                     this.hazards = this._savedGame.hazards || [];
                     this._savedGame = null;
+                    this._updateBiome();  // restore biome from stage
                 }
                 this.state = STATE_PLAYING;
             } else {
@@ -1532,7 +1589,7 @@ export class Game {
             return;
         }
 
-        renderRoom(ctx, this.grid);
+        renderRoom(ctx, this.grid, this.currentBiome);
         for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
@@ -1566,8 +1623,11 @@ export class Game {
         let alive = this.enemies.filter(e => !e.dead).length;
         if (this.boss && !this.boss.dead) alive++;
         const isBossRoom = !!(this.boss);
+        const biomeName  = this.currentBiome ? this.currentBiome.name : null;
+        const biomeColor = this.currentBiome ? this.currentBiome.nameColor : null;
         renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
-                  this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom);
+                  this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
+                  biomeName, biomeColor);
 
         // Boss HP bar
         if (this.boss && !this.boss.dead) {
@@ -1596,6 +1656,11 @@ export class Game {
             ctx.shadowBlur = 8;
             ctx.fillText(p.text, p.x, p.y);
             ctx.restore();
+        }
+
+        // ── Biome announcement banner ──
+        if (this.biomeAnnounceTimer > 0 && this.currentBiome) {
+            this._renderBiomeAnnouncement(ctx);
         }
 
         // Training mode banner
@@ -1637,6 +1702,44 @@ export class Game {
         }
     }
 
+    _renderBiomeAnnouncement(ctx) {
+        const totalTime = 3000;
+        const fadeIn = 400;
+        const fadeOut = 1000;
+        const elapsed = totalTime - this.biomeAnnounceTimer;
+
+        let alpha;
+        if (elapsed < fadeIn) alpha = elapsed / fadeIn;
+        else if (this.biomeAnnounceTimer < fadeOut) alpha = this.biomeAnnounceTimer / fadeOut;
+        else alpha = 1;
+
+        const biome = this.currentBiome;
+        const cy = CANVAS_HEIGHT / 2 - 20;
+
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.textAlign = 'center';
+
+        // Background bar
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, cy - 28, CANVAS_WIDTH, 60);
+
+        // Biome name
+        ctx.fillStyle = biome.nameColor;
+        ctx.font = 'bold 22px monospace';
+        ctx.shadowColor = biome.nameColor;
+        ctx.shadowBlur = 12;
+        ctx.fillText(biome.name.toUpperCase(), CANVAS_WIDTH / 2, cy + 2);
+        ctx.shadowBlur = 0;
+
+        // Subtitle
+        ctx.fillStyle = '#888';
+        ctx.font = '11px monospace';
+        ctx.fillText(`Stage ${this.stage}`, CANVAS_WIDTH / 2, cy + 20);
+
+        ctx.restore();
+    }
+
     _renderPauseOverlay(ctx) {
         // Dim background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
@@ -1664,7 +1767,8 @@ export class Game {
         // Stage info
         ctx.fillStyle = '#888';
         ctx.font = '12px monospace';
-        ctx.fillText(`Stage ${this.stage}  ·  Level ${this.player.level}`, CANVAS_WIDTH / 2, by + 72);
+        const biomeLabel = this.currentBiome ? `${this.currentBiome.name} · ` : '';
+        ctx.fillText(`${biomeLabel}Stage ${this.stage}  ·  Level ${this.player.level}`, CANVAS_WIDTH / 2, by + 72);
 
         // Options
         const options = [

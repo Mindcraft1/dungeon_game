@@ -81,6 +81,18 @@
 
 ---
 
+### 8b. Biome-System (Thematische Variation)
+- **Mechanik:** Alle 5 Stages wechselt das Biom: Jungle → Desert → Wasteland → Depths → Cycle
+- **Biom-Effekte:** Spawn-Gewichtung (mehr/weniger bestimmte Gegner/Fallen), Tile-Farben, Player-Speed-Modifier
+- **Balance:** Biomes modifizieren nur Wahrscheinlichkeiten, nie Unlock-Gates — globale Progression bleibt unangetastet
+- **Visuals:** Biom-spezifische Floor/Wall-Farben, HUD zeigt Biom-Name, Announcement-Banner bei Biom-Wechsel
+- **Umsetzung:** `src/biomes.js` (Biom-Daten), Gewichtungen in `game.js._getEnemyTypes()`, Hazard-Modifier in `rooms.js.generateHazards()`, Farben in `render.js.renderRoom()`
+- **Warum:** Kapitel-artige Struktur gibt dem Spiel thematische Abwechslung ohne Balance-Chaos
+- **Aufwand:** ~2h
+- **Status:** ✅ Fertig
+
+---
+
 ### 8. Sekundär-Angriff / Ranged Attack
 - **Taste:** B
 - **Mechanik:** Wurf-Dolch in Blickrichtung mit eigenem Cooldown (800ms) und begrenzter Reichweite (300px)
