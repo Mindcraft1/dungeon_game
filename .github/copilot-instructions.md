@@ -13,7 +13,7 @@ A 2D top-down dungeon room-clearing game built with **HTML5 Canvas** and **Vanil
 - **Game loop:** `requestAnimationFrame` with delta-time (capped at 50 ms)
 - **Dev server:** `npm start` → `npx serve -l 6969`
 - **Persistence:** `localStorage` key `dungeon_profiles` (JSON)
-- **Total:** ~2,000 lines across 17 files
+- **Total:** ~3,000 lines across 18 files
 
 ---
 
@@ -34,7 +34,8 @@ game_test/
     ├── game.js             # ⭐ Core Game class — state machine, all logic orchestration (~745 lines)
     ├── entities/
     │   ├── player.js       # Player class: movement, 120° arc melee, XP/leveling, rendering
-    │   ├── enemy.js        # Enemy class: seek AI, contact damage, separation, knockback
+    │   ├── enemy.js        # Enemy class: 4 types (basic/shooter/tank/dasher), type-specific AI + rendering
+    │   ├── projectile.js   # Projectile class: linear movement, wall/player collision, glow rendering
     │   └── door.js         # Door class: lock/unlock, collision, lock icon / arrow animation
     └── ui/
         ├── hud.js          # In-game HUD: HP/XP bars, level, stage, enemy count, stats
@@ -59,7 +60,8 @@ index.html
               ├── src/render.js        ← constants.js
               ├── src/collision.js     (imported by entities, not game.js)
               ├── src/entities/player.js  ← constants.js, collision.js
-              ├── src/entities/enemy.js   ← constants.js, collision.js
+              ├── src/entities/enemy.js   ← constants.js, collision.js, projectile.js
+              ├── src/entities/projectile.js ← constants.js, collision.js
               ├── src/entities/door.js    ← constants.js, collision.js
               ├── src/ui/hud.js           ← constants.js
               ├── src/ui/levelup.js       ← constants.js
@@ -109,6 +111,8 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 | Attack | `ATTACK_RANGE / ARC / COOLDOWN / DURATION` | `50 / 120° / 350ms / 150ms` |
 | Enemy | `ENEMY_RADIUS / SPEED / HP / DAMAGE` | `12 / 70 / 50 / 10` |
 | | `ENEMY_XP` | `15` |
+| Enemy types | `SHOOTER_INTRO_STAGE / DASHER / TANK` | `4 / 6 / 8` |
+| Projectile | `PROJECTILE_SPEED / DAMAGE / RADIUS` | `200 / 8 / 4` |
 | Leveling | `XP_BASE / XP_MULTIPLIER` | `30 / 1.25` |
 | | `UPGRADE_HP / SPEED / DAMAGE` | `25 / 15 / 8` |
 | Training | `TRAINING_ENEMY_COUNT / RESPAWN_DELAY` | `3 / 2000ms` |
@@ -127,10 +131,32 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 
 ### Enemy (src/entities/enemy.js)
 
-- **AI:** Simple seek toward player with separation push from other enemies
-- **Damage:** Contact damage to player on collision (skipped if `trainingMode`)
-- **Scaling per stage:** Count `min(2 + floor((stage-1)*0.75), 10)`, HP `×(1 + (stage-1)*0.15)`, Speed `×(1 + (stage-1)*0.05)` (max ×2), Damage `+(stage-1)*0.5`
-- **Rendering:** Red circle, white flash on hit, HP bar when damaged (green → orange → red)
+Enemies have 4 types with distinct shapes, colors, AI behaviors, and stat multipliers:
+
+| Type | Shape | Color | Intro Stage | HP | Speed | Damage | Special Ability |
+|------|-------|-------|-------------|-----|-------|--------|----------------|
+| **Basic** | Circle | Red `#e74c3c` | 1 | 1× | 1× | 1× | Seek player |
+| **Shooter** | Diamond | Purple `#9b59b6` | 4 | 0.7× | 0.55× | 0.5× contact | Fires projectiles, keeps distance, strafes |
+| **Tank** | Hexagon | Orange `#e67e22` | 8 | 2× | 0.45× | 1.5× | Charges at 2.5× speed, resists knockback while charging |
+| **Dasher** | Triangle | Green `#2ecc71` | 6 | 0.6× | 0.55× | 1.2× | Fast dashes (3.5× speed) toward player |
+
+- **Base stat scaling per stage:** Count `min(2 + floor((stage-1)*0.75), 10)`, HP `×(1 + (stage-1)*0.15)`, Speed `×(1 + (stage-1)*0.05)` (max ×2), Damage `+(stage-1)*0.5`
+- **Type multipliers** are applied on top of stage scaling
+- **XP per type:** Basic=15, Shooter=19, Dasher=22, Tank=30
+- **Spawn composition** (`_getEnemyTypes`): Weighted random per stage, at least 1 basic guaranteed
+  - Stage 1–3: 100% basic
+  - Stage 4+: ~15–30% shooters
+  - Stage 6+: ~12–22% dashers
+  - Stage 8+: ~8–15% tanks
+- **Rendering:** Type-specific shapes, damage flash, HP bar, plus ability indicators (shooter glow, tank charge ring, dasher trail)
+
+### Projectile (src/entities/projectile.js)
+
+- Created by Shooter enemies, stored in `Game.projectiles[]`
+- **Movement:** Linear (dirX/dirY × `PROJECTILE_SPEED`), destroyed on wall collision or player hit
+- **Damage:** Base 8 + `0.4 × (stage - 4)`, skipped in training mode
+- **Lifetime:** Max 3000ms
+- **Rendering:** Purple glow circle with bright white center
 
 ### Door (src/entities/door.js)
 
@@ -191,7 +217,8 @@ All rendering is immediate-mode Canvas 2D. The render pipeline per frame:
 3. **In-game:**
    - `renderRoom(ctx, grid)` — floor + wall tiles
    - `door.render(ctx)` — door entity
-   - `enemies.forEach(e => e.render(ctx))` — enemy entities
+   - `enemies.forEach(e => e.render(ctx))` — enemy entities (type-specific shapes)
+   - `projectiles.forEach(p => p.render(ctx))` — shooter projectiles
    - `player.render(ctx)` — player entity (drawn last = on top)
    - Door tooltips (LOCKED / EXIT hints)
    - `renderHUD(ctx, ...)` — HP/XP bars, stats

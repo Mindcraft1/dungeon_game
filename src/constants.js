@@ -29,6 +29,52 @@ export const ENEMY_HIT_COOLDOWN = 800;
 export const ENEMY_COLOR = '#e74c3c';
 export const ENEMY_XP = 15;
 
+// ── Enemy types ──
+export const ENEMY_TYPE_BASIC = 'basic';
+export const ENEMY_TYPE_SHOOTER = 'shooter';
+export const ENEMY_TYPE_TANK = 'tank';
+export const ENEMY_TYPE_DASHER = 'dasher';
+
+// ── Shooter enemy ──
+export const SHOOTER_COLOR = '#9b59b6';
+export const SHOOTER_HP_MULT = 0.7;
+export const SHOOTER_SPEED_MULT = 0.55;
+export const SHOOTER_RANGE = 200;
+export const SHOOTER_FIRE_COOLDOWN = 2000;
+export const SHOOTER_XP_MULT = 1.3;
+export const SHOOTER_INTRO_STAGE = 4;
+
+// ── Tank enemy ──
+export const TANK_COLOR = '#e67e22';
+export const TANK_HP_MULT = 2.0;
+export const TANK_SPEED_MULT = 0.45;
+export const TANK_DAMAGE_MULT = 1.5;
+export const TANK_CHARGE_SPEED_MULT = 2.5;
+export const TANK_CHARGE_COOLDOWN = 4000;
+export const TANK_CHARGE_DURATION = 800;
+export const TANK_CHARGE_RANGE = 250;
+export const TANK_XP_MULT = 2.0;
+export const TANK_INTRO_STAGE = 8;
+
+// ── Dasher enemy ──
+export const DASHER_COLOR = '#2ecc71';
+export const DASHER_HP_MULT = 0.6;
+export const DASHER_SPEED_MULT = 0.55;
+export const DASHER_DAMAGE_MULT = 1.2;
+export const DASHER_DASH_SPEED_MULT = 3.5;
+export const DASHER_DASH_COOLDOWN = 2500;
+export const DASHER_DASH_DURATION = 400;
+export const DASHER_DASH_RANGE = 300;
+export const DASHER_XP_MULT = 1.5;
+export const DASHER_INTRO_STAGE = 6;
+
+// ── Projectile (shooter) ──
+export const PROJECTILE_RADIUS = 4;
+export const PROJECTILE_SPEED = 200;
+export const PROJECTILE_DAMAGE = 8;
+export const PROJECTILE_COLOR = '#bb86fc';
+export const PROJECTILE_MAX_LIFETIME = 3000;
+
 // ── Leveling ──
 export const XP_BASE = 30;
 export const XP_MULTIPLIER = 1.25;

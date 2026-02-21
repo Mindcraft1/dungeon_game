@@ -1,6 +1,8 @@
 import {
     CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE,
     ENEMY_HP, ENEMY_SPEED, ENEMY_DAMAGE, ENEMY_XP,
+    ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_TANK, ENEMY_TYPE_DASHER,
+    SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
 } from './constants.js';
@@ -9,6 +11,7 @@ import { parseRoom, parseTrainingRoom, getEnemySpawns } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
+import { Projectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
 import { renderHUD } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
@@ -37,6 +40,7 @@ export class Game {
         this.stage = 1;
         this.player = null;
         this.enemies = [];
+        this.projectiles = [];
         this.door = null;
         this.grid = null;
         this.controlsHintTimer = 0;
@@ -170,6 +174,7 @@ export class Game {
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
+        this.projectiles = [];
 
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
         this.enemies = spawns.map(p => new Enemy(
@@ -192,17 +197,58 @@ export class Game {
 
     _spawnEnemies(grid, spawnPos, doorPos) {
         const count = Math.min(2 + Math.floor((this.stage - 1) * 0.75), 10);
-        const hpScale = 1 + (this.stage - 1) * 0.15;
-        const spdScale = 1 + (this.stage - 1) * 0.05;
-        const dmgExtra = Math.floor((this.stage - 1) * 0.5);
+        const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15));
+        const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2);
+        const dmgBase = ENEMY_DAMAGE + Math.floor((this.stage - 1) * 0.5);
 
+        const types = this._getEnemyTypes(this.stage, count);
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, count);
-        this.enemies = spawns.map(p => new Enemy(
-            p.x, p.y,
-            Math.floor(ENEMY_HP * hpScale),
-            Math.min(ENEMY_SPEED * spdScale, ENEMY_SPEED * 2),
-            ENEMY_DAMAGE + dmgExtra,
+
+        this.enemies = spawns.map((p, i) => new Enemy(
+            p.x, p.y, hpBase, spdBase, dmgBase, types[i], this.stage,
         ));
+        this.projectiles = [];
+    }
+
+    /**
+     * Determine enemy type composition for a given stage.
+     * New types are introduced gradually:
+     *   Stage 1-3:  100% basic
+     *   Stage 4+:   shooters mixed in
+     *   Stage 6+:   dashers mixed in
+     *   Stage 8+:   tanks mixed in
+     * At least one basic enemy is always guaranteed.
+     */
+    _getEnemyTypes(stage, count) {
+        if (stage < SHOOTER_INTRO_STAGE) {
+            return Array(count).fill(ENEMY_TYPE_BASIC);
+        }
+
+        // Build cumulative probability thresholds
+        const pShooter = stage >= SHOOTER_INTRO_STAGE
+            ? Math.min(0.15 + (stage - SHOOTER_INTRO_STAGE) * 0.02, 0.30) : 0;
+        const pDasher = stage >= DASHER_INTRO_STAGE
+            ? Math.min(0.12 + (stage - DASHER_INTRO_STAGE) * 0.02, 0.22) : 0;
+        const pTank = stage >= TANK_INTRO_STAGE
+            ? Math.min(0.08 + (stage - TANK_INTRO_STAGE) * 0.02, 0.15) : 0;
+
+        const total = pTank + pDasher + pShooter + (1 - pTank - pDasher - pShooter);
+
+        const types = [];
+        for (let i = 0; i < count; i++) {
+            const roll = Math.random() * total;
+            if (roll < pTank) types.push(ENEMY_TYPE_TANK);
+            else if (roll < pTank + pDasher) types.push(ENEMY_TYPE_DASHER);
+            else if (roll < pTank + pDasher + pShooter) types.push(ENEMY_TYPE_SHOOTER);
+            else types.push(ENEMY_TYPE_BASIC);
+        }
+
+        // Guarantee at least one basic enemy
+        if (!types.includes(ENEMY_TYPE_BASIC) && count > 0) {
+            types[0] = ENEMY_TYPE_BASIC;
+        }
+
+        return types;
     }
 
     nextRoom() {
@@ -219,8 +265,10 @@ export class Game {
             enemies: this.enemies,
             door: this.door,
             grid: this.grid,
+            projectiles: this.projectiles,
         };
         this.trainingMode = true;
+        this.projectiles = [];
         this.stage = 0;
         this.controlsHintTimer = 4000;
         // Keep player stats, move to training room, full heal
@@ -253,6 +301,7 @@ export class Game {
         this.enemies = this._savedGame.enemies;
         this.door = this._savedGame.door;
         this.grid = this._savedGame.grid;
+        this.projectiles = this._savedGame.projectiles || [];
         this.trainingMode = false;
         this._savedGame = null;
 
@@ -269,6 +318,7 @@ export class Game {
         this.menuIndex = 0;
         this.trainingMode = false;
         this._savedGame = null;
+        this.projectiles = [];
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -423,18 +473,24 @@ export class Game {
 
         // Enemies
         for (const e of this.enemies) {
-            e.update(dt, this.player, this.grid, this.enemies, this.trainingMode);
+            e.update(dt, this.player, this.grid, this.enemies, this.projectiles, this.trainingMode);
 
             if (e.dead && !e.xpGiven) {
                 e.xpGiven = true;
                 if (!this.trainingMode) {
-                    if (this.player.addXp(ENEMY_XP)) {
+                    if (this.player.addXp(e.xpValue)) {
                         this.state = STATE_LEVEL_UP;
                         return;
                     }
                 }
             }
         }
+
+        // Projectiles
+        for (const p of this.projectiles) {
+            p.update(dt, this.player, this.grid, this.trainingMode);
+        }
+        this.projectiles = this.projectiles.filter(p => !p.dead);
 
         // Training: respawn enemies when all dead
         if (this.trainingMode) {
@@ -558,6 +614,7 @@ export class Game {
         renderRoom(ctx, this.grid);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
+        for (const p of this.projectiles) p.render(ctx);
         this.player.render(ctx);
 
         // Locked-door hint (real game only)

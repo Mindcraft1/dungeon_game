@@ -1,55 +1,121 @@
-import { ENEMY_RADIUS, ENEMY_COLOR, ENEMY_HIT_COOLDOWN } from '../constants.js';
+import {
+    ENEMY_RADIUS, ENEMY_COLOR, ENEMY_HIT_COOLDOWN, ENEMY_XP,
+    ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_TANK, ENEMY_TYPE_DASHER,
+    SHOOTER_COLOR, SHOOTER_HP_MULT, SHOOTER_SPEED_MULT,
+    SHOOTER_RANGE, SHOOTER_FIRE_COOLDOWN, SHOOTER_XP_MULT,
+    TANK_COLOR, TANK_HP_MULT, TANK_SPEED_MULT, TANK_DAMAGE_MULT,
+    TANK_CHARGE_SPEED_MULT, TANK_CHARGE_COOLDOWN, TANK_CHARGE_DURATION,
+    TANK_CHARGE_RANGE, TANK_XP_MULT,
+    DASHER_COLOR, DASHER_HP_MULT, DASHER_SPEED_MULT, DASHER_DAMAGE_MULT,
+    DASHER_DASH_SPEED_MULT, DASHER_DASH_COOLDOWN, DASHER_DASH_DURATION,
+    DASHER_DASH_RANGE, DASHER_XP_MULT,
+    PROJECTILE_SPEED, PROJECTILE_DAMAGE, PROJECTILE_RADIUS, PROJECTILE_COLOR,
+} from '../constants.js';
 import { resolveWalls } from '../collision.js';
+import { Projectile } from './projectile.js';
 
 export class Enemy {
-    constructor(x, y, hp, speed, damage) {
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} baseHp     – stage-scaled base HP
+     * @param {number} baseSpeed  – stage-scaled base speed
+     * @param {number} baseDamage – stage-scaled base damage
+     * @param {string} type       – ENEMY_TYPE_* constant
+     * @param {number} stage      – current game stage (for projectile scaling)
+     */
+    constructor(x, y, baseHp, baseSpeed, baseDamage, type = ENEMY_TYPE_BASIC, stage = 1) {
         this.x = x;
         this.y = y;
-        this.radius = ENEMY_RADIUS;
-        this.maxHp = hp;
-        this.hp = hp;
-        this.speed = speed;
-        this.damage = damage;
+        this.type = type;
         this.dead = false;
         this.xpGiven = false;
-
         this.hitCooldown = 0;
         this.damageFlashTimer = 0;
+        this.facingAngle = 0;
+
+        // ── Apply type-specific stat multipliers ──
+        switch (type) {
+            case ENEMY_TYPE_SHOOTER:
+                this.radius = 11;
+                this.maxHp = Math.floor(baseHp * SHOOTER_HP_MULT);
+                this.speed = baseSpeed * SHOOTER_SPEED_MULT;
+                this.damage = Math.floor(baseDamage * 0.5);
+                this.xpValue = Math.floor(ENEMY_XP * SHOOTER_XP_MULT);
+                this.projectileDamage = PROJECTILE_DAMAGE + Math.floor(Math.max(0, stage - 4) * 0.4);
+                break;
+            case ENEMY_TYPE_TANK:
+                this.radius = 16;
+                this.maxHp = Math.floor(baseHp * TANK_HP_MULT);
+                this.speed = baseSpeed * TANK_SPEED_MULT;
+                this.damage = Math.floor(baseDamage * TANK_DAMAGE_MULT);
+                this.xpValue = Math.floor(ENEMY_XP * TANK_XP_MULT);
+                break;
+            case ENEMY_TYPE_DASHER:
+                this.radius = 10;
+                this.maxHp = Math.floor(baseHp * DASHER_HP_MULT);
+                this.speed = baseSpeed * DASHER_SPEED_MULT;
+                this.damage = Math.floor(baseDamage * DASHER_DAMAGE_MULT);
+                this.xpValue = Math.floor(ENEMY_XP * DASHER_XP_MULT);
+                break;
+            default: // basic
+                this.radius = ENEMY_RADIUS;
+                this.maxHp = baseHp;
+                this.speed = baseSpeed;
+                this.damage = baseDamage;
+                this.xpValue = ENEMY_XP;
+                break;
+        }
+
+        this.hp = this.maxHp;
+
+        // ── Shooter state ──
+        this.shootTimer = SHOOTER_FIRE_COOLDOWN * (0.3 + Math.random() * 0.5);
+        this.strafeDir = Math.random() < 0.5 ? 1 : -1;
+        this.strafeTimer = 1000 + Math.random() * 2000;
+
+        // ── Tank state ──
+        this.chargeTimer = TANK_CHARGE_COOLDOWN * (0.5 + Math.random() * 0.3);
+        this.charging = false;
+        this.chargeTimeLeft = 0;
+        this.chargeDirX = 0;
+        this.chargeDirY = 0;
+
+        // ── Dasher state ──
+        this.dashTimer = DASHER_DASH_COOLDOWN * (0.3 + Math.random() * 0.5);
+        this.dashing = false;
+        this.dashTimeLeft = 0;
+        this.dashDirX = 0;
+        this.dashDirY = 0;
     }
 
-    update(dt, player, grid, enemies, trainingMode = false) {
+    // ── Update ─────────────────────────────────────────────
+
+    update(dt, player, grid, enemies, projectiles, trainingMode = false) {
         if (this.dead) return;
 
         const ms = dt * 1000;
 
-        // ── Move towards player ──
-        const dx = player.x - this.x;
-        const dy = player.y - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > this.radius + player.radius) {
-            this.x += (dx / dist) * this.speed * dt;
-            this.y += (dy / dist) * this.speed * dt;
+        // Type-specific movement & abilities
+        switch (this.type) {
+            case ENEMY_TYPE_SHOOTER:
+                this._updateShooter(dt, ms, player, enemies, projectiles);
+                break;
+            case ENEMY_TYPE_TANK:
+                this._updateTank(dt, ms, player, enemies);
+                break;
+            case ENEMY_TYPE_DASHER:
+                this._updateDasher(dt, ms, player, enemies);
+                break;
+            default:
+                this._updateBasic(dt, player, enemies);
+                break;
         }
 
-        // ── Separation from other enemies (avoids stacking) ──
-        for (const other of enemies) {
-            if (other === this || other.dead) continue;
-            const sx = this.x - other.x;
-            const sy = this.y - other.y;
-            const sd = Math.sqrt(sx * sx + sy * sy);
-            const minDist = this.radius + other.radius + 2;
-            if (sd < minDist && sd > 0) {
-                const push = (minDist - sd) * 0.5;
-                this.x += (sx / sd) * push;
-                this.y += (sy / sd) * push;
-            }
-        }
-
-        // ── Walls (final authority on position) ──
+        // Walls always have final say
         resolveWalls(this, this.radius, grid);
 
-        // ── Contact damage (skipped in training) ──
+        // Contact damage (all types)
         if (this.hitCooldown > 0) this.hitCooldown -= ms;
         if (!trainingMode) {
             const pDist = Math.sqrt((player.x - this.x) ** 2 + (player.y - this.y) ** 2);
@@ -62,12 +128,175 @@ export class Enemy {
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
     }
 
+    // ── Basic AI: seek player ──
+
+    _updateBasic(dt, player, enemies) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
+
+        if (dist > this.radius + player.radius) {
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
+        }
+        this._applySeparation(enemies);
+    }
+
+    // ── Shooter AI: keep distance, strafe, fire projectiles ──
+
+    _updateShooter(dt, ms, player, enemies, projectiles) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
+
+        // Approach if far, retreat if close, strafe at ideal range
+        if (dist > SHOOTER_RANGE * 1.2) {
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
+        } else if (dist < SHOOTER_RANGE * 0.6) {
+            this.x -= (dx / dist) * this.speed * dt;
+            this.y -= (dy / dist) * this.speed * dt;
+        } else {
+            // Strafe perpendicular
+            this.strafeTimer -= ms;
+            if (this.strafeTimer <= 0) {
+                this.strafeDir *= -1;
+                this.strafeTimer = 1000 + Math.random() * 2000;
+            }
+            const perpX = (-dy / dist) * this.strafeDir;
+            const perpY = (dx / dist) * this.strafeDir;
+            this.x += perpX * this.speed * 0.5 * dt;
+            this.y += perpY * this.speed * 0.5 * dt;
+        }
+
+        this._applySeparation(enemies);
+
+        // Fire projectile on cooldown
+        this.shootTimer -= ms;
+        if (this.shootTimer <= 0 && dist < SHOOTER_RANGE * 1.5 && projectiles) {
+            this.shootTimer = SHOOTER_FIRE_COOLDOWN;
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+            projectiles.push(new Projectile(
+                this.x + dirX * (this.radius + PROJECTILE_RADIUS + 2),
+                this.y + dirY * (this.radius + PROJECTILE_RADIUS + 2),
+                dirX, dirY,
+                PROJECTILE_SPEED,
+                this.projectileDamage || PROJECTILE_DAMAGE,
+                PROJECTILE_RADIUS,
+                PROJECTILE_COLOR,
+            ));
+        }
+    }
+
+    // ── Tank AI: slow approach + devastating charge ──
+
+    _updateTank(dt, ms, player, enemies) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
+
+        if (this.charging) {
+            // Rush in the locked charge direction
+            this.chargeTimeLeft -= ms;
+            const chargeSpeed = this.speed * (TANK_CHARGE_SPEED_MULT / TANK_SPEED_MULT);
+            this.x += this.chargeDirX * chargeSpeed * dt;
+            this.y += this.chargeDirY * chargeSpeed * dt;
+            this.facingAngle = Math.atan2(this.chargeDirY, this.chargeDirX);
+            if (this.chargeTimeLeft <= 0) {
+                this.charging = false;
+                this.chargeTimer = TANK_CHARGE_COOLDOWN;
+            }
+        } else {
+            // Slow approach
+            if (dist > this.radius + player.radius) {
+                this.x += (dx / dist) * this.speed * dt;
+                this.y += (dy / dist) * this.speed * dt;
+            }
+            this._applySeparation(enemies);
+
+            // Charge cooldown
+            this.chargeTimer -= ms;
+            if (this.chargeTimer <= 0 && dist < TANK_CHARGE_RANGE) {
+                this.charging = true;
+                this.chargeTimeLeft = TANK_CHARGE_DURATION;
+                this.chargeDirX = dx / dist;
+                this.chargeDirY = dy / dist;
+            }
+        }
+    }
+
+    // ── Dasher AI: slow drift + fast dash bursts ──
+
+    _updateDasher(dt, ms, player, enemies) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
+
+        if (this.dashing) {
+            this.dashTimeLeft -= ms;
+            const dashSpeed = this.speed * (DASHER_DASH_SPEED_MULT / DASHER_SPEED_MULT);
+            this.x += this.dashDirX * dashSpeed * dt;
+            this.y += this.dashDirY * dashSpeed * dt;
+            this.facingAngle = Math.atan2(this.dashDirY, this.dashDirX);
+            if (this.dashTimeLeft <= 0) {
+                this.dashing = false;
+                this.dashTimer = DASHER_DASH_COOLDOWN;
+            }
+        } else {
+            // Slow drift toward player
+            if (dist > this.radius + player.radius) {
+                this.x += (dx / dist) * this.speed * dt;
+                this.y += (dy / dist) * this.speed * dt;
+            }
+            this._applySeparation(enemies);
+
+            // Dash cooldown
+            this.dashTimer -= ms;
+            if (this.dashTimer <= 0 && dist < DASHER_DASH_RANGE) {
+                this.dashing = true;
+                this.dashTimeLeft = DASHER_DASH_DURATION;
+                this.dashDirX = dx / dist;
+                this.dashDirY = dy / dist;
+            }
+        }
+    }
+
+    // ── Shared helpers ─────────────────────────────────────
+
+    _applySeparation(enemies) {
+        for (const other of enemies) {
+            if (other === this || other.dead) continue;
+            const sx = this.x - other.x;
+            const sy = this.y - other.y;
+            const sd = Math.sqrt(sx * sx + sy * sy);
+            const minDist = this.radius + other.radius + 2;
+            if (sd < minDist && sd > 0) {
+                const push = (minDist - sd) * 0.5;
+                this.x += (sx / sd) * push;
+                this.y += (sy / sd) * push;
+            }
+        }
+    }
+
     takeDamage(amount, kbX = 0, kbY = 0) {
         if (this.dead) return;
         this.hp -= amount;
         this.damageFlashTimer = 120;
-        this.x += kbX;
-        this.y += kbY;
+
+        // Tank resists knockback while charging
+        const kbMult = (this.type === ENEMY_TYPE_TANK && this.charging) ? 0.2 : 1;
+        this.x += kbX * kbMult;
+        this.y += kbY * kbMult;
+
         if (this.hp <= 0) {
             this.hp = 0;
             this.dead = true;
@@ -81,32 +310,153 @@ export class Enemy {
 
         const flash = this.damageFlashTimer > 0;
 
-        // Body
+        switch (this.type) {
+            case ENEMY_TYPE_SHOOTER: this._renderShooter(ctx, flash); break;
+            case ENEMY_TYPE_TANK:    this._renderTank(ctx, flash);    break;
+            case ENEMY_TYPE_DASHER:  this._renderDasher(ctx, flash);  break;
+            default:                 this._renderBasic(ctx, flash);   break;
+        }
+
+        this._renderHpBar(ctx);
+    }
+
+    _renderBasic(ctx, flash) {
         ctx.fillStyle = flash ? '#ffffff' : ENEMY_COLOR;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Outline
         ctx.strokeStyle = '#c0392b';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.stroke();
+    }
 
-        // HP bar (only when damaged)
-        if (this.hp < this.maxHp) {
-            const bw = this.radius * 2.5;
-            const bh = 4;
-            const bx = this.x - bw / 2;
-            const by = this.y - this.radius - 10;
+    _renderShooter(ctx, flash) {
+        // Diamond shape
+        ctx.fillStyle = flash ? '#ffffff' : SHOOTER_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y - this.radius);
+        ctx.lineTo(this.x + this.radius, this.y);
+        ctx.lineTo(this.x, this.y + this.radius);
+        ctx.lineTo(this.x - this.radius, this.y);
+        ctx.closePath();
+        ctx.fill();
 
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+        ctx.strokeStyle = '#7d3c98';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-            const ratio = this.hp / this.maxHp;
-            ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
-            ctx.fillRect(bx, by, bw * ratio, bh);
+        // Inner glow when about to shoot
+        if (this.shootTimer < 500) {
+            ctx.save();
+            ctx.globalAlpha = 1 - (this.shootTimer / 500);
+            ctx.fillStyle = PROJECTILE_COLOR;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
+    }
+
+    _renderTank(ctx, flash) {
+        // Hexagon shape
+        ctx.fillStyle = flash ? '#ffffff' : TANK_COLOR;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 6;
+            const px = this.x + this.radius * Math.cos(angle);
+            const py = this.y + this.radius * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#a04000';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Charging indicator (red pulsing ring)
+        if (this.charging) {
+            ctx.save();
+            ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.02) * 0.3;
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 4, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        } else if (this.chargeTimer < 800) {
+            // Wind-up warning glow
+            ctx.save();
+            ctx.globalAlpha = 1 - (this.chargeTimer / 800);
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 3, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    _renderDasher(ctx, flash) {
+        // Pointed triangle facing movement direction
+        const angle = this.dashing
+            ? Math.atan2(this.dashDirY, this.dashDirX)
+            : this.facingAngle;
+
+        ctx.fillStyle = flash ? '#ffffff' : DASHER_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(
+            this.x + Math.cos(angle) * this.radius * 1.3,
+            this.y + Math.sin(angle) * this.radius * 1.3,
+        );
+        ctx.lineTo(
+            this.x + Math.cos(angle + 2.4) * this.radius,
+            this.y + Math.sin(angle + 2.4) * this.radius,
+        );
+        ctx.lineTo(
+            this.x + Math.cos(angle - 2.4) * this.radius,
+            this.y + Math.sin(angle - 2.4) * this.radius,
+        );
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#1a9c4a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Dash trail effect
+        if (this.dashing) {
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = DASHER_COLOR;
+            ctx.beginPath();
+            ctx.arc(
+                this.x - this.dashDirX * this.radius * 1.5,
+                this.y - this.dashDirY * this.radius * 1.5,
+                this.radius * 0.7, 0, Math.PI * 2,
+            );
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    _renderHpBar(ctx) {
+        if (this.hp >= this.maxHp) return;
+
+        const bw = this.radius * 2.5;
+        const bh = 4;
+        const bx = this.x - bw / 2;
+        const by = this.y - this.radius - 10;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+
+        const ratio = this.hp / this.maxHp;
+        ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
+        ctx.fillRect(bx, by, bw * ratio, bh);
     }
 }
