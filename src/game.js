@@ -947,8 +947,8 @@ export class Game {
             }
         }
 
-        // Ranged Attack (E key) — throw dagger
-        if (wasPressed('KeyE')) {
+        // Ranged Attack (B key) — throw dagger
+        if (wasPressed('KeyB')) {
             const throwData = this.player.tryThrow();
             if (throwData) {
                 const dagger = new PlayerProjectile(
@@ -1757,8 +1757,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   E = Throw   N = Dash   M = Mute   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   E = Throw   N = Dash   M = Mute   T = Training   P = Pause';
+            ? 'WASD = Move   SPACE = Attack   B = Throw   N = Dash   M = Mute   ESC = Exit'
+            : 'WASD = Move   SPACE = Attack   B = Throw   N = Dash   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

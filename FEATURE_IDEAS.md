@@ -82,7 +82,7 @@
 ---
 
 ### 8. Sekundär-Angriff / Ranged Attack
-- **Taste:** E
+- **Taste:** B
 - **Mechanik:** Wurf-Dolch in Blickrichtung mit eigenem Cooldown (800ms) und begrenzter Reichweite (300px)
 - **Damage:** 60% des Melee-Schadens — belohnt Nahkampf-Engagement
 - **Balance:** Längerer Cooldown als Melee, weniger Schaden, weniger Knockback (10 vs 20)
