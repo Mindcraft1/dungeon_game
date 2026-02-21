@@ -31,6 +31,12 @@ export class Game {
         this.trainingMode = false;
         this.trainingRespawnTimer = 0;
 
+        // Level-up selection
+        this.upgradeIndex = 0;
+
+        // Highscore (persisted in localStorage)
+        this.highscore = this._loadHighscore();
+
         // Saved real-game state for returning from training
         this._savedGame = null;
     }
@@ -126,6 +132,7 @@ export class Game {
 
     nextRoom() {
         this.stage++;
+        this._saveHighscore();
         this.loadRoom(this.stage - 1);
     }
 
@@ -270,6 +277,7 @@ export class Game {
 
         // Death (only in real game)
         if (!this.trainingMode && this.player.hp <= 0) {
+            this._saveHighscore();
             this.state = STATE_GAME_OVER;
         }
     }
@@ -284,10 +292,27 @@ export class Game {
     }
 
     _updateLevelUp() {
-        if (wasPressed('Digit1'))      this.player.levelUp('hp');
-        else if (wasPressed('Digit2')) this.player.levelUp('speed');
-        else if (wasPressed('Digit3')) this.player.levelUp('damage');
-        else return;
+        const choices = ['hp', 'speed', 'damage'];
+
+        // Navigate with W/S or arrows
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.upgradeIndex = (this.upgradeIndex - 1 + 3) % 3;
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.upgradeIndex = (this.upgradeIndex + 1) % 3;
+        }
+
+        // Confirm with Space, Enter, or number keys
+        let choice = null;
+        if (wasPressed('Space') || wasPressed('Enter')) {
+            choice = choices[this.upgradeIndex];
+        } else if (wasPressed('Digit1')) { choice = 'hp'; }
+        else if (wasPressed('Digit2')) { choice = 'speed'; }
+        else if (wasPressed('Digit3')) { choice = 'damage'; }
+
+        if (!choice) return;
+        this.player.levelUp(choice);
+        this.upgradeIndex = 0;
 
         // Chain level-ups
         this.state = this.player.xp >= this.player.xpToNext
@@ -296,7 +321,18 @@ export class Game {
     }
 
     _updateGameOver() {
-        if (wasPressed('Enter')) this.restart();
+        if (wasPressed('Enter') || wasPressed('Space')) this.restart();
+    }
+
+    _saveHighscore() {
+        if (this.stage > this.highscore) {
+            this.highscore = this.stage;
+            try { localStorage.setItem('dungeon_highscore', String(this.highscore)); } catch (e) {}
+        }
+    }
+
+    _loadHighscore() {
+        try { return parseInt(localStorage.getItem('dungeon_highscore')) || 0; } catch (e) { return 0; }
     }
 
     // ── Render ─────────────────────────────────────────────
@@ -306,7 +342,7 @@ export class Game {
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
         if (this.state === STATE_MENU) {
-            renderMenu(ctx, this.menuIndex);
+            renderMenu(ctx, this.menuIndex, this.highscore);
             return;
         }
 
@@ -362,7 +398,7 @@ export class Game {
 
         // Overlays
         if (this.state === STATE_LEVEL_UP) {
-            renderLevelUpOverlay(ctx, this.player);
+            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex);
         } else if (this.state === STATE_GAME_OVER) {
             renderGameOverOverlay(ctx, this.stage, this.player.level);
         }

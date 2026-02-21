@@ -4,7 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * Draw the main menu screen.
  * @param {number} selectedIndex – 0 = Play, 1 = Training
  */
-export function renderMenu(ctx, selectedIndex) {
+export function renderMenu(ctx, selectedIndex, highscore = 0) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -37,6 +37,13 @@ export function renderMenu(ctx, selectedIndex) {
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
     ctx.fillText('Clear every room. Level up. Survive.', CANVAS_WIDTH / 2, 220);
+
+    // Highscore
+    if (highscore > 0) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText(`\u2605 Highscore: Stage ${highscore}`, CANVAS_WIDTH / 2, 250);
+    }
 
     // Menu options
     const options = [

@@ -3,13 +3,13 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
  */
-export function renderLevelUpOverlay(ctx, player) {
+export function renderLevelUpOverlay(ctx, player, selectedIndex = 0) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    const bw = 320;
-    const bh = 230;
+    const bw = 340;
+    const bh = 260;
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -38,15 +38,34 @@ export function renderLevelUpOverlay(ctx, player) {
         { key: '3', text: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336' },
     ];
     const startY = by + 100;
+    const rowH = 40;
     opts.forEach((o, i) => {
-        ctx.fillStyle = o.color;
-        ctx.font = 'bold 16px monospace';
-        ctx.fillText(`[${o.key}]  ${o.text}`, CANVAS_WIDTH / 2, startY + i * 36);
+        const oy = startY + i * rowH;
+        const selected = i === selectedIndex;
+
+        // Selection highlight
+        if (selected) {
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.fillRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+            ctx.strokeStyle = o.color;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx + 10, oy - 16, bw - 20, rowH - 4);
+
+            ctx.fillStyle = o.color;
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('▸', CANVAS_WIDTH / 2 - 130, oy + 4);
+            ctx.textAlign = 'center';
+        }
+
+        ctx.fillStyle = selected ? o.color : '#666';
+        ctx.font = selected ? 'bold 16px monospace' : '15px monospace';
+        ctx.fillText(`[${o.key}]  ${o.text}`, CANVAS_WIDTH / 2, oy + 2);
     });
 
-    ctx.fillStyle = '#666';
-    ctx.font = '12px monospace';
-    ctx.fillText('Press 1, 2 or 3', CANVAS_WIDTH / 2, by + bh - 16);
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
     ctx.textAlign = 'left';
 }
 
@@ -69,7 +88,7 @@ export function renderGameOverOverlay(ctx, stage, level) {
 
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 45);
+    ctx.fillText('Press ENTER or SPACE for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 45);
 
     ctx.textAlign = 'left';
 }
