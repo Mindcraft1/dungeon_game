@@ -1,11 +1,13 @@
 const keysDown = new Set();
 const keysJustPressed = new Set();
+let _lastKey = '';
 
 window.addEventListener('keydown', (e) => {
     if (!keysDown.has(e.code)) {
         keysJustPressed.add(e.code);
     }
     keysDown.add(e.code);
+    _lastKey = e.key;
     // Prevent browser scrolling for game keys
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Escape'].includes(e.code)) {
         e.preventDefault();
@@ -40,7 +42,13 @@ export function getMovement() {
     return { x: dx, y: dy };
 }
 
+/** Returns the last raw key pressed this frame (for text input). */
+export function getLastKey() {
+    return _lastKey;
+}
+
 /** Must be called at the end of every frame */
 export function clearFrameInput() {
     keysJustPressed.clear();
+    _lastKey = '';
 }

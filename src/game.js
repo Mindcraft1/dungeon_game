@@ -2,9 +2,9 @@ import {
     CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE,
     ENEMY_HP, ENEMY_SPEED, ENEMY_DAMAGE, ENEMY_XP,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
-    STATE_MENU, STATE_PLAYING, STATE_LEVEL_UP, STATE_GAME_OVER,
+    STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_LEVEL_UP, STATE_GAME_OVER,
 } from './constants.js';
-import { isDown, wasPressed, getMovement } from './input.js';
+import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
@@ -13,12 +13,26 @@ import { Door } from './entities/door.js';
 import { renderHUD } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
+import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 
 export class Game {
     constructor(ctx) {
         this.ctx = ctx;
-        this.state = STATE_MENU;
-        this.menuIndex = 0;           // 0 = Play, 1 = Training
+
+        // ── Profile system ──
+        this.profiles = [];       // [{name, highscore}, ...]
+        this.activeProfileIndex = 0;
+        this._loadProfiles();
+
+        // Start at profiles screen if no profiles exist, otherwise menu
+        this.state = this.profiles.length === 0 ? STATE_PROFILES : STATE_MENU;
+        this.menuIndex = 0;           // 0=Play, 1=Training, 2=Characters
+
+        // Profiles screen state
+        this.profileCursor = 0;
+        this.profileCreating = false;
+        this.profileNewName = '';
+        this.profileDeleting = false;
 
         this.stage = 1;
         this.player = null;
@@ -34,27 +48,85 @@ export class Game {
         // Level-up selection
         this.upgradeIndex = 0;
 
-        // Highscore (persisted in localStorage)
-        this.highscore = this._loadHighscore();
-
         // Saved real-game state for returning from training
         this._savedGame = null;
+    }
+
+    // ── Profile helpers ─────────────────────────────────────
+
+    get activeProfile() {
+        return this.profiles[this.activeProfileIndex] || null;
+    }
+
+    get highscore() {
+        return this.activeProfile ? this.activeProfile.highscore : 0;
+    }
+
+    _loadProfiles() {
+        try {
+            const raw = localStorage.getItem('dungeon_profiles');
+            if (raw) {
+                const data = JSON.parse(raw);
+                this.profiles = data.profiles || [];
+                this.activeProfileIndex = data.activeIndex || 0;
+                // Clamp
+                if (this.activeProfileIndex >= this.profiles.length) this.activeProfileIndex = 0;
+            }
+        } catch (e) {
+            this.profiles = [];
+            this.activeProfileIndex = 0;
+        }
+        // Migrate old single highscore if profiles are empty
+        if (this.profiles.length === 0) {
+            try {
+                const old = parseInt(localStorage.getItem('dungeon_highscore'));
+                if (old > 0) {
+                    this.profiles.push({ name: 'Player', highscore: old });
+                    this.activeProfileIndex = 0;
+                    this._saveProfiles();
+                    localStorage.removeItem('dungeon_highscore');
+                }
+            } catch (e) {}
+        }
+    }
+
+    _saveProfiles() {
+        try {
+            localStorage.setItem('dungeon_profiles', JSON.stringify({
+                profiles: this.profiles,
+                activeIndex: this.activeProfileIndex,
+            }));
+        } catch (e) {}
+    }
+
+    _saveHighscore() {
+        const p = this.activeProfile;
+        if (p && this.stage > p.highscore) {
+            p.highscore = this.stage;
+            this._saveProfiles();
+        }
     }
 
     // ── Menu ───────────────────────────────────────────────
 
     _updateMenu() {
+        const count = 3; // Play, Training, Characters
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
-            this.menuIndex = (this.menuIndex - 1 + 2) % 2;
+            this.menuIndex = (this.menuIndex - 1 + count) % count;
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
-            this.menuIndex = (this.menuIndex + 1) % 2;
+            this.menuIndex = (this.menuIndex + 1) % count;
         }
         if (wasPressed('Enter') || wasPressed('Space')) {
             if (this.menuIndex === 0) {
                 this._startGame();
-            } else {
+            } else if (this.menuIndex === 1) {
                 this._startTraining();
+            } else {
+                this.profileCursor = 0;
+                this.profileCreating = false;
+                this.profileDeleting = false;
+                this.state = STATE_PROFILES;
             }
         }
     }
@@ -202,11 +274,121 @@ export class Game {
         if (this.controlsHintTimer > 0) this.controlsHintTimer -= dt * 1000;
 
         switch (this.state) {
-            case STATE_MENU:     this._updateMenu();       break;
-            case STATE_PLAYING:  this._updatePlaying(dt);  break;
-            case STATE_LEVEL_UP: this._updateLevelUp();    break;
-            case STATE_GAME_OVER: this._updateGameOver();  break;
+            case STATE_MENU:      this._updateMenu();       break;
+            case STATE_PROFILES:  this._updateProfiles();   break;
+            case STATE_PLAYING:   this._updatePlaying(dt);  break;
+            case STATE_LEVEL_UP:  this._updateLevelUp();    break;
+            case STATE_GAME_OVER: this._updateGameOver();   break;
         }
+    }
+
+    // ── Profiles screen ────────────────────────────────────
+
+    _updateProfiles() {
+        // Creating a new character (typing name)
+        if (this.profileCreating) {
+            this._updateProfileCreate();
+            return;
+        }
+
+        // Delete confirmation
+        if (this.profileDeleting) {
+            if (wasPressed('Enter')) {
+                this._deleteProfile(this.profileCursor);
+                this.profileDeleting = false;
+            } else if (wasPressed('Escape')) {
+                this.profileDeleting = false;
+            }
+            return;
+        }
+
+        // Navigation
+        const maxIdx = Math.min(this.profiles.length, 5); // profiles + "+New" row
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.profileCursor = (this.profileCursor - 1 + maxIdx + 1) % (maxIdx + 1);
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.profileCursor = (this.profileCursor + 1) % (maxIdx + 1);
+        }
+
+        // Select / Create
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            if (this.profileCursor < this.profiles.length) {
+                // Select this profile
+                this.activeProfileIndex = this.profileCursor;
+                this._saveProfiles();
+                this.state = STATE_MENU;
+                this.menuIndex = 0;
+            } else {
+                // Start creating
+                this.profileCreating = true;
+                this.profileNewName = '';
+            }
+        }
+
+        // Delete (X key)
+        if (wasPressed('KeyX') && this.profileCursor < this.profiles.length) {
+            // Can't delete if it's the only profile
+            if (this.profiles.length > 1) {
+                this.profileDeleting = true;
+            }
+        }
+
+        // Back
+        if (wasPressed('Escape')) {
+            this.state = STATE_MENU;
+            this.menuIndex = 0;
+        }
+    }
+
+    _updateProfileCreate() {
+        if (wasPressed('Escape')) {
+            this.profileCreating = false;
+            return;
+        }
+
+        if (wasPressed('Enter')) {
+            const name = this.profileNewName.trim();
+            if (name.length > 0) {
+                this.profiles.push({ name, highscore: 0 });
+                this.activeProfileIndex = this.profiles.length - 1;
+                this._saveProfiles();
+                this.profileCreating = false;
+                this.profileCursor = this.activeProfileIndex;
+            }
+            return;
+        }
+
+        // Backspace
+        if (wasPressed('Backspace')) {
+            this.profileNewName = this.profileNewName.slice(0, -1);
+            return;
+        }
+
+        // Type character
+        const key = getLastKey();
+        if (key.length === 1 && this.profileNewName.length < MAX_NAME_LEN) {
+            // Allow letters, numbers, spaces, some symbols
+            if (/^[a-zA-Z0-9 ._\-]$/.test(key)) {
+                this.profileNewName += key;
+            }
+        }
+    }
+
+    _deleteProfile(index) {
+        if (index < 0 || index >= this.profiles.length) return;
+        this.profiles.splice(index, 1);
+        // Adjust active index
+        if (this.activeProfileIndex >= this.profiles.length) {
+            this.activeProfileIndex = Math.max(0, this.profiles.length - 1);
+        } else if (this.activeProfileIndex > index) {
+            this.activeProfileIndex--;
+        }
+        // Adjust cursor
+        if (this.profileCursor >= this.profiles.length) {
+            this.profileCursor = Math.max(0, this.profiles.length - 1);
+        }
+        this._saveProfiles();
     }
 
     _updatePlaying(dt) {
@@ -324,17 +506,6 @@ export class Game {
         if (wasPressed('Enter') || wasPressed('Space')) this.restart();
     }
 
-    _saveHighscore() {
-        if (this.stage > this.highscore) {
-            this.highscore = this.stage;
-            try { localStorage.setItem('dungeon_highscore', String(this.highscore)); } catch (e) {}
-        }
-    }
-
-    _loadHighscore() {
-        try { return parseInt(localStorage.getItem('dungeon_highscore')) || 0; } catch (e) { return 0; }
-    }
-
     // ── Render ─────────────────────────────────────────────
 
     render() {
@@ -342,7 +513,15 @@ export class Game {
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
         if (this.state === STATE_MENU) {
-            renderMenu(ctx, this.menuIndex, this.highscore);
+            const profileName = this.activeProfile ? this.activeProfile.name : null;
+            renderMenu(ctx, this.menuIndex, this.highscore, profileName);
+            return;
+        }
+
+        if (this.state === STATE_PROFILES) {
+            renderProfiles(ctx, this.profiles, this.activeProfileIndex,
+                           this.profileCursor, this.profileCreating,
+                           this.profileNewName, this.profileDeleting);
             return;
         }
 

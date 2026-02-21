@@ -2,9 +2,10 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 /**
  * Draw the main menu screen.
- * @param {number} selectedIndex – 0 = Play, 1 = Training
+ * @param {number} selectedIndex – 0 = Play, 1 = Training, 2 = Characters
+ * @param {string|null} profileName – name of active character
  */
-export function renderMenu(ctx, selectedIndex, highscore = 0) {
+export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -38,21 +39,27 @@ export function renderMenu(ctx, selectedIndex, highscore = 0) {
     ctx.font = '14px monospace';
     ctx.fillText('Clear every room. Level up. Survive.', CANVAS_WIDTH / 2, 220);
 
-    // Highscore
-    if (highscore > 0) {
+    // Active character + Highscore line
+    if (profileName) {
+        ctx.fillStyle = '#81c784';
+        ctx.font = 'bold 13px monospace';
+        const hsText = highscore > 0 ? `  ·  ★ Best: Stage ${highscore}` : '';
+        ctx.fillText(`♦ ${profileName}${hsText}`, CANVAS_WIDTH / 2, 250);
+    } else if (highscore > 0) {
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 14px monospace';
-        ctx.fillText(`\u2605 Highscore: Stage ${highscore}`, CANVAS_WIDTH / 2, 250);
+        ctx.fillText(`★ Highscore: Stage ${highscore}`, CANVAS_WIDTH / 2, 250);
     }
 
     // Menu options
     const options = [
         { label: 'START GAME', desc: 'Fight through dungeon rooms', color: '#4fc3f7' },
         { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
+        { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
     ];
 
-    const startY = 300;
-    const spacing = 70;
+    const startY = 290;
+    const spacing = 64;
 
     options.forEach((opt, i) => {
         const y = startY + i * spacing;
