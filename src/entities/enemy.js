@@ -1,4 +1,5 @@
 import {
+    TILE_SIZE,
     ENEMY_RADIUS, ENEMY_COLOR, ENEMY_HIT_COOLDOWN, ENEMY_XP,
     ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_TANK, ENEMY_TYPE_DASHER,
     SHOOTER_COLOR, SHOOTER_HP_MULT, SHOOTER_SPEED_MULT,
@@ -12,6 +13,7 @@ import {
     PROJECTILE_SPEED, PROJECTILE_DAMAGE, PROJECTILE_RADIUS, PROJECTILE_COLOR,
 } from '../constants.js';
 import { resolveWalls } from '../collision.js';
+import { hasLineOfSight, findPath } from '../pathfinding.js';
 import { Projectile } from './projectile.js';
 
 export class Enemy {
@@ -90,6 +92,11 @@ export class Enemy {
         this.dashTimeLeft = 0;
         this.dashDirX = 0;
         this.dashDirY = 0;
+
+        // ── Pathfinding state ──
+        this._cachedPath = null;
+        this._pathIndex = 0;
+        this._pathRecalcTimer = 0;
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -109,16 +116,16 @@ export class Enemy {
         // Type-specific movement & abilities
         switch (this.type) {
             case ENEMY_TYPE_SHOOTER:
-                this._updateShooter(dt, ms, player, enemies, projectiles);
+                this._updateShooter(dt, ms, player, grid, enemies, projectiles);
                 break;
             case ENEMY_TYPE_TANK:
-                this._updateTank(dt, ms, player, enemies);
+                this._updateTank(dt, ms, player, grid, enemies);
                 break;
             case ENEMY_TYPE_DASHER:
-                this._updateDasher(dt, ms, player, enemies);
+                this._updateDasher(dt, ms, player, grid, enemies);
                 break;
             default:
-                this._updateBasic(dt, player, enemies);
+                this._updateBasic(dt, ms, player, grid, enemies);
                 break;
         }
 
@@ -138,36 +145,29 @@ export class Enemy {
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
     }
 
-    // ── Basic AI: seek player ──
+    // ── Basic AI: seek player (with pathfinding) ──
 
-    _updateBasic(dt, player, enemies) {
+    _updateBasic(dt, ms, player, grid, enemies) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-
         if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
 
-        if (dist > this.radius + player.radius) {
-            this.x += (dx / dist) * this.speed * dt;
-            this.y += (dy / dist) * this.speed * dt;
-        }
+        this._smartSeek(dt, ms, player, grid);
         this._applySeparation(enemies);
     }
 
     // ── Shooter AI: keep distance, strafe, fire projectiles ──
 
-    _updateShooter(dt, ms, player, enemies, projectiles) {
+    _updateShooter(dt, ms, player, grid, enemies, projectiles) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         this._lastPlayerDist = dist;   // cache for renderer proximity scaling
 
-        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
-
-        // Approach if far, retreat if close, strafe at ideal range
+        // Approach if far (pathfind around walls), retreat if close, strafe at ideal range
         if (dist > SHOOTER_RANGE * 1.2) {
-            this.x += (dx / dist) * this.speed * dt;
-            this.y += (dy / dist) * this.speed * dt;
+            this._smartSeek(dt, ms, player, grid);
         } else if (dist < SHOOTER_RANGE * 0.6) {
             this.x -= (dx / dist) * this.speed * dt;
             this.y -= (dy / dist) * this.speed * dt;
@@ -183,6 +183,9 @@ export class Enemy {
             this.x += perpX * this.speed * 0.5 * dt;
             this.y += perpY * this.speed * 0.5 * dt;
         }
+
+        // Shooter always faces the player (for aiming)
+        if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
 
         this._applySeparation(enemies);
 
@@ -206,7 +209,7 @@ export class Enemy {
 
     // ── Tank AI: slow approach + devastating charge ──
 
-    _updateTank(dt, ms, player, enemies) {
+    _updateTank(dt, ms, player, grid, enemies) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -225,27 +228,26 @@ export class Enemy {
                 this.chargeTimer = TANK_CHARGE_COOLDOWN;
             }
         } else {
-            // Slow approach
-            if (dist > this.radius + player.radius) {
-                this.x += (dx / dist) * this.speed * dt;
-                this.y += (dy / dist) * this.speed * dt;
-            }
+            // Slow approach with pathfinding
+            this._smartSeek(dt, ms, player, grid);
             this._applySeparation(enemies);
 
-            // Charge cooldown
+            // Charge cooldown — only charge if line-of-sight is clear
             this.chargeTimer -= ms;
             if (this.chargeTimer <= 0 && dist < TANK_CHARGE_RANGE) {
-                this.charging = true;
-                this.chargeTimeLeft = TANK_CHARGE_DURATION;
-                this.chargeDirX = dx / dist;
-                this.chargeDirY = dy / dist;
+                if (hasLineOfSight(this.x, this.y, player.x, player.y, grid)) {
+                    this.charging = true;
+                    this.chargeTimeLeft = TANK_CHARGE_DURATION;
+                    this.chargeDirX = dx / dist;
+                    this.chargeDirY = dy / dist;
+                }
             }
         }
     }
 
     // ── Dasher AI: slow drift + fast dash bursts ──
 
-    _updateDasher(dt, ms, player, enemies) {
+    _updateDasher(dt, ms, player, grid, enemies) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -263,21 +265,77 @@ export class Enemy {
                 this.dashTimer = DASHER_DASH_COOLDOWN;
             }
         } else {
-            // Slow drift toward player
-            if (dist > this.radius + player.radius) {
-                this.x += (dx / dist) * this.speed * dt;
-                this.y += (dy / dist) * this.speed * dt;
-            }
+            // Slow drift with pathfinding
+            this._smartSeek(dt, ms, player, grid);
             this._applySeparation(enemies);
 
-            // Dash cooldown
+            // Dash cooldown — only dash if line-of-sight is clear
             this.dashTimer -= ms;
             if (this.dashTimer <= 0 && dist < DASHER_DASH_RANGE) {
-                this.dashing = true;
-                this.dashTimeLeft = DASHER_DASH_DURATION;
-                this.dashDirX = dx / dist;
-                this.dashDirY = dy / dist;
+                if (hasLineOfSight(this.x, this.y, player.x, player.y, grid)) {
+                    this.dashing = true;
+                    this.dashTimeLeft = DASHER_DASH_DURATION;
+                    this.dashDirX = dx / dist;
+                    this.dashDirY = dy / dist;
+                }
             }
+        }
+    }
+
+    // ── Pathfinding-aware seek ──────────────────────────────
+
+    /**
+     * Move toward the player. Uses direct movement when line-of-sight is
+     * clear, falls back to BFS pathfinding when walls block the way.
+     */
+    _smartSeek(dt, ms, player, grid) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist <= this.radius + player.radius) return;
+
+        this._pathRecalcTimer -= ms;
+
+        // Direct line of sight → move straight toward player
+        if (hasLineOfSight(this.x, this.y, player.x, player.y, grid)) {
+            this._cachedPath = null;
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
+            return;
+        }
+
+        // Blocked → use pathfinding
+        if (!this._cachedPath || this._pathRecalcTimer <= 0) {
+            this._cachedPath = findPath(this.x, this.y, player.x, player.y, grid);
+            this._pathIndex = 0;
+            this._pathRecalcTimer = 300 + Math.random() * 200;
+        }
+
+        if (this._cachedPath && this._pathIndex < this._cachedPath.length) {
+            let wp = this._cachedPath[this._pathIndex];
+            let wpDx = wp.x - this.x;
+            let wpDy = wp.y - this.y;
+            let wpDist = Math.sqrt(wpDx * wpDx + wpDy * wpDy);
+
+            // Advance waypoint when close enough
+            if (wpDist < TILE_SIZE * 0.4 && this._pathIndex < this._cachedPath.length - 1) {
+                this._pathIndex++;
+                wp = this._cachedPath[this._pathIndex];
+                wpDx = wp.x - this.x;
+                wpDy = wp.y - this.y;
+                wpDist = Math.sqrt(wpDx * wpDx + wpDy * wpDy);
+            }
+
+            if (wpDist > 0) {
+                this.facingAngle = Math.atan2(wpDy, wpDx);
+                this.x += (wpDx / wpDist) * this.speed * dt;
+                this.y += (wpDy / wpDist) * this.speed * dt;
+            }
+        } else {
+            // No path found → fallback to direct movement
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
         }
     }
 

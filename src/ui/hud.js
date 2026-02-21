@@ -13,9 +13,17 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     const barH = 16;
     const y = pad;
 
+    // ── Pre-compute panel height (adaptive to visible content) ──
+    let panelH = 110; // base: HP, XP, level/stage, enemies, dash bar, dagger bar
+    if (!trainingMode) {
+        panelH += 18; // coins indicator
+        if (shieldCharges > 0) panelH += 14;
+        if (bombCharges > 0) panelH += 14;
+    }
+
     // ── Background panel ──
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(pad - 4, y - 4, barW + 60, 150);
+    ctx.fillRect(pad - 4, y - 4, barW + 24, panelH);
 
     // ── HP bar ──
     ctx.fillStyle = '#333';
@@ -141,9 +149,9 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     // ── Stats (top-right) ──
     ctx.textAlign = 'right';
     ctx.font = '11px monospace';
-    ctx.fillStyle = '#4fc3f7';
+    ctx.fillStyle = '#f44336';
     ctx.fillText(`DMG ${player.damage}`, CANVAS_WIDTH - pad, y + 14);
-    ctx.fillStyle = '#66bb6a';
+    ctx.fillStyle = '#2196f3';
     ctx.fillText(`SPD ${player.speed}`, CANVAS_WIDTH - pad, y + 28);
 
     // ── Active buffs (below stats, top-right) ──
