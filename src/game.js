@@ -14,6 +14,7 @@ import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile } from './entities/projectile.js';
 import { Door } from './entities/door.js';
+import { trySpawnPickup } from './entities/pickup.js';
 import { renderHUD } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
@@ -43,6 +44,7 @@ export class Game {
         this.player = null;
         this.enemies = [];
         this.projectiles = [];
+        this.pickups = [];
         this.door = null;
         this.grid = null;
         this.controlsHintTimer = 0;
@@ -66,6 +68,7 @@ export class Game {
         this.trainingEnemyType = 0;     // 0=all, 1=basic, 2=shooter, 3=dasher, 4=tank
         this.trainingEnemyCount = 3;
         this.trainingDamage = false;    // false = no damage (default), true = take damage
+        this.trainingDrops = false;     // false = no drops in training (default), true = drops enabled
         this._trainingFromGame = false; // true if opened via T key mid-game
     }
 
@@ -153,6 +156,7 @@ export class Game {
         this._savedGame = null;
         this.stage = 1;
         this.player = null;
+        this.pickups = [];
         this.controlsHintTimer = 5000;
         this.loadRoom(0);
         this.state = STATE_PLAYING;
@@ -184,6 +188,7 @@ export class Game {
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this._spawnEnemies(grid, spawnPos, doorPos);
+        this.pickups = [];
     }
 
     _loadTrainingRoom() {
@@ -213,6 +218,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
+        this.pickups = [];
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
     }
@@ -321,6 +327,7 @@ export class Game {
             door: this.door,
             grid: this.grid,
             projectiles: this.projectiles,
+            pickups: this.pickups,
         };
         this._openTrainingConfig(true);
     }
@@ -347,6 +354,7 @@ export class Game {
         this.player.attackVisualTimer = 0;
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
+        this.pickups = [];
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
         this.state = STATE_PLAYING;
@@ -365,6 +373,7 @@ export class Game {
         this.door = this._savedGame.door;
         this.grid = this._savedGame.grid;
         this.projectiles = this._savedGame.projectiles || [];
+        this.pickups = this._savedGame.pickups || [];
         this.trainingMode = false;
         this._savedGame = null;
 
@@ -382,6 +391,7 @@ export class Game {
         this.trainingMode = false;
         this._savedGame = null;
         this.projectiles = [];
+        this.pickups = [];
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -537,11 +547,19 @@ export class Game {
 
         // Enemies
         const noDamage = this.trainingMode && !this.trainingDamage;
+        const dropsEnabled = !this.trainingMode || this.trainingDrops;
         for (const e of this.enemies) {
             e.update(dt, this.player, this.grid, this.enemies, this.projectiles, noDamage);
 
             if (e.dead && !e.xpGiven) {
                 e.xpGiven = true;
+
+                // Try to spawn a pickup drop
+                if (dropsEnabled) {
+                    const pickup = trySpawnPickup(e.x, e.y, e.type);
+                    if (pickup) this.pickups.push(pickup);
+                }
+
                 if (!this.trainingMode) {
                     if (this.player.addXp(e.xpValue)) {
                         this.state = STATE_LEVEL_UP;
@@ -556,6 +574,16 @@ export class Game {
             p.update(dt, this.player, this.grid, noDamage);
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
+
+        // Pickups: update lifetime + check collection
+        for (const pk of this.pickups) {
+            pk.update(dt);
+            if (!pk.dead && pk.checkCollection(this.player)) {
+                this.player.applyBuff(pk.type);
+                pk.dead = true;
+            }
+        }
+        this.pickups = this.pickups.filter(pk => !pk.dead);
 
         // Training: respawn enemies when all dead
         if (this.trainingMode) {
@@ -585,6 +613,7 @@ export class Game {
         // Death (only in real game)
         if (!this.trainingMode && this.player.hp <= 0) {
             this._saveHighscore();
+            this.player.clearBuffs();
             this.state = STATE_GAME_OVER;
         }
 
@@ -602,6 +631,7 @@ export class Game {
             this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
             this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
             this.projectiles = [];
+            this.pickups = [];
             this._respawnTrainingEnemies();
         }
     }
@@ -675,7 +705,7 @@ export class Game {
     // ── Training Config Screen ──────────────────────────────
 
     _updateTrainingConfig() {
-        const ROWS = 5; // 0=room, 1=enemy type, 2=count, 3=damage, 4=start
+        const ROWS = 6; // 0=room, 1=enemy type, 2=count, 3=damage, 4=drops, 5=start
         const ENEMY_LABELS = ['All', 'Basic', 'Shooter', 'Dasher', 'Tank'];
         const roomCount = getRoomCount(); // 14
 
@@ -706,6 +736,9 @@ export class Game {
         } else if (this.trainingConfigCursor === 3) {
             // Damage toggle
             if (left || right) this.trainingDamage = !this.trainingDamage;
+        } else if (this.trainingConfigCursor === 4) {
+            // Drops toggle
+            if (left || right) this.trainingDrops = !this.trainingDrops;
         }
 
         // Confirm (Enter / Space) — start training from any row
@@ -774,6 +807,7 @@ export class Game {
                 ENEMY_LABELS[this.trainingEnemyType],
                 this.trainingEnemyCount,
                 this.trainingDamage,
+                this.trainingDrops,
                 this._trainingFromGame,
             );
             return;
@@ -783,6 +817,7 @@ export class Game {
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
         for (const p of this.projectiles) p.render(ctx);
+        for (const pk of this.pickups) pk.render(ctx);
         this.player.render(ctx);
 
         // Locked-door hint (real game only)

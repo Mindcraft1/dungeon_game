@@ -1,7 +1,8 @@
 import { CANVAS_WIDTH } from '../constants.js';
+import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
- * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining).
+ * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs).
  */
 export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false) {
     const pad = 12;
@@ -67,5 +68,66 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillStyle = '#66bb6a';
     ctx.fillText(`SPD ${player.speed}`, CANVAS_WIDTH - pad, y + 28);
 
+    // ── Active buffs (below stats, top-right) ──
+    _renderActiveBuffs(ctx, player, pad);
+
     ctx.textAlign = 'left'; // reset
+}
+
+/**
+ * Render active buff icons with countdown bars under the top-right stats.
+ */
+function _renderActiveBuffs(ctx, player, pad) {
+    const buffs = player.activeBuffs;
+    if (buffs.length === 0) return;
+
+    const iconSize = 20;
+    const spacing = 6;
+    const startX = CANVAS_WIDTH - pad - iconSize;
+    const startY = 44;
+
+    buffs.forEach((buff, i) => {
+        const info = PICKUP_INFO[buff.type];
+        if (!info) return;
+
+        const x = startX;
+        const y = startY + i * (iconSize + spacing + 4);
+
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x - 2, y - 2, iconSize + 4, iconSize + 8);
+
+        // Icon color circle
+        ctx.fillStyle = info.color;
+        ctx.beginPath();
+        ctx.arc(x + iconSize / 2, y + iconSize / 2, iconSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Category indicator: sword (offensive) or shield (defensive)
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        const symbol = info.category === 'offensive' ? '⚔' : '🛡';
+        ctx.fillText(symbol, x + iconSize / 2, y + iconSize / 2 + 3);
+
+        // Timer bar below icon
+        const barW = iconSize;
+        const barH = 3;
+        const barY = y + iconSize + 1;
+        const ratio = Math.max(0, buff.remaining / buff.duration);
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(x, barY, barW, barH);
+
+        // Color based on remaining time
+        ctx.fillStyle = ratio > 0.5 ? info.color : ratio > 0.25 ? '#ff9800' : '#f44336';
+        ctx.fillRect(x, barY, barW * ratio, barH);
+
+        // Abbreviated name to the left of icon
+        ctx.textAlign = 'right';
+        ctx.fillStyle = info.color;
+        ctx.font = '9px monospace';
+        const shortName = info.name.length > 8 ? info.name.slice(0, 8) : info.name;
+        ctx.fillText(shortName, x - 6, y + iconSize / 2 + 3);
+    });
 }

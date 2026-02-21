@@ -104,3 +104,37 @@ export const STATE_TRAINING_CONFIG = 'TRAINING_CONFIG';
 // ── Training ──
 export const TRAINING_ENEMY_COUNT = 3;
 export const TRAINING_RESPAWN_DELAY = 2000; // ms before dead enemies respawn
+
+// ── Pickups / Item Drops ──
+export const DROP_CHANCE = 0.25;           // 25% base drop chance
+export const PICKUP_RADIUS = 10;
+export const PICKUP_LIFETIME = 10000;      // 10s before disappearing
+export const PICKUP_BOBBLE_SPEED = 0.004;  // visual bobbing speed
+
+// Buff durations (ms)
+export const BUFF_DURATION_SHORT = 8000;   // 8s for timed buffs
+export const BUFF_DURATION_LONG = 15000;   // 15s for phase shield
+
+// Buff strengths
+export const BUFF_RAGE_DAMAGE_MULT = 1.5;       // +50% damage
+export const BUFF_HEAL_AMOUNT = 20;              // instant heal
+export const BUFF_PIERCING_RANGE_MULT = 1.4;     // +40% range
+export const BUFF_PIERCING_DAMAGE_MULT = 1.25;   // +25% damage
+export const BUFF_SPEED_SURGE_CD_MULT = 0.6;     // -40% cooldown (= 60% of original)
+export const BUFF_SWIFT_SPEED_MULT = 1.4;        // +40% speed
+export const BUFF_CRUSHING_DAMAGE_MULT = 3.0;    // 3× next attack
+export const BUFF_CRUSHING_KB_MULT = 3.0;        // 3× knockback
+export const BUFF_IRON_SKIN_REDUCE = 0.5;        // -50% damage taken
+
+// Max simultaneous buffs
+export const MAX_ACTIVE_BUFFS = 3;
+
+// Pickup type keys
+export const PICKUP_RAGE_SHARD = 'rage_shard';
+export const PICKUP_HEART_FRAGMENT = 'heart_fragment';
+export const PICKUP_PIERCING_SHOT = 'piercing_shot';
+export const PICKUP_PHASE_SHIELD = 'phase_shield';
+export const PICKUP_SPEED_SURGE = 'speed_surge';
+export const PICKUP_SWIFT_BOOTS = 'swift_boots';
+export const PICKUP_CRUSHING_BLOW = 'crushing_blow';
+export const PICKUP_IRON_SKIN = 'iron_skin';
