@@ -131,6 +131,7 @@ export class Game {
         this.boss = null;
         this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
         this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
+        this.lastBossReward = null;   // reward result from last boss kill
 
         // ── Biome system ──
         this.currentBiome = null;          // biome object for current stage
@@ -1042,6 +1043,7 @@ export class Game {
             if (this.bossVictoryDelay <= 0) {
                 Audio.playBossVictory();
                 this.bossRewardIndex = 0;
+                clearToasts();
                 this.state = STATE_BOSS_VICTORY;
             }
             return;
@@ -1331,6 +1333,7 @@ export class Game {
             // ── Meta Progression: boss kill rewards ──
             this.bossesKilledThisRun++;
             const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
+            this.lastBossReward = reward;
             // Toast for shards
             if (reward.shardsGained > 0) {
                 showToast(`+${reward.shardsGained} Core Shards`, '#ffd700', '◆');
@@ -2074,7 +2077,8 @@ export class Game {
             renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards);
         } else if (this.state === STATE_BOSS_VICTORY) {
             renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
-                this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED);
+                this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
+                this.lastBossReward, RELIC_DEFINITIONS, RUN_UPGRADE_DEFINITIONS);
         }
     }
 

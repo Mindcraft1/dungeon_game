@@ -130,13 +130,29 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null) {
 /**
  * Draw the Boss Victory overlay with permanent reward selection.
  */
-export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex, rewardHP, rewardDamage, rewardSpeed) {
+export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex, rewardHP, rewardDamage, rewardSpeed, bossReward, relicDefs, upgradeDefs) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    // Count extra lines needed for unlock info
+    const unlockLines = [];
+    if (bossReward) {
+        if (bossReward.shardsGained > 0)
+            unlockLines.push({ text: `◆ +${bossReward.shardsGained} Core Shards`, color: '#ffd700' });
+        if (bossReward.relicId && relicDefs && relicDefs[bossReward.relicId]) {
+            const r = relicDefs[bossReward.relicId];
+            unlockLines.push({ text: `${r.icon} Relic Unlocked: ${r.name}`, color: r.color });
+        }
+        if (bossReward.runUpgradeId && upgradeDefs && upgradeDefs[bossReward.runUpgradeId]) {
+            const u = upgradeDefs[bossReward.runUpgradeId];
+            unlockLines.push({ text: `${u.icon} New Upgrade: ${u.name}`, color: u.color });
+        }
+    }
+    const extraH = unlockLines.length * 22 + (unlockLines.length > 0 ? 16 : 0);
+
     const bw = 380;
-    const bh = 320;
+    const bh = 320 + extraH;
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -173,13 +189,24 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
     ctx.font = '12px monospace';
     ctx.fillText('✦ Full Heal + Choose Permanent Reward ✦', CANVAS_WIDTH / 2, by + 94);
 
+    // Unlock info
+    if (unlockLines.length > 0) {
+        let uy = by + 116;
+        ctx.font = 'bold 13px monospace';
+        for (const line of unlockLines) {
+            ctx.fillStyle = line.color;
+            ctx.fillText(line.text, CANVAS_WIDTH / 2, uy);
+            uy += 22;
+        }
+    }
+
     // Reward options
     const opts = [
         { key: '1', text: `+${rewardHP} Max HP  (permanent)`, color: '#4caf50' },
         { key: '2', text: `+${rewardDamage} Damage  (permanent)`, color: '#f44336' },
         { key: '3', text: `+${rewardSpeed} Speed  (permanent)`, color: '#2196f3' },
     ];
-    const startY = by + 132;
+    const startY = by + 132 + extraH;
     const rowH = 46;
     opts.forEach((o, i) => {
         const oy = startY + i * rowH;
