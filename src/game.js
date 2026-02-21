@@ -2,7 +2,7 @@ import {
     CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE,
     ENEMY_HP, ENEMY_SPEED, ENEMY_DAMAGE, ENEMY_XP,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
-    STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_LEVEL_UP, STATE_GAME_OVER,
+    STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns } from './rooms.js';
@@ -47,6 +47,9 @@ export class Game {
 
         // Level-up selection
         this.upgradeIndex = 0;
+
+        // Pause menu selection
+        this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
 
         // Saved real-game state for returning from training
         this._savedGame = null;
@@ -277,6 +280,7 @@ export class Game {
             case STATE_MENU:      this._updateMenu();       break;
             case STATE_PROFILES:  this._updateProfiles();   break;
             case STATE_PLAYING:   this._updatePlaying(dt);  break;
+            case STATE_PAUSED:    this._updatePaused();     break;
             case STATE_LEVEL_UP:  this._updateLevelUp();    break;
             case STATE_GAME_OVER: this._updateGameOver();   break;
         }
@@ -398,13 +402,13 @@ export class Game {
             return;
         }
 
-        // Return from training / back to menu (Escape)
-        if (wasPressed('Escape')) {
+        // Pause / Return from training (Escape or P)
+        if (wasPressed('Escape') || wasPressed('KeyP')) {
             if (this.trainingMode) {
                 this._returnFromTraining();
             } else {
-                this.state = STATE_MENU;
-                this.menuIndex = 0;
+                this.pauseIndex = 0;
+                this.state = STATE_PAUSED;
             }
             return;
         }
@@ -471,6 +475,32 @@ export class Game {
         this.enemies = spawns.map(p => new Enemy(
             p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE,
         ));
+    }
+
+    _updatePaused() {
+        // Resume with P or Escape
+        if (wasPressed('KeyP')) {
+            this.state = STATE_PLAYING;
+            return;
+        }
+
+        // Navigate
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.pauseIndex = (this.pauseIndex - 1 + 2) % 2;
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.pauseIndex = (this.pauseIndex + 1) % 2;
+        }
+
+        // Confirm
+        if (wasPressed('Enter') || wasPressed('Space') || wasPressed('Escape')) {
+            if (this.pauseIndex === 0) {
+                this.state = STATE_PLAYING;
+            } else {
+                this._saveHighscore();
+                this.restart();
+            }
+        }
     }
 
     _updateLevelUp() {
@@ -576,11 +606,83 @@ export class Game {
         }
 
         // Overlays
-        if (this.state === STATE_LEVEL_UP) {
+        if (this.state === STATE_PAUSED) {
+            this._renderPauseOverlay(ctx);
+        } else if (this.state === STATE_LEVEL_UP) {
             renderLevelUpOverlay(ctx, this.player, this.upgradeIndex);
         } else if (this.state === STATE_GAME_OVER) {
             renderGameOverOverlay(ctx, this.stage, this.player.level);
         }
+    }
+
+    _renderPauseOverlay(ctx) {
+        // Dim background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Pause box
+        const boxW = 300;
+        const boxH = 200;
+        const bx = CANVAS_WIDTH / 2 - boxW / 2;
+        const by = CANVAS_HEIGHT / 2 - boxH / 2;
+
+        ctx.fillStyle = 'rgba(15, 15, 25, 0.95)';
+        ctx.fillRect(bx, by, boxW, boxH);
+        ctx.strokeStyle = '#4fc3f7';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, boxW, boxH);
+
+        ctx.textAlign = 'center';
+
+        // Title
+        ctx.fillStyle = '#4fc3f7';
+        ctx.font = 'bold 28px monospace';
+        ctx.fillText('PAUSED', CANVAS_WIDTH / 2, by + 50);
+
+        // Stage info
+        ctx.fillStyle = '#888';
+        ctx.font = '12px monospace';
+        ctx.fillText(`Stage ${this.stage}  ·  Level ${this.player.level}`, CANVAS_WIDTH / 2, by + 72);
+
+        // Options
+        const options = [
+            { label: 'RESUME', color: '#4fc3f7' },
+            { label: 'BACK TO MENU', color: '#e74c3c' },
+        ];
+
+        const startY = by + 110;
+        const spacing = 44;
+
+        options.forEach((opt, i) => {
+            const oy = startY + i * spacing;
+            const selected = i === this.pauseIndex;
+
+            if (selected) {
+                const selW = 220;
+                const selH = 34;
+                ctx.fillStyle = 'rgba(79,195,247,0.08)';
+                ctx.fillRect(CANVAS_WIDTH / 2 - selW / 2, oy - 20, selW, selH);
+                ctx.strokeStyle = opt.color;
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(CANVAS_WIDTH / 2 - selW / 2, oy - 20, selW, selH);
+
+                ctx.fillStyle = opt.color;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('▸', CANVAS_WIDTH / 2 - 85, oy);
+                ctx.textAlign = 'center';
+            }
+
+            ctx.fillStyle = selected ? opt.color : '#555';
+            ctx.font = `bold 16px monospace`;
+            ctx.fillText(opt.label, CANVAS_WIDTH / 2, oy);
+        });
+
+        // Hint
+        ctx.fillStyle = '#444';
+        ctx.font = '10px monospace';
+        ctx.fillText('P = Quick Resume', CANVAS_WIDTH / 2, by + boxH - 14);
+        ctx.textAlign = 'left';
     }
 
     _renderTooltip(x, y, text, color) {
@@ -634,7 +736,7 @@ export class Game {
         ctx.textAlign = 'center';
         const hint = this.trainingMode
             ? 'WASD / Arrows = Move    SPACE = Attack    ESC = Exit'
-            : 'WASD / Arrows = Move    SPACE = Attack    T = Training';
+            : 'WASD / Arrows = Move    SPACE = Attack    T = Training    P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

@@ -50,6 +50,7 @@ export const COLOR_WALL_DARK = '#3a3028';
 export const STATE_MENU = 'MENU';
 export const STATE_PROFILES = 'PROFILES';
 export const STATE_PLAYING = 'PLAYING';
+export const STATE_PAUSED = 'PAUSED';
 export const STATE_LEVEL_UP = 'LEVEL_UP';
 export const STATE_GAME_OVER = 'GAME_OVER';
 
