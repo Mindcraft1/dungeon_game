@@ -34,12 +34,14 @@
 ---
 
 ### 4. Combo / Kill-Chain System
-- **Mechanik:** Kill-Streak-Counter, resettet nach 2s ohne Kill
-- **Belohnung:** Bonus-XP-Multiplikator (×1.5, ×2, ×3)
-- **Anzeige:** Combo-Counter im HUD mit Farbwechsel
-- **Warum:** Belohnt aggressives Spielen, macht Room-Clearing befriedigender
-- **Aufwand:** ~1h
-- **Status:** ⬜ Offen
+- **Mechanik:** Kill-Streak-Counter, resettet nach 2.5s ohne Kill
+- **Belohnung:** Bonus-XP-Multiplikator (×1.25, ×1.5, ×2.0, ×2.5) in 4 Tiers
+- **Tier-Namen:** Nice! (3 Kills) → Combo! (5) → Rampage! (8) → UNSTOPPABLE! (12)
+- **Anzeige:** Combo-Counter im HUD mit Timer-Bar + Farbwechsel pro Tier
+- **Effekte:** Tier-spezifische Sounds, Partikel-Bursts, Screen-Flash, Floating-Text-Popups
+- **Balance:** Nur XP-Bonus (kein Damage-Boost), nur im echten Spiel (nicht Training)
+- **Aufwand:** ~1.5h
+- **Status:** ✅ Fertig
 
 ---
 

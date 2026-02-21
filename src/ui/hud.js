@@ -1,10 +1,11 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, COMBO_TIMEOUT } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
- * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs).
+ * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo).
  */
-export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false) {
+export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false, muted = false,
+                          comboCount = 0, comboTier = 0, comboMultiplier = 1, comboTimer = 0) {
     const pad = 12;
     const barW = 180;
     const barH = 16;
@@ -91,6 +92,11 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     // ── Active buffs (below stats, top-right) ──
     _renderActiveBuffs(ctx, player, pad);
 
+    // ── Combo / Kill-Chain display (bottom-left) ──
+    if (comboCount >= 2) {
+        _renderCombo(ctx, comboCount, comboTier, comboMultiplier, comboTimer);
+    }
+
     // ── Mute indicator (bottom-right corner) ──
     _renderMuteIcon(ctx, muted);
 
@@ -163,6 +169,72 @@ function _renderActiveBuffs(ctx, player, pad) {
         ctx.fillStyle = ratio > 0.5 ? info.color : ratio > 0.25 ? '#ff9800' : '#f44336';
         ctx.fillRect(barX, barY, barW * ratio, barH);
     });
+}
+
+/**
+ * Render the combo / kill-chain display in the bottom-left area.
+ */
+function _renderCombo(ctx, comboCount, comboTier, comboMultiplier, comboTimer) {
+    const TIER_COLORS = ['#aaa', '#ffd700', '#ff9800', '#e040fb', '#00e5ff'];
+    const TIER_NAMES  = ['', 'Nice!', 'Combo!', 'Rampage!', 'UNSTOPPABLE!'];
+    const tier = Math.min(comboTier, 4);
+    const color = TIER_COLORS[tier];
+
+    const x = 12;
+    const y = CANVAS_HEIGHT - 60;
+    const panelW = 140;
+    const panelH = 48;
+
+    // Background panel
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x, y, panelW, panelH);
+
+    // Colored accent bar on left
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, 3, panelH);
+
+    // Kill count
+    ctx.textAlign = 'left';
+    ctx.fillStyle = color;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText(`${comboCount}× Kill`, x + 10, y + 18);
+
+    // Tier name + multiplier
+    if (tier >= 1) {
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(`${TIER_NAMES[tier]}  ×${comboMultiplier.toFixed(2)} XP`, x + 10, y + 32);
+    } else {
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.fillText('×1.00 XP', x + 10, y + 32);
+    }
+
+    // Timer bar at bottom
+    const timerRatio = Math.max(0, comboTimer / COMBO_TIMEOUT);
+    const barX = x + 3;
+    const barY = y + panelH - 4;
+    const barW = panelW - 3;
+    const barH = 3;
+
+    ctx.fillStyle = '#222';
+    ctx.fillRect(barX, barY, barW, barH);
+
+    // Timer bar color — urgency feedback
+    const barColor = timerRatio > 0.5 ? color : timerRatio > 0.25 ? '#ff9800' : '#f44336';
+    ctx.fillStyle = barColor;
+    ctx.fillRect(barX, barY, barW * timerRatio, barH);
+
+    // Pulsing glow at high tiers
+    if (tier >= 3) {
+        const pulse = Math.sin(Date.now() * 0.008) * 0.15 + 0.15;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, panelW, panelH);
+        ctx.restore();
+    }
 }
 
 /**

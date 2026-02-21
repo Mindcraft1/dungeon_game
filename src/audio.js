@@ -612,6 +612,76 @@ export function playArrowTrap() {
 
 // ── Mute / Volume ────────────────────────────────────────────
 
+/** Combo tier reached — escalating celebratory sound.
+ *  tier 1: quick 2-note chime, tier 2: bright 3-note, tier 3: powerful 4-note, tier 4: epic 5-note
+ */
+export function playComboTier(tier = 1) {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+
+    // Base note sets ascending in energy (C major pentatonic + octave climb)
+    const notesByTier = {
+        1: [523, 659],                       // C5 → E5
+        2: [587, 740, 880],                  // D5 → F#5 → A5
+        3: [659, 784, 988, 1175],            // E5 → G5 → B5 → D6
+        4: [523, 659, 784, 1047, 1319],      // C5 → E5 → G5 → C6 → E6
+    };
+    const notes = notesByTier[Math.min(tier, 4)] || notesByTier[1];
+    const vol = 0.12 + Math.min(tier, 4) * 0.03;  // louder at higher tiers
+    const spacing = 0.06;  // fast arpeggio
+
+    notes.forEach((freq, i) => {
+        const start = t + i * spacing;
+        const dur = 0.18 + tier * 0.03;
+
+        // Main tone
+        const g = _gain(vol);
+        if (!g) return;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.connect(g);
+        g.gain.setValueAtTime(vol, start);
+        g.gain.setValueAtTime(vol, start + dur * 0.6);
+        g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        o.start(start);
+        o.stop(start + dur + 0.02);
+
+        // Shimmering harmonic (adds richness at higher tiers)
+        if (tier >= 2) {
+            const g2 = _gain(vol * 0.3);
+            if (!g2) return;
+            const o2 = ctx.createOscillator();
+            o2.type = 'triangle';
+            o2.frequency.value = freq * 2;
+            o2.connect(g2);
+            g2.gain.setValueAtTime(vol * 0.3, start);
+            g2.gain.exponentialRampToValueAtTime(0.001, start + dur * 0.8);
+            o2.start(start);
+            o2.stop(start + dur);
+        }
+    });
+
+    // Low sub for power feel at tier 3+
+    if (tier >= 3) {
+        const gSub = _gain(0.08);
+        if (!gSub) return;
+        const oSub = ctx.createOscillator();
+        oSub.type = 'sine';
+        oSub.frequency.value = 130;
+        oSub.connect(gSub);
+        gSub.gain.setValueAtTime(0.08, t);
+        gSub.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        oSub.start(t);
+        oSub.stop(t + 0.27);
+    }
+
+    // Impact noise burst for all tiers (satisfying crack)
+    _noiseBurst(3000 + tier * 500, 1.5, 0.04 + tier * 0.01, 0.06 + tier * 0.02, t);
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

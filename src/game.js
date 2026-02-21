@@ -8,6 +8,8 @@ import {
     ATTACK_RANGE, DASH_COOLDOWN,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG,
+    COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
+    COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount } from './rooms.js';
@@ -90,6 +92,15 @@ export class Game {
 
         // ── Particles ──
         this.particles = new ParticleSystem();
+
+        // ── Combo / Kill-Chain ──
+        this.comboCount = 0;          // current kill streak
+        this.comboTimer = 0;          // ms remaining before combo resets
+        this.comboMultiplier = 1;     // current XP multiplier
+        this.comboTier = 0;           // 0=none, 1-4=tier level
+        this.comboPopups = [];        // floating text popups [{text, x, y, timer, maxTimer, color, size}]
+        this.comboFlash = 0;          // screen flash timer (ms)
+        this.comboFlashColor = '';    // screen flash color
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -181,6 +192,9 @@ export class Game {
         this.player = null;
         this.pickups = [];
         this.controlsHintTimer = 5000;
+        this._comboReset();
+        this.comboPopups = [];
+        this.comboFlash = 0;
         this.loadRoom(0);
         this.state = STATE_PLAYING;
     }
@@ -340,6 +354,98 @@ export class Game {
         return types;
     }
 
+    // ── Combo / Kill-Chain helpers ─────────────────────────
+
+    /** Register an enemy kill for the combo system */
+    _comboRegisterKill(x, y) {
+        this.comboCount++;
+        this.comboTimer = COMBO_TIMEOUT;
+
+        const oldTier = this.comboTier;
+        this.comboTier = this._getComboTier(this.comboCount);
+        this.comboMultiplier = this._getComboMultiplier(this.comboTier);
+
+        // Small per-kill popup showing current count (only after 2+ kills)
+        if (this.comboCount >= 2) {
+            this.comboPopups.push({
+                text: `${this.comboCount}×`,
+                x: x + (Math.random() - 0.5) * 20,
+                y: y - 20,
+                timer: 800,
+                maxTimer: 800,
+                color: this._getComboColor(this.comboTier),
+                size: 12 + Math.min(this.comboTier, 4) * 2,
+            });
+        }
+
+        // Tier milestone reached — big celebration
+        if (this.comboTier > oldTier && this.comboTier >= 1) {
+            const tierNames = ['', 'Nice!', 'Combo!', 'Rampage!', 'UNSTOPPABLE!'];
+            const tierColors = ['', '#ffd700', '#ff9800', '#e040fb', '#00e5ff'];
+            const name = tierNames[Math.min(this.comboTier, 4)];
+            const color = tierColors[Math.min(this.comboTier, 4)];
+
+            // Big centered popup
+            this.comboPopups.push({
+                text: `${name}  ×${this.comboMultiplier.toFixed(2)} XP`,
+                x: CANVAS_WIDTH / 2,
+                y: CANVAS_HEIGHT / 2 - 60,
+                timer: 1500,
+                maxTimer: 1500,
+                color,
+                size: 18 + this.comboTier * 3,
+            });
+
+            // Sound & particles
+            Audio.playComboTier(this.comboTier);
+            this.particles.comboBurst(this.player.x, this.player.y, this.comboTier);
+            triggerShake(2 + this.comboTier * 1.5, 0.88);
+
+            // Screen flash
+            this.comboFlash = 200 + this.comboTier * 50;
+            this.comboFlashColor = color;
+        }
+    }
+
+    /** Reset combo state */
+    _comboReset() {
+        this.comboCount = 0;
+        this.comboTimer = 0;
+        this.comboMultiplier = 1;
+        this.comboTier = 0;
+    }
+
+    /** Determine combo tier from kill count */
+    _getComboTier(count) {
+        if (count >= COMBO_TIER_4) return 4;
+        if (count >= COMBO_TIER_3) return 3;
+        if (count >= COMBO_TIER_2) return 2;
+        if (count >= COMBO_TIER_1) return 1;
+        return 0;
+    }
+
+    /** Get XP multiplier for a combo tier */
+    _getComboMultiplier(tier) {
+        switch (tier) {
+            case 1: return COMBO_XP_MULT_1;
+            case 2: return COMBO_XP_MULT_2;
+            case 3: return COMBO_XP_MULT_3;
+            case 4: return COMBO_XP_MULT_4;
+            default: return 1;
+        }
+    }
+
+    /** Get color for current combo tier */
+    _getComboColor(tier) {
+        switch (tier) {
+            case 1: return '#ffd700';
+            case 2: return '#ff9800';
+            case 3: return '#e040fb';
+            case 4: return '#00e5ff';
+            default: return '#aaa';
+        }
+    }
+
     nextRoom() {
         this.stage++;
         this._saveHighscore();
@@ -425,6 +531,9 @@ export class Game {
         this.pickups = [];
         this.hazards = [];
         this.particles.clear();
+        this._comboReset();
+        this.comboPopups = [];
+        this.comboFlash = 0;
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -587,6 +696,23 @@ export class Game {
         this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
 
+        // ── Combo timer + popups ──
+        if (this.comboTimer > 0) {
+            this.comboTimer -= dt * 1000;
+            if (this.comboTimer <= 0) {
+                this._comboReset();
+            }
+        }
+        if (this.comboFlash > 0) {
+            this.comboFlash -= dt * 1000;
+        }
+        // Update floating combo popups
+        for (const p of this.comboPopups) {
+            p.timer -= dt * 1000;
+            p.y -= 30 * dt;  // float upward
+        }
+        this.comboPopups = this.comboPopups.filter(p => p.timer > 0);
+
         // Dash / Dodge Roll (Shift key)
         if (wasPressed('ShiftLeft') || wasPressed('ShiftRight')) {
             if (this.player.tryDash(movement)) {
@@ -657,8 +783,15 @@ export class Game {
                     if (pickup) this.pickups.push(pickup);
                 }
 
+                // Combo kill registration (real game only)
                 if (!this.trainingMode) {
-                    if (this.player.addXp(e.xpValue)) {
+                    this._comboRegisterKill(e.x, e.y);
+                }
+
+                if (!this.trainingMode) {
+                    // Apply combo XP multiplier
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier);
+                    if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
                         this.particles.levelUp(this.player.x, this.player.y);
@@ -762,6 +895,7 @@ export class Game {
         if (!this.trainingMode && this.player.hp <= 0) {
             this._saveHighscore();
             this.player.clearBuffs();
+            this._comboReset();
             Audio.playGameOver();
             triggerShake(10, 0.9);
             this.state = STATE_GAME_OVER;
@@ -1008,7 +1142,32 @@ export class Game {
         }
 
         const alive = this.enemies.filter(e => !e.dead).length;
-        renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted);
+        renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
+                  this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer);
+
+        // ── Combo screen flash ──
+        if (this.comboFlash > 0 && this.comboFlashColor) {
+            const flashAlpha = Math.min(0.15, (this.comboFlash / 400) * 0.15);
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = this.comboFlashColor;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            ctx.restore();
+        }
+
+        // ── Combo floating popups ──
+        for (const p of this.comboPopups) {
+            const alpha = Math.min(1, p.timer / (p.maxTimer * 0.3));
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            ctx.font = `bold ${p.size}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 8;
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.restore();
+        }
 
         // Training mode banner
         if (this.trainingMode) {

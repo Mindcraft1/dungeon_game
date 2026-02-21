@@ -177,3 +177,14 @@ export const PICKUP_SPEED_SURGE = 'speed_surge';
 export const PICKUP_SWIFT_BOOTS = 'swift_boots';
 export const PICKUP_CRUSHING_BLOW = 'crushing_blow';
 export const PICKUP_IRON_SKIN = 'iron_skin';
+
+// ── Combo / Kill-Chain ──
+export const COMBO_TIMEOUT = 2500;              // ms before combo resets
+export const COMBO_TIER_1 = 3;                  // kills for tier 1
+export const COMBO_TIER_2 = 5;                  // kills for tier 2
+export const COMBO_TIER_3 = 8;                  // kills for tier 3
+export const COMBO_TIER_4 = 12;                 // kills for tier 4
+export const COMBO_XP_MULT_1 = 1.25;            // ×1.25 XP at tier 1
+export const COMBO_XP_MULT_2 = 1.5;             // ×1.5 XP at tier 2
+export const COMBO_XP_MULT_3 = 2.0;             // ×2.0 XP at tier 3
+export const COMBO_XP_MULT_4 = 2.5;             // ×2.5 XP at tier 4

@@ -364,4 +364,66 @@ export class ParticleSystem {
             { friction: 0.95, glow: true, glowColor: '#9b59b6', shrink: true },
         ));
     }
+
+    /**
+     * Combo tier burst — celebratory ring explosion around the player.
+     * Higher tiers produce more particles with brighter colors.
+     */
+    comboBurst(x, y, tier) {
+        const TIER_COLORS = {
+            1: { main: '#ffd700', glow: '#ffab40' },    // gold
+            2: { main: '#ff9800', glow: '#ff6d00' },    // orange
+            3: { main: '#e040fb', glow: '#aa00ff' },    // magenta
+            4: { main: '#00e5ff', glow: '#18ffff' },    // cyan
+        };
+        const colors = TIER_COLORS[Math.min(tier, 4)] || TIER_COLORS[1];
+        const count = 12 + tier * 6;
+        const baseSpeed = 60 + tier * 30;
+
+        // Ring burst
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i + Math.random() * 0.2;
+            const speed = baseSpeed + Math.random() * 60;
+            const size = 1.5 + Math.random() * 2 + tier * 0.3;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                size, colors.main,
+                300 + tier * 80 + Math.random() * 200,
+                { friction: 0.93, glow: true, glowColor: colors.glow,
+                  shape: Math.random() > 0.4 ? 'spark' : 'circle' },
+            ));
+        }
+
+        // Central white flash (bigger at higher tiers)
+        for (let i = 0; i < 3 + tier; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 15 + Math.random() * 30;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + tier * 0.5, '#ffffff',
+                180 + Math.random() * 120,
+                { friction: 0.9, glow: true, glowColor: colors.main, shrink: true },
+            ));
+        }
+
+        // Upward sparkles for tier 3+
+        if (tier >= 3) {
+            for (let i = 0; i < 8; i++) {
+                const spread = (Math.random() - 0.5) * 80;
+                this.particles.push(new Particle(
+                    x + spread, y,
+                    (Math.random() - 0.5) * 30,
+                    -(80 + Math.random() * 100),
+                    1.5 + Math.random() * 2,
+                    Math.random() > 0.5 ? colors.main : '#ffffff',
+                    400 + Math.random() * 300,
+                    { friction: 0.97, gravity: 50, glow: true, glowColor: colors.glow },
+                ));
+            }
+        }
+    }
 }
