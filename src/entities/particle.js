@@ -563,4 +563,173 @@ export class ParticleSystem {
             { friction: 0.95, glow: true, glowColor: '#03a9f4', shrink: true },
         ));
     }
+
+    // ── Biome ambient particles ─────────────────────────────
+    // Called once per frame from game update. Each biome particle
+    // type has a spawn `rate` — probability per frame of spawning.
+    // Particles drift across the screen as background atmosphere.
+
+    biomeAmbient(biome) {
+        if (!biome || !biome.ambientParticles) return;
+        const ap = biome.ambientParticles;
+
+        // Cap total ambient to avoid perf issues
+        const MAX_AMBIENT = 80;
+        let ambientCount = 0;
+        for (const p of this.particles) { if (p._ambient) ambientCount++; }
+        if (ambientCount >= MAX_AMBIENT) return;
+
+        switch (biome.id) {
+            case 'jungle':
+                this._spawnJungleAmbient(ap);
+                break;
+            case 'desert':
+                this._spawnDesertAmbient(ap);
+                break;
+            case 'wasteland':
+                this._spawnWastelandAmbient(ap);
+                break;
+            case 'depths':
+                this._spawnDepthsAmbient(ap);
+                break;
+        }
+    }
+
+    _spawnJungleAmbient(ap) {
+        // Falling leaves — drift down and sideways
+        if (ap.leaves && Math.random() < ap.leaves.rate) {
+            const colors = ap.leaves.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                -5,
+                20 + Math.random() * 40, // drift right
+                30 + Math.random() * 40,  // fall down
+                ap.leaves.sizeMin + Math.random() * (ap.leaves.sizeMax - ap.leaves.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                3000 + Math.random() * 2000,
+                { friction: 1.0, gravity: 8, shrink: false, shape: 'square' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Fireflies — slow wandering glow dots
+        if (ap.fireflies && Math.random() < ap.fireflies.rate) {
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15,
+                1.5 + Math.random() * 1.5,
+                ap.fireflies.color,
+                2500 + Math.random() * 2000,
+                { friction: 0.98, shrink: false, glow: true, glowColor: '#a5d6a7' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+    }
+
+    _spawnDesertAmbient(ap) {
+        // Sand grains — blow across screen horizontally
+        if (ap.sand && Math.random() < ap.sand.rate) {
+            const colors = ap.sand.colors;
+            const p = new Particle(
+                -5,
+                CANVAS_HEIGHT * 0.3 + Math.random() * CANVAS_HEIGHT * 0.6,
+                80 + Math.random() * 100,  // strong rightward wind
+                (Math.random() - 0.5) * 20,
+                ap.sand.sizeMin + Math.random() * (ap.sand.sizeMax - ap.sand.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                2500 + Math.random() * 2000,
+                { friction: 1.0, shrink: false, shape: 'spark' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Heat shimmer — large faint blobs that rise slowly
+        if (ap.shimmer && Math.random() < ap.shimmer.rate) {
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                CANVAS_HEIGHT + 5,
+                (Math.random() - 0.5) * 10,
+                -(10 + Math.random() * 15),
+                ap.shimmer.size,
+                ap.shimmer.color,
+                3000 + Math.random() * 2000,
+                { friction: 1.0, shrink: false, glow: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+    }
+
+    _spawnWastelandAmbient(ap) {
+        // Rising embers — float up with slight drift
+        if (ap.embers && Math.random() < ap.embers.rate) {
+            const colors = ap.embers.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                CANVAS_HEIGHT + 5,
+                (Math.random() - 0.5) * 30,
+                -(50 + Math.random() * 60), // rise upward
+                ap.embers.sizeMin + Math.random() * (ap.embers.sizeMax - ap.embers.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                2000 + Math.random() * 2000,
+                { friction: 0.99, shrink: true, glow: true, glowColor: '#ff4500' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Ash flakes — drift down slowly
+        if (ap.ash && Math.random() < ap.ash.rate) {
+            const colors = ap.ash.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                -5,
+                (Math.random() - 0.5) * 25,
+                15 + Math.random() * 25,
+                ap.ash.sizeMin + Math.random() * (ap.ash.sizeMax - ap.ash.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                3500 + Math.random() * 2000,
+                { friction: 1.0, gravity: 3, shrink: false, shape: 'square' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+    }
+
+    _spawnDepthsAmbient(ap) {
+        // Bubbles — rise up from bottom
+        if (ap.bubbles && Math.random() < ap.bubbles.rate) {
+            const colors = ap.bubbles.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                CANVAS_HEIGHT + 5,
+                (Math.random() - 0.5) * 12,
+                -(25 + Math.random() * 35),
+                ap.bubbles.sizeMin + Math.random() * (ap.bubbles.sizeMax - ap.bubbles.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                3000 + Math.random() * 3000,
+                { friction: 0.99, shrink: false, glow: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Drifting light motes — slow random movement with glow
+        if (ap.motes && Math.random() < ap.motes.rate) {
+            const colors = ap.motes.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10,
+                ap.motes.sizeMin + Math.random() * (ap.motes.sizeMax - ap.motes.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                3500 + Math.random() * 3000,
+                { friction: 0.98, shrink: false, glow: true, glowColor: '#42a5f5' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+    }
 }

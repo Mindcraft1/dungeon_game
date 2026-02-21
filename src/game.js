@@ -15,7 +15,7 @@ import {
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
-import { renderRoom } from './render.js';
+import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile, PlayerProjectile } from './entities/projectile.js';
@@ -939,6 +939,11 @@ export class Game {
         }
         this.comboPopups = this.comboPopups.filter(p => p.timer > 0);
 
+        // Biome ambient particles (leaves, embers, bubbles, etc.)
+        if (this.currentBiome) {
+            this.particles.biomeAmbient(this.currentBiome);
+        }
+
         // Dash / Dodge Roll (N key)
         if (wasPressed('KeyN')) {
             if (this.player.tryDash(movement)) {
@@ -1589,7 +1594,7 @@ export class Game {
             return;
         }
 
-        renderRoom(ctx, this.grid, this.currentBiome);
+        renderRoom(ctx, this.grid, this.currentBiome, this.stage || 0);
         for (const h of this.hazards) h.render(ctx);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
@@ -1599,6 +1604,9 @@ export class Game {
         for (const pk of this.pickups) pk.render(ctx);
         this.particles.render(ctx);
         this.player.render(ctx);
+
+        // Biome atmospheric overlay (tint + vignette) — after entities, before HUD
+        renderAtmosphere(ctx, this.currentBiome);
 
         // Locked-door hint (real game only)
         if (!this.trainingMode && this.door.locked && this.door.isPlayerNear(this.player)) {
