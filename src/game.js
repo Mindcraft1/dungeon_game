@@ -13,7 +13,7 @@ import {
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
     BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
 } from './constants.js';
-import { isDown, wasPressed, getMovement, getLastKey } from './input.js';
+import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME } from './rooms.js';
 import { renderRoom } from './render.js';
 import { Player } from './entities/player.js';
@@ -30,6 +30,7 @@ import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
 import { renderTrainingConfig } from './ui/training-config.js';
 import * as Audio from './audio.js';
+import * as Music from './music.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -109,6 +110,14 @@ export class Game {
         this.boss = null;
         this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
         this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
+
+        // ── Cheat codes ──
+        this.cheats = {
+            godmode:    false,   // IDDQD  — invincible
+            onehitkill: false,   // IDKFA  — enemies die in one hit
+            xpboost:    false,   // BIGXP  — 10× XP gain
+        };
+        this.cheatNotifications = [];  // [{text, timer, color}]
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -164,6 +173,73 @@ export class Game {
             p.highscore = this.stage;
             this._saveProfiles();
         }
+    }
+
+    // ── Cheat codes ──────────────────────────────────────────
+
+    _processCheatCodes() {
+        const cheatId = getActivatedCheat();
+        if (!cheatId) return;
+
+        switch (cheatId) {
+            case 'godmode': {
+                this.cheats.godmode = !this.cheats.godmode;
+                this._cheatNotify(
+                    this.cheats.godmode ? 'GOD MODE ON' : 'GOD MODE OFF',
+                    this.cheats.godmode ? '#ffd700' : '#888',
+                );
+                break;
+            }
+            case 'onehitkill': {
+                this.cheats.onehitkill = !this.cheats.onehitkill;
+                this._cheatNotify(
+                    this.cheats.onehitkill ? 'ONE HIT KILL ON' : 'ONE HIT KILL OFF',
+                    this.cheats.onehitkill ? '#ff4444' : '#888',
+                );
+                break;
+            }
+            case 'xpboost': {
+                this.cheats.xpboost = !this.cheats.xpboost;
+                this._cheatNotify(
+                    this.cheats.xpboost ? 'XP BOOST ×10 ON' : 'XP BOOST OFF',
+                    this.cheats.xpboost ? '#bb86fc' : '#888',
+                );
+                break;
+            }
+            case 'fullheal': {
+                if (this.player) {
+                    this.player.hp = this.player.maxHp;
+                    this._cheatNotify('FULL HEAL', '#4caf50');
+                }
+                break;
+            }
+            case 'skipstage': {
+                if (this.state === STATE_PLAYING && !this.trainingMode) {
+                    this.nextRoom();
+                    this._cheatNotify('STAGE SKIPPED', '#4fc3f7');
+                }
+                break;
+            }
+            case 'maxlevel': {
+                if (this.player) {
+                    for (let i = 0; i < 10; i++) {
+                        this.player.level++;
+                        this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
+                        this.player.damage += 8;
+                        this.player.maxHp += 25;
+                        this.player.hp = this.player.maxHp;
+                        this.player.speed += 15;
+                    }
+                    this._cheatNotify('+10 LEVELS', '#ffd700');
+                }
+                break;
+            }
+        }
+    }
+
+    _cheatNotify(text, color) {
+        Audio.playMenuSelect();
+        this.cheatNotifications.push({ text, timer: 2500, color });
     }
 
     // ── Menu ───────────────────────────────────────────────
@@ -594,12 +670,24 @@ export class Game {
 
         // Audio init on any key press + mute toggle (M)
         Audio.init();
+        Music.initMusic();
+        if (!Music.isMusicPlaying()) {
+            Music.startMusic();
+            Music.setMusicMuted(this.muted);
+        }
         if (wasPressed('KeyM')) {
             this.muted = Audio.toggleMute();
+            Music.setMusicMuted(this.muted);
         }
 
         // Always update particles (they should animate even on overlays)
         this.particles.update(dt);
+
+        // ── Cheat code processing ──
+        this._processCheatCodes();
+        // Update cheat notifications
+        for (const n of this.cheatNotifications) n.timer -= dt * 1000;
+        this.cheatNotifications = this.cheatNotifications.filter(n => n.timer > 0);
 
         switch (this.state) {
             case STATE_MENU:            this._updateMenu();           break;
@@ -611,6 +699,10 @@ export class Game {
             case STATE_TRAINING_CONFIG: this._updateTrainingConfig(); break;
             case STATE_BOSS_VICTORY:    this._updateBossVictory();   break;
         }
+
+        // Adaptive music — set danger level based on game state
+        this._updateMusicDanger();
+        Music.updateMusic(dt);
     }
 
     // ── Profiles screen ────────────────────────────────────
@@ -759,6 +851,12 @@ export class Game {
         this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
 
+        // ── Cheat: God Mode — keep player invulnerable ──
+        if (this.cheats.godmode && this.player) {
+            this.player.invulnTimer = 999;
+            this.player.hp = this.player.maxHp;
+        }
+
         // ── Combo timer + popups ──
         if (this.comboTimer > 0) {
             this.comboTimer -= dt * 1000;
@@ -797,7 +895,19 @@ export class Game {
             const targets = this.boss && !this.boss.dead
                 ? [...this.enemies, this.boss]
                 : this.enemies;
+
+            // ── Cheat: One Hit Kill — temporarily set massive damage ──
+            let savedDmg;
+            if (this.cheats.onehitkill) {
+                savedDmg = this.player.damage;
+                this.player.damage = 999999;
+            }
+
             const hitCount = this.player.attack(targets);
+
+            if (this.cheats.onehitkill && savedDmg !== undefined) {
+                this.player.damage = savedDmg;
+            }
             if (hitCount >= 0) {
                 Audio.playAttack();
                 // Attack arc particles
@@ -862,8 +972,9 @@ export class Game {
                 }
 
                 if (!this.trainingMode) {
-                    // Apply combo XP multiplier
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier);
+                    // Apply combo XP multiplier + cheat XP boost
+                    const xpMult = this.cheats.xpboost ? 10 : 1;
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
@@ -1250,7 +1361,8 @@ export class Game {
         this.player.hp = this.player.maxHp;
 
         // Award boss XP (may trigger level-up chain)
-        const xp = this.boss.xpValue;
+        const bossXpMult = this.cheats.xpboost ? 10 : 1;
+        const xp = Math.floor(this.boss.xpValue * bossXpMult);
         if (this.player.addXp(xp)) {
             Audio.playLevelUp();
             this.particles.levelUp(this.player.x, this.player.y);
@@ -1263,6 +1375,73 @@ export class Game {
         this.state = STATE_PLAYING;
     }
 
+    // ── Adaptive Music ───────────────────────────────────
+
+    _updateMusicDanger() {
+        switch (this.state) {
+            case STATE_PLAYING:
+                Music.setDanger(this._calculateDanger());
+                break;
+            case STATE_PAUSED:
+                Music.setDanger(0.15);
+                break;
+            case STATE_LEVEL_UP:
+            case STATE_BOSS_VICTORY:
+                break;  // keep current danger
+            case STATE_GAME_OVER:
+                Music.setDanger(0.18);
+                break;
+            default:
+                // Menu/profiles: silent
+                Music.setDanger(0);
+                break;
+        }
+    }
+
+    _calculateDanger() {
+        if (!this.player) return 0;
+
+        const alive = this.enemies.filter(e => !e.dead);
+        const bossAlive = this.boss && !this.boss.dead;
+
+        if (alive.length === 0 && !bossAlive) return 0.10;
+
+        // Base: enemies or boss present
+        let danger = 0.15;
+
+        // Boss adds significant danger
+        if (bossAlive) {
+            danger += 0.25;
+            const dx = this.boss.x - this.player.x;
+            const dy = this.boss.y - this.player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            danger += 0.15 * Math.max(0, 1 - dist / 300);
+        }
+
+        // Enemy count (up to +0.25)
+        danger += Math.min(0.25, alive.length * 0.04);
+
+        // Nearest enemy proximity (up to +0.25)
+        let minDist = Infinity;
+        for (const e of alive) {
+            const dx = e.x - this.player.x;
+            const dy = e.y - this.player.y;
+            minDist = Math.min(minDist, Math.sqrt(dx * dx + dy * dy));
+        }
+        if (minDist < Infinity) {
+            danger += 0.25 * Math.max(0, 1 - minDist / 300);
+        }
+
+        // Low HP (up to +0.25)
+        const hpRatio = this.player.hp / this.player.maxHp;
+        danger += (1 - hpRatio) * 0.25;
+
+        // Stage progression (up to +0.1)
+        danger += Math.min(0.1, (this.stage - 1) * 0.008);
+
+        return Math.min(1, danger);
+    }
+
     // ── Render ─────────────────────────────────────────────
 
     render() {
@@ -1272,6 +1451,7 @@ export class Game {
         if (this.state === STATE_MENU) {
             const profileName = this.activeProfile ? this.activeProfile.name : null;
             renderMenu(ctx, this.menuIndex, this.highscore, profileName);
+            this._renderCheatNotifications(ctx);
             return;
         }
 
@@ -1279,6 +1459,7 @@ export class Game {
             renderProfiles(ctx, this.profiles, this.activeProfileIndex,
                            this.profileCursor, this.profileCreating,
                            this.profileNewName, this.profileDeleting);
+            this._renderCheatNotifications(ctx);
             return;
         }
 
@@ -1298,6 +1479,7 @@ export class Game {
                 this.trainingDrops,
                 this._trainingFromGame,
             );
+            this._renderCheatNotifications(ctx);
             return;
         }
 
@@ -1388,6 +1570,9 @@ export class Game {
             );
             ctx.textAlign = 'left';
         }
+
+        // ── Cheat indicators + notifications ──
+        this._renderCheatOverlay(ctx);
 
         // Overlays
         if (this.state === STATE_PAUSED) {
@@ -1526,6 +1711,84 @@ export class Game {
             : 'WASD = Move   SPACE = Attack   N = Dash   M = Mute   T = Training   P = Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
+        ctx.restore();
+    }
+
+    // ── Cheat overlay rendering ────────────────────────────
+
+    _renderCheatOverlay(ctx) {
+        this._renderCheatBadges(ctx);
+        this._renderCheatNotifications(ctx);
+    }
+
+    /** Persistent badges in top-right for active toggle cheats */
+    _renderCheatBadges(ctx) {
+        const cheats = [];
+        if (this.cheats.godmode)    cheats.push({ label: 'GOD',     color: '#ffd700' });
+        if (this.cheats.onehitkill) cheats.push({ label: '1HIT',    color: '#ff4444' });
+        if (this.cheats.xpboost)    cheats.push({ label: 'XP×10',   color: '#bb86fc' });
+        if (cheats.length === 0) return;
+
+        ctx.save();
+        ctx.textAlign = 'right';
+        const startX = CANVAS_WIDTH - 10;
+        let y = 14;
+
+        for (const c of cheats) {
+            const w = c.label.length * 8 + 12;
+            const h = 18;
+            const x = startX - w;
+
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(x, y - 1, w, h);
+            ctx.strokeStyle = c.color;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y - 1, w, h);
+
+            // Text
+            ctx.fillStyle = c.color;
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(c.label, x + w / 2, y + 12);
+
+            y += h + 4;
+        }
+        ctx.restore();
+    }
+
+    /** Temporary notification popups (center top) */
+    _renderCheatNotifications(ctx) {
+        if (this.cheatNotifications.length === 0) return;
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        let y = 80;
+        for (const n of this.cheatNotifications) {
+            const alpha = Math.min(1, n.timer / 500);
+            ctx.globalAlpha = alpha;
+
+            // Glowing background
+            const text = `⚡ ${n.text} ⚡`;
+            const w = text.length * 9 + 24;
+            const h = 28;
+            const x = CANVAS_WIDTH / 2 - w / 2;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(x, y - 18, w, h);
+            ctx.strokeStyle = n.color;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x, y - 18, w, h);
+
+            ctx.fillStyle = n.color;
+            ctx.font = 'bold 14px monospace';
+            ctx.shadowColor = n.color;
+            ctx.shadowBlur = 10;
+            ctx.fillText(text, CANVAS_WIDTH / 2, y);
+            ctx.shadowBlur = 0;
+
+            y += h + 6;
+        }
         ctx.restore();
     }
 }

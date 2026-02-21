@@ -846,3 +846,8 @@ export function init() {
     _ensureCtx();
     _resume();
 }
+
+/** Return the shared AudioContext (for music engine). Null if not yet created. */
+export function getContext() {
+    return _ctx;
+}

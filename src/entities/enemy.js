@@ -150,6 +150,7 @@ export class Enemy {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        this._lastPlayerDist = dist;   // cache for renderer proximity scaling
 
         if (dist > 0) this.facingAngle = Math.atan2(dy, dx);
 
@@ -334,8 +335,42 @@ export class Enemy {
     }
 
     _renderShooter(ctx, flash) {
-        // Diamond shape
-        ctx.fillStyle = flash ? '#ffffff' : SHOOTER_COLOR;
+        const windUp = 800; // ms before shot where telegraph begins
+        const charging = this.shootTimer < windUp;
+        const chargeProgress = charging ? 1 - (this.shootTimer / windUp) : 0; // 0→1
+
+        // Proximity factor: hints are subtle far away, stronger up close
+        // _lastPlayerDist is set during update; fallback to a safe middle value
+        const dist = this._lastPlayerDist || 200;
+        const proxClose = 120;  // full intensity at this distance
+        const proxFar = 320;    // minimum intensity at this distance
+        const proximity = Math.max(0.25, Math.min(1, 1 - (dist - proxClose) / (proxFar - proxClose)));
+
+        // Targeting line — shows aim direction while winding up
+        if (charging) {
+            ctx.save();
+            const lineLen = (15 + chargeProgress * 25) * proximity;
+            const dirX = Math.cos(this.facingAngle);
+            const dirY = Math.sin(this.facingAngle);
+            const startX = this.x + dirX * (this.radius + 2);
+            const startY = this.y + dirY * (this.radius + 2);
+
+            ctx.setLineDash([3, 4]);
+            ctx.strokeStyle = `rgba(220, 120, 255, ${(0.2 + chargeProgress * 0.4) * proximity})`;
+            ctx.lineWidth = 1 + chargeProgress * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX + dirX * lineLen, startY + dirY * lineLen);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        // Diamond shape — flashes brighter purple when charging
+        const bodyColor = flash ? '#ffffff'
+            : charging ? _lerpColor(SHOOTER_COLOR, '#d580ff', chargeProgress * 0.35 * proximity)
+            : SHOOTER_COLOR;
+        ctx.fillStyle = bodyColor;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y - this.radius);
         ctx.lineTo(this.x + this.radius, this.y);
@@ -348,13 +383,28 @@ export class Enemy {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Inner glow when about to shoot
-        if (this.shootTimer < 500) {
+        // Pulsing warning ring — subtle, scales with proximity
+        if (charging) {
             ctx.save();
-            ctx.globalAlpha = 1 - (this.shootTimer / 500);
-            ctx.fillStyle = PROJECTILE_COLOR;
+            const pulse = Math.sin(Date.now() * 0.012) * 0.1;
+            ctx.globalAlpha = ((0.15 + chargeProgress * 0.4) * proximity) + pulse;
+            ctx.strokeStyle = '#dc78ff';
+            ctx.lineWidth = 1 + chargeProgress * proximity;
+            const ringRadius = this.radius + 2 + chargeProgress * 3 * proximity;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, ringRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Inner energy glow — small dot, scales with proximity
+        if (charging) {
+            ctx.save();
+            const glowRadius = this.radius * (0.12 + chargeProgress * 0.15 * proximity);
+            ctx.globalAlpha = (0.2 + chargeProgress * 0.35) * proximity;
+            ctx.fillStyle = '#dc78ff';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         }
@@ -459,4 +509,16 @@ export class Enemy {
         ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
         ctx.fillRect(bx, by, bw * ratio, bh);
     }
+}
+
+// ── Helper: linear interpolate two hex colors ──
+function _lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16);
+    const bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
 }
