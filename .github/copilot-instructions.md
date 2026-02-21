@@ -140,9 +140,9 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 
 ### Rooms (src/rooms.js)
 
-- 6 room templates (ASCII art, 20×15 grid): `#`=wall, `.`=floor, `S`=spawn, `D`=door
+- 14 room templates (ASCII art, 20×15 grid): `#`=wall, `.`=floor, `S`=spawn, `D`=door
 - 1 training template (open arena with pillars)
-- Room cycling: `templates[stageIndex % 6]`
+- Room cycling: `templates[stageIndex % 14]`
 - Enemy spawns: random floor tiles ≥5 tiles from player spawn, Fisher-Yates shuffled
 
 ### Collision (src/collision.js)
