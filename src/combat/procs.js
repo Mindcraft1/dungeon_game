@@ -41,8 +41,9 @@ export const PROC_DEFINITIONS = {
                 Impact.flashEntity(e, 60);
             }
 
-            Impact.hitStop(50);
-            Impact.shake(3, 0.86);
+            Impact.hitStop(90);
+            Impact.shake(8, 0.88);
+            Impact.screenFlash('#ff6d00', 0.3, 0.004);
 
             if (particles) {
                 particles.procExplosion(target.x, target.y, PROC_EXPLOSIVE_RADIUS);
@@ -97,6 +98,9 @@ export const PROC_DEFINITIONS = {
             }
 
             // Visual: lightning lines between chain targets
+            Impact.hitStop(60);
+            Impact.shake(6, 0.87);
+            Impact.screenFlash('#ffeb3b', 0.25, 0.005);
             if (particles && chainPositions.length > 1) {
                 particles.procChainLightning(chainPositions);
             }
@@ -122,9 +126,10 @@ export const PROC_DEFINITIONS = {
             target.takeDamage(extraDmg, 0, 0);
 
             // Big impact
-            Impact.hitStop(80);
-            Impact.shake(5, 0.86);
-            Impact.flashEntity(target, 100);
+            Impact.hitStop(120);
+            Impact.shake(10, 0.88);
+            Impact.flashEntity(target, 120);
+            Impact.screenFlash('#ff1744', 0.35, 0.004);
 
             if (particles) {
                 particles.procCritImpact(target.x, target.y);

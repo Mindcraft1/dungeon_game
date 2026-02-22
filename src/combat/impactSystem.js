@@ -4,9 +4,15 @@
 // ────────────────────────────────────────────────────────────
 
 import { triggerShake } from '../shake.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 // ── Hit-Stop (global time-scale freeze) ──
 let _hitStopRemaining = 0;   // ms remaining
+
+// ── Screen Flash Overlay ──
+let _flashColor = '#ffffff';
+let _flashAlpha = 0;
+let _flashDecay = 0.06;   // alpha removed per ms
 
 // ── Trail queue (consumed by game.js to spawn particles) ──
 let _trailQueue = [];
@@ -56,13 +62,43 @@ export function spawnTrail(x, y, vx, vy, lifetime, color = '#4fc3f7') {
 }
 
 /**
- * Update hit-stop timer. Call once per frame from main loop.
+ * Trigger a full-screen color flash overlay that fades out fast.
+ * @param {string} color – CSS color
+ * @param {number} alpha – starting opacity (0–1)
+ * @param {number} [decay] – alpha removed per ms (default 0.004)
+ */
+export function screenFlash(color = '#ffffff', alpha = 0.35, decay = 0.004) {
+    _flashColor = color;
+    _flashAlpha = Math.max(_flashAlpha, alpha);
+    _flashDecay = decay;
+}
+
+/**
+ * Render the screen flash overlay. Call AFTER game.render() in main.js.
+ * @param {CanvasRenderingContext2D} ctx
+ */
+export function renderFlash(ctx) {
+    if (_flashAlpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = _flashAlpha;
+    ctx.fillStyle = _flashColor;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.restore();
+}
+
+/**
+ * Update hit-stop timer and screen flash. Call once per frame from main loop.
  * @param {number} dtMs – raw frame delta in milliseconds
  */
 export function update(dtMs) {
     if (_hitStopRemaining > 0) {
         _hitStopRemaining -= dtMs;
         if (_hitStopRemaining < 0) _hitStopRemaining = 0;
+    }
+    // Fade screen flash
+    if (_flashAlpha > 0) {
+        _flashAlpha -= _flashDecay * dtMs;
+        if (_flashAlpha < 0) _flashAlpha = 0;
     }
 }
 
@@ -96,7 +132,7 @@ export function consumeTrails() {
  * Convenience: trigger a "big impact" package.
  * Used for shockwave, bomb, crit procs, etc.
  */
-export function bigImpact(hitStopMs = 70, shakeIntensity = 5, shakeDuration = 0.86) {
+export function bigImpact(hitStopMs = 100, shakeIntensity = 10, shakeDuration = 0.88) {
     hitStop(hitStopMs);
     shake(shakeIntensity, shakeDuration);
 }
@@ -107,5 +143,5 @@ export function bigImpact(hitStopMs = 70, shakeIntensity = 5, shakeDuration = 0.
  */
 export function smallImpact(entity) {
     flashEntity(entity, 60);
-    shake(1.5, 0.85);
+    shake(2, 0.85);
 }

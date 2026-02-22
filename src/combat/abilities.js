@@ -56,8 +56,9 @@ export const ABILITY_DEFINITIONS = {
                 }
             }
 
-            // Impact
-            Impact.bigImpact(70, 6, 0.86);
+            // Impact — big, punchy hit-stop + heavy shake + screen flash
+            Impact.bigImpact(120, 14, 0.90);
+            Impact.screenFlash('#ff9800', 0.4, 0.003);
 
             // Visual: expanding ring (via particle system)
             if (particles) {
@@ -80,7 +81,8 @@ export const ABILITY_DEFINITIONS = {
         onUse(ctx) {
             const { player } = ctx;
             // Mark the ability as active with duration tracking
-            Impact.shake(3, 0.85);
+            Impact.bigImpact(60, 8, 0.88);
+            Impact.screenFlash('#e040fb', 0.3, 0.004);
             return {
                 active: true,
                 remaining: ABILITY_BLADESTORM_DURATION,
@@ -108,6 +110,7 @@ export const ABILITY_DEFINITIONS = {
                 const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT);
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
 
+                let tickHits = 0;
                 for (const e of targets) {
                     if (e.dead) continue;
                     const dx = e.x - player.x;
@@ -115,8 +118,11 @@ export const ABILITY_DEFINITIONS = {
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist > ABILITY_BLADESTORM_RADIUS + (e.radius || 12)) continue;
 
-                    e.takeDamage(tickDmg, 0, 0);
-                    Impact.flashEntity(e, 40);
+                    // Push enemies outward on each tick
+                    const d = dist || 1;
+                    e.takeDamage(tickDmg, (dx / d) * 4, (dy / d) * 4);
+                    Impact.flashEntity(e, 60);
+                    tickHits++;
 
                     if (procSystem) {
                         procSystem.handleHit(
@@ -125,10 +131,13 @@ export const ABILITY_DEFINITIONS = {
                         );
                     }
                 }
+                if (tickHits > 0) {
+                    Impact.shake(3 + tickHits, 0.86);
+                }
             }
 
-            // Visual: spinning blade particles (per frame, throttled)
-            if (particles && Math.random() < 0.4) {
+            // Visual: spinning blade particles (per frame, high frequency)
+            if (particles && Math.random() < 0.7) {
                 particles.abilityBladeStorm(player.x, player.y, ABILITY_BLADESTORM_RADIUS, state.angle);
             }
 
@@ -146,7 +155,8 @@ export const ABILITY_DEFINITIONS = {
         desc: `Pull enemies for ${ABILITY_GRAVITY_PULL_DURATION}s, then slow`,
 
         onUse(ctx) {
-            Impact.shake(3, 0.86);
+            Impact.bigImpact(80, 10, 0.90);
+            Impact.screenFlash('#7c4dff', 0.3, 0.004);
             return {
                 active: true,
                 pullRemaining: ABILITY_GRAVITY_PULL_DURATION,
@@ -163,6 +173,7 @@ export const ABILITY_DEFINITIONS = {
             if (state.pullRemaining > 0) {
                 // Pull phase: drag enemies toward player
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
+                let pulling = 0;
                 for (const e of targets) {
                     if (e.dead) continue;
                     const dx = player.x - e.x;
@@ -174,10 +185,13 @@ export const ABILITY_DEFINITIONS = {
                     const pullStr = ABILITY_GRAVITY_FORCE * dt;
                     e.x += (dx / dist) * pullStr;
                     e.y += (dy / dist) * pullStr;
+                    pulling++;
                 }
+                // Continuous rumble while pulling
+                if (pulling > 0) Impact.shake(2 + pulling * 0.5, 0.82);
 
-                // Visual: pull lines
-                if (particles && Math.random() < 0.3) {
+                // Visual: pull lines (more frequent)
+                if (particles && Math.random() < 0.6) {
                     particles.abilityGravityPull(player.x, player.y, ABILITY_GRAVITY_RADIUS);
                 }
             } else if (!state.slowApplied) {
@@ -229,7 +243,8 @@ export const ABILITY_DEFINITIONS = {
                 hitCount++;
             }
 
-            Impact.shake(3, 0.86);
+            Impact.bigImpact(90, 12, 0.90);
+            Impact.screenFlash('#80d8ff', 0.35, 0.003);
 
             if (particles) {
                 particles.abilityFreezePulse(player.x, player.y, ABILITY_FREEZE_RADIUS);

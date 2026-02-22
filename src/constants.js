@@ -203,7 +203,7 @@ export const MAX_ACTIVE_PROCS = 2;            // passive proc slots
 export const ABILITY_SHOCKWAVE_CD = 8;        // seconds
 export const ABILITY_SHOCKWAVE_RADIUS = 140;  // px
 export const ABILITY_SHOCKWAVE_DMG_MULT = 1.2;
-export const ABILITY_SHOCKWAVE_KB = 28;
+export const ABILITY_SHOCKWAVE_KB = 40;
 
 // Blade Storm
 export const ABILITY_BLADESTORM_CD = 12;      // seconds
