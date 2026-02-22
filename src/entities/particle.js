@@ -529,6 +529,61 @@ export class ParticleSystem {
     }
 
     /**
+     * Rocket explosion — fiery burst with debris and shockwave ring.
+     */
+    rocketExplosion(x, y, radius, color) {
+        // Fiery ring of sparks
+        const count = 20;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+            const speed = 80 + Math.random() * 100;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 10,
+                y + (Math.random() - 0.5) * 10,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2.5 + Math.random() * 2,
+                Math.random() > 0.5 ? '#ff6600' : '#ff9900',
+                350 + Math.random() * 250,
+                { friction: 0.91, glow: true, glowColor: '#ff3300', shape: 'spark' },
+            ));
+        }
+        // Inner flame burst
+        for (let i = 0; i < 10; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 30 + Math.random() * 50;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                3 + Math.random() * 2,
+                Math.random() > 0.5 ? '#ff4400' : color,
+                280 + Math.random() * 200,
+                { friction: 0.88, glow: true, glowColor: '#ff6600', shape: 'circle' },
+            ));
+        }
+        // Smoke puffs
+        for (let i = 0; i < 6; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 15 + Math.random() * 30;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * radius * 0.3,
+                y + (Math.random() - 0.5) * radius * 0.3,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                5 + Math.random() * 4,
+                '#555',
+                500 + Math.random() * 300,
+                { friction: 0.95, shrink: true, shape: 'circle' },
+            ));
+        }
+        // Core flash
+        this.particles.push(new Particle(
+            x, y, 0, 0, 16, '#ffffff', 120,
+            { shrink: true, glow: true, glowColor: '#ff6600' },
+        ));
+    }
+    /**
      * Dagger throw — small cyan burst at throw origin.
      */
     daggerThrow(x, y, dirX, dirY) {

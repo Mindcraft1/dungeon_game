@@ -96,6 +96,14 @@ const BIOMES = [
                 glow: '#b2dfdb',
                 afterimage: '#20b2aa',
             },
+            juggernaut: {
+                body: '#5d4037',       // bark brown
+                stroke: '#3e2723',
+                armor: '#6d4c41',
+                armorLight: '#8d6e63',
+                viewport: '#ff5722',
+                viewportGlow: '#ff8a65',
+            },
         },
     },
 
@@ -171,6 +179,14 @@ const BIOMES = [
                 stroke: '#8d6e63',
                 glow: '#fff8e1',
                 afterimage: '#d4a056',
+            },
+            juggernaut: {
+                body: '#8b6914',       // scorched gold
+                stroke: '#5d4037',
+                armor: '#a07b28',
+                armorLight: '#c68a17',
+                viewport: '#ff3d00',
+                viewportGlow: '#ff6e40',
             },
         },
     },
@@ -248,6 +264,14 @@ const BIOMES = [
                 glow: '#ffccbc',
                 afterimage: '#e65100',
             },
+            juggernaut: {
+                body: '#b71c1c',       // molten red
+                stroke: '#7f0000',
+                armor: '#d32f2f',
+                armorLight: '#ef5350',
+                viewport: '#ffab00',
+                viewportGlow: '#ffd740',
+            },
         },
     },
 
@@ -323,6 +347,14 @@ const BIOMES = [
                 stroke: '#004d40',
                 glow: '#b2ebf2',
                 afterimage: '#00838f',
+            },
+            juggernaut: {
+                body: '#1a237e',       // deep navy
+                stroke: '#0d1642',
+                armor: '#283593',
+                armorLight: '#3949ab',
+                viewport: '#00e5ff',
+                viewportGlow: '#84ffff',
             },
         },
     },

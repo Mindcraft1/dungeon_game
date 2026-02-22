@@ -1,11 +1,12 @@
 import {
-    BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
+    BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT,
     BOSS_BASE_HP, BOSS_BASE_SPEED, BOSS_BASE_DAMAGE,
     BOSS_HP_SCALE, BOSS_DMG_SCALE, BOSS_SPD_SCALE,
     BOSS_STAGE_HP_SCALE, BOSS_STAGE_DMG_SCALE, BOSS_STAGE_SPD_SCALE,
     BOSS_BRUTE_HP_MULT, BOSS_BRUTE_SPD_MULT, BOSS_BRUTE_DMG_MULT, BOSS_BRUTE_RADIUS,
     BOSS_WARLOCK_HP_MULT, BOSS_WARLOCK_SPD_MULT, BOSS_WARLOCK_DMG_MULT, BOSS_WARLOCK_RADIUS,
     BOSS_PHANTOM_HP_MULT, BOSS_PHANTOM_SPD_MULT, BOSS_PHANTOM_DMG_MULT, BOSS_PHANTOM_RADIUS,
+    BOSS_JUGGERNAUT_HP_MULT, BOSS_JUGGERNAUT_SPD_MULT, BOSS_JUGGERNAUT_DMG_MULT, BOSS_JUGGERNAUT_RADIUS,
     BOSS_ATTACK_COOLDOWN,
     BOSS_SLAM_WINDUP, BOSS_SLAM_RADIUS,
     BOSS_CHARGE_WINDUP, BOSS_CHARGE_DURATION, BOSS_CHARGE_SPEED_MULT,
@@ -13,15 +14,18 @@ import {
     BOSS_FAN_WINDUP, BOSS_VOLLEY_WINDUP, BOSS_VOLLEY_INTERVAL,
     BOSS_DASH_WINDUP, BOSS_DASH_DURATION, BOSS_DASH_SPEED_MULT,
     BOSS_RING_WINDUP, BOSS_CLONE_WINDUP,
+    BOSS_ROCKET_WINDUP, BOSS_ROCKET_SPEED, BOSS_ROCKET_RADIUS,
+    BOSS_BARRAGE_WINDUP, BOSS_BARRAGE_INTERVAL,
+    BOSS_STOMP_WINDUP, BOSS_STOMP_RADIUS,
     BOSS_HIT_COOLDOWN,
-    BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR,
-    BOSS_BRUTE_NAME, BOSS_WARLOCK_NAME, BOSS_PHANTOM_NAME,
+    BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR, BOSS_JUGGERNAUT_COLOR,
+    BOSS_BRUTE_NAME, BOSS_WARLOCK_NAME, BOSS_PHANTOM_NAME, BOSS_JUGGERNAUT_NAME,
     BOSS_XP_REWARD,
-    ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER,
+    ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK,
     PROJECTILE_SPEED, PROJECTILE_RADIUS,
 } from '../constants.js';
 import { resolveWalls } from '../collision.js';
-import { Projectile } from './projectile.js';
+import { Projectile, RocketProjectile } from './projectile.js';
 
 export class Boss {
     /**
@@ -73,6 +77,14 @@ export class Boss {
                 this.color  = BOSS_PHANTOM_COLOR;
                 this.name   = BOSS_PHANTOM_NAME;
                 break;
+            case BOSS_TYPE_JUGGERNAUT:
+                this.radius = BOSS_JUGGERNAUT_RADIUS;
+                this.maxHp  = Math.floor(BOSS_BASE_HP * BOSS_JUGGERNAUT_HP_MULT * hpScale);
+                this.speed  = BOSS_BASE_SPEED * BOSS_JUGGERNAUT_SPD_MULT * spdScale;
+                this.damage = Math.floor(BOSS_BASE_DAMAGE * BOSS_JUGGERNAUT_DMG_MULT * dmgScale);
+                this.color  = BOSS_JUGGERNAUT_COLOR;
+                this.name   = BOSS_JUGGERNAUT_NAME;
+                break;
         }
 
         this.hp = this.maxHp;
@@ -109,6 +121,14 @@ export class Boss {
         // Dash strike state (phantom)
         this.dashDirX = 0;
         this.dashDirY = 0;
+
+        // Rocket barrage state (juggernaut)
+        this.barrageCount = 0;
+        this.barrageTimer = 0;
+        this.barrageMax = 0;
+
+        // Stomp indicator (juggernaut)
+        this.stompIndicatorRadius = 0;
 
         // AoE slam indicator
         this.slamIndicatorRadius = 0;
@@ -234,6 +254,13 @@ export class Boss {
                     { name: 'ring',        weight: 2.5, windup: BOSS_RING_WINDUP },
                     { name: 'clone',       weight: 1.5, windup: BOSS_CLONE_WINDUP },
                 ];
+            case BOSS_TYPE_JUGGERNAUT:
+                return [
+                    { name: 'rocket',  weight: 3,   windup: BOSS_ROCKET_WINDUP },
+                    { name: 'barrage', weight: 2.5, windup: BOSS_BARRAGE_WINDUP },
+                    { name: 'stomp',   weight: 2,   windup: BOSS_STOMP_WINDUP },
+                    { name: 'summon',  weight: 1,   windup: BOSS_SUMMON_WINDUP },
+                ];
             default:
                 return [{ name: 'slam', weight: 1, windup: BOSS_SLAM_WINDUP }];
         }
@@ -281,6 +308,14 @@ export class Boss {
                 const ddy = player.y - this.y;
                 const dd = Math.sqrt(ddx * ddx + ddy * ddy);
                 if (dd > 0) { this.dashDirX = ddx / dd; this.dashDirY = ddy / dd; }
+                break;
+            }
+            case 'stomp': {
+                // Growing AoE indicator (like slam but bigger)
+                const windupTotal = BOSS_STOMP_WINDUP * this.phaseMultiplier;
+                const progress = 1 - this.attackTimer / windupTotal;
+                const targetR = this.phase === 2 ? BOSS_STOMP_RADIUS * 1.25 : BOSS_STOMP_RADIUS;
+                this.stompIndicatorRadius = targetR * progress;
                 break;
             }
         }
@@ -350,6 +385,36 @@ export class Boss {
                 this._events.push({ type: 'summon' });
                 this.attackTimer = 600; // recovery
                 break;
+            case 'rocket':
+                this._fireRocket(player, projectiles);
+                this._events.push({ type: 'rocket_fire' });
+                this.attackTimer = 600; // recovery
+                break;
+            case 'barrage': {
+                this.barrageCount = 0;
+                this.barrageTimer = 0;
+                this.barrageMax = this.phase === 2 ? 5 : 3;
+                this.attackTimer = this.barrageMax * BOSS_BARRAGE_INTERVAL + 500;
+                break;
+            }
+            case 'stomp': {
+                const stompR = this.phase === 2 ? BOSS_STOMP_RADIUS * 1.25 : BOSS_STOMP_RADIUS;
+                const sdx = player.x - this.x;
+                const sdy = player.y - this.y;
+                const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+                if (sdist < stompR + player.radius) {
+                    player.takeDamage(Math.floor(this.damage * 1.8));
+                    // Heavy knockback
+                    if (sdist > 0) {
+                        player.x += (sdx / sdist) * 45;
+                        player.y += (sdy / sdist) * 45;
+                    }
+                }
+                this.stompIndicatorRadius = stompR;
+                this._events.push({ type: 'stomp', x: this.x, y: this.y, radius: stompR });
+                this.attackTimer = 600; // recovery
+                break;
+            }
         }
     }
 
@@ -410,6 +475,22 @@ export class Boss {
                 }
                 break;
             }
+
+            case 'barrage': {
+                this.barrageTimer -= ms;
+                if (this.barrageTimer <= 0 && this.barrageCount < this.barrageMax) {
+                    this._fireRocket(player, projectiles);
+                    this._events.push({ type: 'rocket_fire' });
+                    this.barrageCount++;
+                    this.barrageTimer = BOSS_BARRAGE_INTERVAL;
+                }
+                break;
+            }
+
+            case 'stomp':
+                // Indicator fading during recovery
+                this.stompIndicatorRadius *= 0.91;
+                break;
         }
     }
 
@@ -418,6 +499,7 @@ export class Boss {
         this.attackPhase = 0;
         this.attackCooldown = BOSS_ATTACK_COOLDOWN * this.phaseMultiplier;
         this.slamIndicatorRadius = 0;
+        this.stompIndicatorRadius = 0;
     }
 
     // ── Projectile attacks ─────────────────────────────────
@@ -491,12 +573,49 @@ export class Boss {
         }
     }
 
+    // ── Rocket attacks (juggernaut) ────────────────────────
+
+    _fireRocket(player, projectiles) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist === 0) return;
+
+        // Lead the target slightly (predict player position)
+        const travelTime = dist / BOSS_ROCKET_SPEED;
+        const leadX = player.x + (player.vx || 0) * travelTime * 0.3;
+        const leadY = player.y + (player.vy || 0) * travelTime * 0.3;
+        const ldx = leadX - this.x;
+        const ldy = leadY - this.y;
+        const ldist = Math.sqrt(ldx * ldx + ldy * ldy);
+
+        // Add slight spread for barrage variety
+        const spread = (Math.random() - 0.5) * 0.2;
+        const baseAngle = Math.atan2(ldy, ldx) + spread;
+        const dirX = Math.cos(baseAngle);
+        const dirY = Math.sin(baseAngle);
+
+        const splashDmg = Math.floor(this.damage * 0.4);
+
+        projectiles.push(new RocketProjectile(
+            this.x + dirX * (this.radius + BOSS_ROCKET_RADIUS + 6),
+            this.y + dirY * (this.radius + BOSS_ROCKET_RADIUS + 6),
+            dirX, dirY,
+            BOSS_ROCKET_SPEED,
+            Math.floor(this.damage * 0.8),   // direct hit damage
+            splashDmg,                        // splash damage per tick
+            BOSS_ROCKET_RADIUS,
+            this.color,
+        ));
+    }
+
     // ── Summon attacks ─────────────────────────────────────
 
     _spawnAdds() {
         const count = this.phase === 2 ? 3 : 2;
         let addType = ENEMY_TYPE_BASIC;
         if (this.type === BOSS_TYPE_WARLOCK) addType = ENEMY_TYPE_SHOOTER;
+        if (this.type === BOSS_TYPE_JUGGERNAUT) addType = ENEMY_TYPE_TANK;
 
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
@@ -562,9 +681,10 @@ export class Boss {
 
         // Boss body
         switch (this.type) {
-            case BOSS_TYPE_BRUTE:   this._renderBrute(ctx, flash);   break;
-            case BOSS_TYPE_WARLOCK: this._renderWarlock(ctx, flash); break;
-            case BOSS_TYPE_PHANTOM: this._renderPhantom(ctx, flash); break;
+            case BOSS_TYPE_BRUTE:      this._renderBrute(ctx, flash);      break;
+            case BOSS_TYPE_WARLOCK:    this._renderWarlock(ctx, flash);    break;
+            case BOSS_TYPE_PHANTOM:    this._renderPhantom(ctx, flash);    break;
+            case BOSS_TYPE_JUGGERNAUT: this._renderJuggernaut(ctx, flash); break;
         }
 
         // Phase 2 red aura
@@ -678,6 +798,35 @@ export class Boss {
             ctx.stroke();
             ctx.restore();
         }
+
+        // Stomp AoE indicator (juggernaut — orange circle growing during windup)
+        if (this.currentAttack === 'stomp' && this.stompIndicatorRadius > 5) {
+            ctx.save();
+            const alpha = this.attackPhase === 1 ? 0.22 : 0.12;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ff6600';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.stompIndicatorRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = alpha * 2;
+            ctx.strokeStyle = '#ff4400';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Rocket / Barrage windup glow (juggernaut — orange pulsing)
+        if ((this.currentAttack === 'rocket' || this.currentAttack === 'barrage') && this.attackPhase === 1) {
+            const windupTotal = this.currentAttack === 'rocket' ? BOSS_ROCKET_WINDUP : BOSS_BARRAGE_WINDUP;
+            const progress = 1 - this.attackTimer / (windupTotal * this.phaseMultiplier);
+            ctx.save();
+            ctx.globalAlpha = progress * 0.5;
+            ctx.fillStyle = '#ff6600';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius * 0.6 * progress, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     // ── Biome theme application ────────────────────────────
@@ -685,9 +834,10 @@ export class Boss {
     _applyBiomeTheme(biome) {
         // Default colors (used when no biome or no theme defined)
         const defaults = {
-            brute:   { body: BOSS_BRUTE_COLOR,   stroke: '#a84300', eyes: '#ff6600', eyesFlash: '#ff4444', chargeAura: '#ff4444' },
-            warlock: { body: BOSS_WARLOCK_COLOR,  stroke: '#6c3483', innerEye: '#e0b0ff', innerEyeFlash: '#bb86fc', pupil: '#2a0134', orbit: BOSS_WARLOCK_COLOR },
-            phantom: { body: BOSS_PHANTOM_COLOR,  stroke: '#00838f', glow: '#e0f7fa', afterimage: BOSS_PHANTOM_COLOR },
+            brute:      { body: BOSS_BRUTE_COLOR,      stroke: '#a84300', eyes: '#ff6600', eyesFlash: '#ff4444', chargeAura: '#ff4444' },
+            warlock:    { body: BOSS_WARLOCK_COLOR,     stroke: '#6c3483', innerEye: '#e0b0ff', innerEyeFlash: '#bb86fc', pupil: '#2a0134', orbit: BOSS_WARLOCK_COLOR },
+            phantom:    { body: BOSS_PHANTOM_COLOR,     stroke: '#00838f', glow: '#e0f7fa', afterimage: BOSS_PHANTOM_COLOR },
+            juggernaut: { body: BOSS_JUGGERNAUT_COLOR,  stroke: '#bf6516', armor: '#c68a17', armorLight: '#e8a838', viewport: '#ff4400', viewportGlow: '#ff6600' },
         };
 
         const theme = biome && biome.bossTheme ? biome.bossTheme[this.type] : null;
@@ -704,6 +854,12 @@ export class Boss {
         this.themeOrbit      = (theme && theme.orbit)         || fallback.orbit;
         this.themeGlow       = (theme && theme.glow)          || fallback.glow;
         this.themeAfterimage = (theme && theme.afterimage)    || fallback.afterimage;
+
+        // Juggernaut-specific
+        this.themeArmor        = (theme && theme.armor)        || fallback.armor;
+        this.themeArmorLight   = (theme && theme.armorLight)   || fallback.armorLight;
+        this.themeViewport     = (theme && theme.viewport)     || fallback.viewport;
+        this.themeViewportGlow = (theme && theme.viewportGlow) || fallback.viewportGlow;
 
         // Override base color used by projectiles & attack indicators
         if (theme) this.color = theme.body;
@@ -854,6 +1010,104 @@ export class Boss {
                 this.radius * 0.4, 0, Math.PI * 2,
             );
             ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    _renderJuggernaut(ctx, flash) {
+        // Hexagon (armored tank shape)
+        ctx.fillStyle = flash ? '#ffffff' : this.themeBody;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 6;
+            const px = this.x + this.radius * Math.cos(angle);
+            const py = this.y + this.radius * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Heavy border (armor plating)
+        ctx.strokeStyle = this.themeStroke;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Inner armor plates (two horizontal lines)
+        ctx.save();
+        ctx.strokeStyle = this.themeArmor || '#c68a17';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.radius * 0.6, this.y - this.radius * 0.2);
+        ctx.lineTo(this.x + this.radius * 0.6, this.y - this.radius * 0.2);
+        ctx.moveTo(this.x - this.radius * 0.6, this.y + this.radius * 0.2);
+        ctx.lineTo(this.x + this.radius * 0.6, this.y + this.radius * 0.2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Viewport / visor (single red slit eye facing player)
+        const eyeOffX = Math.cos(this.facingAngle) * this.radius * 0.4;
+        const eyeOffY = Math.sin(this.facingAngle) * this.radius * 0.4;
+        const perpX = -Math.sin(this.facingAngle);
+        const perpY = Math.cos(this.facingAngle);
+
+        // Viewport glow
+        ctx.save();
+        ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.008) * 0.2;
+        ctx.fillStyle = this.themeViewportGlow || '#ff6600';
+        ctx.beginPath();
+        ctx.ellipse(
+            this.x + eyeOffX, this.y + eyeOffY,
+            8, 3, Math.atan2(perpY, perpX), 0, Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.restore();
+
+        // Viewport core
+        ctx.fillStyle = flash ? '#ffffff' : (this.themeViewport || '#ff4400');
+        ctx.beginPath();
+        ctx.ellipse(
+            this.x + eyeOffX, this.y + eyeOffY,
+            6, 2, Math.atan2(perpY, perpX), 0, Math.PI * 2,
+        );
+        ctx.fill();
+
+        // Shoulder cannons (two small circles offset from center)
+        const cannonDist = this.radius * 0.7;
+        for (const side of [-1, 1]) {
+            const cx = this.x - Math.cos(this.facingAngle) * 2 + perpX * cannonDist * side * 0.6;
+            const cy = this.y - Math.sin(this.facingAngle) * 2 + perpY * cannonDist * side * 0.6;
+            ctx.fillStyle = flash ? '#ffffff' : '#555';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = this.themeStroke;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+
+        // Barrage / rocket firing visual: cannon flash
+        if ((this.currentAttack === 'rocket' || this.currentAttack === 'barrage') && this.attackPhase === 2) {
+            ctx.save();
+            ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.03) * 0.3;
+            ctx.fillStyle = '#ff6600';
+            const fwdX = Math.cos(this.facingAngle) * (this.radius + 8);
+            const fwdY = Math.sin(this.facingAngle) * (this.radius + 8);
+            ctx.beginPath();
+            ctx.arc(this.x + fwdX, this.y + fwdY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Stomp visual: ground pound effect
+        if (this.currentAttack === 'stomp' && this.attackPhase === 2) {
+            ctx.save();
+            ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.02) * 0.2;
+            ctx.strokeStyle = '#ff4400';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.restore();
         }
     }

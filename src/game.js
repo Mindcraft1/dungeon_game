@@ -12,7 +12,7 @@ import {
     STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS, STATE_LOADOUT,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
-    BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM,
+    BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT,
     BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
     COIN_REWARD_NORMAL_ENEMY, COIN_REWARD_ELITE_ENEMY, COIN_REWARD_BOSS,
     META_BOOSTERS, META_BOOSTER_IDS,
@@ -31,7 +31,7 @@ import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAM
 import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
-import { Projectile, PlayerProjectile } from './entities/projectile.js';
+import { Projectile, PlayerProjectile, RocketProjectile, Explosion } from './entities/projectile.js';
 import { Door } from './entities/door.js';
 import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO, CoinPickup } from './entities/pickup.js';
@@ -114,6 +114,7 @@ export class Game {
         this.enemies = [];
         this.projectiles = [];
         this.playerProjectiles = [];  // player-fired daggers
+        this.explosions = [];         // lingering rocket explosion zones
         this.pickups = [];
         this.coinPickups = [];        // physical coin drops from enemies
         this.hazards = [];
@@ -193,6 +194,7 @@ export class Game {
             onehitkill: false,   // IDKFA  — enemies die in one hit
             xpboost:    false,   // BIGXP  — 10× XP gain
         };
+        this.cheatsUsedThisRun = false;  // once true, ALL progression is blocked for this run
         this.cheatNotifications = [];  // [{text, timer, color}]
 
         // ── Achievements ──
@@ -275,6 +277,7 @@ export class Game {
     }
 
     _saveHighscore() {
+        if (this.cheatsUsedThisRun) return;  // no progression with cheats
         const p = this.activeProfile;
         if (p && this.stage > p.highscore) {
             p.highscore = this.stage;
@@ -287,6 +290,12 @@ export class Game {
     _processCheatCodes() {
         const cheatId = getActivatedCheat();
         if (!cheatId) return;
+
+        // Mark cheats as used — permanently blocks ALL progression for this run
+        if (!this.cheatsUsedThisRun) {
+            this.cheatsUsedThisRun = true;
+            this._cheatNotify('⛔ PROGRESSION DISABLED', '#ff6666');
+        }
 
         switch (cheatId) {
             case 'godmode': {
@@ -409,6 +418,7 @@ export class Game {
         this.coinPickups = [];
         this.playerProjectiles = [];
         this.controlsHintTimer = 5000;
+        this.cheatsUsedThisRun = false;  // reset cheat flag for new run
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
@@ -443,11 +453,13 @@ export class Game {
         // ── Combat System: equip from saved loadout ──
         this._equipSavedLoadout();
 
-        // ── Achievement event: run start ──
-        achEmit('run_start', { metaBoosterActive: !!this.activeMetaBoosterId });
-        achEmit('stage_entered', { stage: 1 });
-        if (this.currentBiome) {
-            achEmit('biome_changed', { biomeId: this.currentBiome.id });
+        // ── Achievement event: run start (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('run_start', { metaBoosterActive: !!this.activeMetaBoosterId });
+            achEmit('stage_entered', { stage: 1 });
+            if (this.currentBiome) {
+                achEmit('biome_changed', { biomeId: this.currentBiome.id });
+            }
         }
 
         this.state = STATE_PLAYING;
@@ -524,6 +536,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
+        this.explosions = [];
         this.hazards = [];
 
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
@@ -545,6 +558,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
         this.projectiles = [];
+        this.explosions = [];
         this.playerProjectiles = [];
         this.pickups = [];
         this.coinPickups = [];
@@ -604,6 +618,7 @@ export class Game {
             p.x, p.y, hpBase, spdBase, dmgBase, types[i], this.stage,
         ));
         this.projectiles = [];
+        this.explosions = [];
     }
 
     /**
@@ -760,8 +775,8 @@ export class Game {
         this._saveHighscore();
         this._updateBiome();
 
-        // Meta: rare 1% shard from normal room clear
-        if (!this._isBossStage(this.stage - 1)) {
+        // Meta: rare 1% shard from normal room clear (blocked by cheats)
+        if (!this.cheatsUsedThisRun && !this._isBossStage(this.stage - 1)) {
             const rareShards = RewardSystem.processRoomClear();
             if (rareShards > 0) {
                 showToast('+1 Core Shard (rare!)', '#ffd700', '◆');
@@ -774,10 +789,12 @@ export class Game {
             this.shieldCharges = Math.min(this.shieldCharges + 1, 3);
         }
 
-        // ── Achievement events: stage entered + biome ──
-        achEmit('stage_entered', { stage: this.stage });
-        if (this.currentBiome) {
-            achEmit('biome_changed', { biomeId: this.currentBiome.id });
+        // ── Achievement events: stage entered + biome (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('stage_entered', { stage: this.stage });
+            if (this.currentBiome) {
+                achEmit('biome_changed', { biomeId: this.currentBiome.id });
+            }
         }
 
         // Announce biome change
@@ -806,6 +823,7 @@ export class Game {
         this.door = new Door(doorPos.col, doorPos.row);
         this.enemies = [];
         this.projectiles = [];
+        this.explosions = [];
         this.playerProjectiles = [];
         this.hazards = [];
         this.pickups = [];
@@ -813,9 +831,9 @@ export class Game {
         this.particles.clear();
         this.bossVictoryDelay = 0;
 
-        // Determine boss type (rotates: Brute → Warlock → Phantom)
+        // Determine boss type (rotates: Brute → Warlock → Phantom → Juggernaut)
         const encounter = Math.floor(this.stage / BOSS_STAGE_INTERVAL) - 1;
-        const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM];
+        const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT];
         const bossType = bossTypes[encounter % bossTypes.length];
 
         this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage, this.currentBiome);
@@ -837,6 +855,7 @@ export class Game {
             grid: this.grid,
             projectiles: this.projectiles,
             playerProjectiles: this.playerProjectiles,
+            explosions: this.explosions,
             pickups: this.pickups,
             coinPickups: this.coinPickups,
             hazards: this.hazards,
@@ -850,6 +869,7 @@ export class Game {
     _enterTrainingFromGame() {
         this.trainingMode = true;
         this.projectiles = [];
+        this.explosions = [];
         this.playerProjectiles = [];
         this.stage = 0;
         this.currentBiome = null;
@@ -892,6 +912,7 @@ export class Game {
         this.door = this._savedGame.door;
         this.grid = this._savedGame.grid;
         this.projectiles = this._savedGame.projectiles || [];
+        this.explosions = this._savedGame.explosions || [];
         this.playerProjectiles = this._savedGame.playerProjectiles || [];
         this.pickups = this._savedGame.pickups || [];
         this.coinPickups = this._savedGame.coinPickups || [];
@@ -922,6 +943,7 @@ export class Game {
         this.trainingMode = false;
         this._savedGame = null;
         this.projectiles = [];
+        this.explosions = [];
         this.playerProjectiles = [];
         this.pickups = [];
         this.coinPickups = [];
@@ -1128,17 +1150,21 @@ export class Game {
 
             // Buy perk
             if (wasPressed('Enter') || wasPressed('Space')) {
-                const perkId = PERK_IDS[this.metaPerkCursor];
-                if (canUpgrade(perkId)) {
-                    upgradePerk(perkId);
-                    Audio.playPerkUpgrade();
-                    achEmit('meta_upgrade_bought', { perkId });
-                    // Check if perk reached max level
-                    if (isPerkMaxed(perkId)) {
-                        achEmit('meta_perk_maxed', { perkId });
-                    }
+                if (this.cheatsUsedThisRun) {
+                    showToast('⛔ Cheats active — no progression', '#ff6666', '✗');
                 } else {
-                    // Can't afford or maxed — do nothing
+                    const perkId = PERK_IDS[this.metaPerkCursor];
+                    if (canUpgrade(perkId)) {
+                        upgradePerk(perkId);
+                        Audio.playPerkUpgrade();
+                        achEmit('meta_upgrade_bought', { perkId });
+                        // Check if perk reached max level
+                        if (isPerkMaxed(perkId)) {
+                            achEmit('meta_perk_maxed', { perkId });
+                        }
+                    } else {
+                        // Can't afford or maxed — do nothing
+                    }
                 }
             }
         }
@@ -1301,6 +1327,11 @@ export class Game {
         }
 
         if (wasPressed('Enter') || wasPressed('Space')) {
+            if (this.cheatsUsedThisRun) {
+                showToast('⛔ Cheats active — no progression', '#ff6666', '✗');
+                return;
+            }
+
             // Clear selection
             if (this.metaShopCursor === META_BOOSTER_IDS.length && this.purchasedMetaBoosterId) {
                 // Refund shards
@@ -1916,8 +1947,10 @@ export class Game {
                 e.xpGiven = true;
                 Audio.playEnemyDeath();
 
-                // ── Achievement event: enemy killed ──
-                achEmit('enemy_killed', { enemyType: e.type, isElite: (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER) });
+                // ── Achievement event: enemy killed (blocked by cheats) ──
+                if (!this.cheatsUsedThisRun) {
+                    achEmit('enemy_killed', { enemyType: e.type, isElite: (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER) });
+                }
 
                 // Death explosion particles
                 const eColor = ENEMY_COLORS[e.type] || ENEMY_COLOR;
@@ -2002,6 +2035,14 @@ export class Game {
                     case 'projectile':
                         Audio.playProjectile();
                         break;
+                    case 'rocket_fire':
+                        Audio.playProjectile();
+                        break;
+                    case 'stomp':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, this.boss.color);
+                        triggerShake(10, 0.9);
+                        break;
                 }
             }
             this.boss._events = [];
@@ -2031,48 +2072,57 @@ export class Game {
                 }
             }
             this.projectiles = [];
+            this.explosions = [];
             Audio.playBossDeath();
             this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
             triggerShake(15, 0.92);
 
-            // ── Achievement events: boss killed + room cleared ──
-            achEmit('boss_killed', {
-                bossIndexInRun: this.bossesKilledThisRun,
-                stage: this.stage,
-                biome: this.currentBiome ? this.currentBiome.id : null,
-            });
-            achEmit('room_cleared', { stage: this.stage });
+            // ── Achievement events: boss killed + room cleared (blocked by cheats) ──
+            if (!this.cheatsUsedThisRun) {
+                achEmit('boss_killed', {
+                    bossIndexInRun: this.bossesKilledThisRun,
+                    stage: this.stage,
+                    biome: this.currentBiome ? this.currentBiome.id : null,
+                });
+                achEmit('room_cleared', { stage: this.stage });
+            }
 
-            // ── Meta Progression: boss kill rewards ──
+            // ── Meta Progression: boss kill rewards (blocked by cheats) ──
             this.bossesKilledThisRun++;
             // Coin reward for boss kill
             this.runCoins += COIN_REWARD_BOSS;
-            const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
-            this.lastBossReward = reward;
-            // Toast for shards
-            if (reward.shardsGained > 0) {
-                showToast(`+${reward.shardsGained} Core Shards`, '#ffd700', '◆');
-                Audio.playShardGain();
-            }
-            // Toast for relic
-            if (reward.relicId) {
-                const relic = RELIC_DEFINITIONS[reward.relicId];
-                showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
-                Audio.playRelicUnlock();
-                achEmit('relic_unlocked', { relicId: reward.relicId });
-            }
-            // Toast for run upgrade unlock
-            if (reward.runUpgradeId) {
-                const upg = RUN_UPGRADE_DEFINITIONS[reward.runUpgradeId];
-                showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
+            if (!this.cheatsUsedThisRun) {
+                const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
+                this.lastBossReward = reward;
+                // Toast for shards
+                if (reward.shardsGained > 0) {
+                    showToast(`+${reward.shardsGained} Core Shards`, '#ffd700', '◆');
+                    Audio.playShardGain();
+                }
+                // Toast for relic
+                if (reward.relicId) {
+                    const relic = RELIC_DEFINITIONS[reward.relicId];
+                    showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
+                    Audio.playRelicUnlock();
+                    achEmit('relic_unlocked', { relicId: reward.relicId });
+                }
+                // Toast for run upgrade unlock
+                if (reward.runUpgradeId) {
+                    const upg = RUN_UPGRADE_DEFINITIONS[reward.runUpgradeId];
+                    showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
+                }
+            } else {
+                this.lastBossReward = { shardsGained: 0, relicId: null, runUpgradeId: null };
             }
 
-            // ── Combat unlock: check boss milestone ──
-            const combatUnlock = checkBossUnlocks(MetaStore.getState().stats.bossesKilledTotal);
-            if (combatUnlock) {
-                const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
-                showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
-                Audio.playRelicUnlock();
+            // ── Combat unlock: check boss milestone (blocked by cheats) ──
+            if (!this.cheatsUsedThisRun) {
+                const combatUnlock = checkBossUnlocks(MetaStore.getState().stats.bossesKilledTotal);
+                if (combatUnlock) {
+                    const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
+                    showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
+                    Audio.playRelicUnlock();
+                }
             }
 
             this.bossVictoryDelay = 1200; // 1.2s freeze before victory overlay
@@ -2085,8 +2135,22 @@ export class Game {
             if (!p.dead) {
                 this.particles.projectileTrail(p.x, p.y);
             }
+            // Rocket exploded → spawn lingering explosion zone
+            if (p.dead && p.isRocket && p.pendingExplosion) {
+                const ex = p.pendingExplosion;
+                this.explosions.push(new Explosion(ex.x, ex.y, ex.radius, ex.damage, ex.linger, ex.color));
+                this.particles.rocketExplosion(ex.x, ex.y, ex.radius, ex.color);
+                Audio.playBossSlam();        // reuse slam sound for explosion
+                triggerShake(6, 0.85);
+            }
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
+
+        // Explosion zones — update lingering AoE
+        for (const ex of this.explosions) {
+            ex.update(dt, this.player, noDamage);
+        }
+        this.explosions = this.explosions.filter(ex => !ex.dead);
 
         // Player daggers — update + hit detection
         const activeBoss = this.boss && !this.boss.dead ? this.boss : null;
@@ -2284,6 +2348,7 @@ export class Game {
             this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
             this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
             this.projectiles = [];
+            this.explosions = [];
             this.playerProjectiles = [];
             this.pickups = [];
             this.coinPickups = [];
@@ -2576,6 +2641,7 @@ export class Game {
                     this.door = this._savedGame.door;
                     this.grid = this._savedGame.grid;
                     this.projectiles = this._savedGame.projectiles || [];
+                    this.explosions = this._savedGame.explosions || [];
                     this.hazards = this._savedGame.hazards || [];
                     this._savedGame = null;
                     this._updateBiome();  // restore biome from stage
@@ -2857,6 +2923,7 @@ export class Game {
 
         renderRoom(ctx, this.grid, this.currentBiome, this.stage || 0);
         for (const h of this.hazards) h.render(ctx);
+        for (const ex of this.explosions) ex.render(ctx);
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
         if (this.boss && !this.boss.dead) this.boss.render(ctx);
