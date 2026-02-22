@@ -10,8 +10,26 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const optCount = choices ? choices.length : 3;
-    const bw = 380;
-    const bh = 220 + (optCount > 3 ? 40 : 0);
+
+    // --- Dynamic width: measure all option labels and pick the widest ---
+    const opts0 = choices
+        ? choices.map((c, i) => `[${i + 1}]  ${c.label}`)
+        : [
+            `[1]  +${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`,
+            `[2]  +${UPGRADE_SPEED} Speed`,
+            `[3]  +${UPGRADE_DAMAGE} Damage`,
+        ];
+    ctx.font = 'bold 16px monospace';
+    let maxTextW = 0;
+    for (const t of opts0) maxTextW = Math.max(maxTextW, ctx.measureText(t).width);
+    // Add padding (arrow + margins on both sides)
+    const bw = Math.min(Math.max(Math.ceil(maxTextW) + 80, 380), CANVAS_WIDTH - 40);
+
+    // Dynamic height: header (title+subtitle) + rows + footer (hint text)
+    const rowH = 38;
+    const headerH = 100;   // top padding → first option baseline
+    const footerH = 46;    // space below last option for hint text
+    const bh = Math.min(headerH + optCount * rowH + footerH, CANVAS_HEIGHT - 40);
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -42,8 +60,7 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
             { key: '3', text: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336' },
         ];
 
-    const startY = by + 100;
-    const rowH = 38;
+    const startY = by + headerH;
     opts.forEach((o, i) => {
         const oy = startY + i * rowH;
         const selected = i === selectedIndex;
