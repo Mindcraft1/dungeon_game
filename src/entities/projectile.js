@@ -127,7 +127,7 @@ export class PlayerProjectile {
                 const kbX = (ex / dist) * this.knockback;
                 const kbY = (ey / dist) * this.knockback;
                 e.takeDamage(this.damage, kbX, kbY);
-                this.hitTarget = { x: e.x, y: e.y, dirX: this.dirX, dirY: this.dirY };
+                this.hitTarget = { x: e.x, y: e.y, dirX: this.dirX, dirY: this.dirY, entity: e };
                 this.dead = true;
                 return;
             }
@@ -145,7 +145,7 @@ export class PlayerProjectile {
                     ? Math.floor(this.damage * this.bossDamageMultiplier)
                     : this.damage;
                 boss.takeDamage(bossDmg, kbX, kbY);
-                this.hitTarget = { x: boss.x, y: boss.y, dirX: this.dirX, dirY: this.dirY };
+                this.hitTarget = { x: boss.x, y: boss.y, dirX: this.dirX, dirY: this.dirY, entity: boss };
                 this.dead = true;
                 return;
             }
