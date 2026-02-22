@@ -265,7 +265,8 @@ export class Player {
         const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1);
 
         // Attack arc (base + node widening)
-        const effectiveArc = ATTACK_ARC * (mods.arcMult || 1);
+        this._currentArcMult = mods.arcMult || 1;
+        const effectiveArc = ATTACK_ARC * this._currentArcMult;
 
         // Damage calculation
         let dmg = this.damage;
@@ -612,7 +613,9 @@ export class Player {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
-        ctx.arc(this.x, this.y, getVal('attackRange', ATTACK_RANGE), angle - ATTACK_ARC / 2, angle + ATTACK_ARC / 2);
+        const arcMult = this._currentArcMult || 1;
+        const effectiveArc = ATTACK_ARC * arcMult;
+        ctx.arc(this.x, this.y, getVal('attackRange', ATTACK_RANGE), angle - effectiveArc / 2, angle + effectiveArc / 2);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
@@ -758,7 +761,9 @@ export class Player {
             const angle = Math.atan2(this.facingY, this.facingX);
             ctx.beginPath();
             ctx.moveTo(this.x, this.y);
-            ctx.arc(this.x, this.y, ATTACK_RANGE * 1.4, angle - ATTACK_ARC / 2, angle + ATTACK_ARC / 2);
+            const piercingArcMult = this._currentArcMult || 1;
+            const piercingArc = ATTACK_ARC * piercingArcMult;
+            ctx.arc(this.x, this.y, ATTACK_RANGE * 1.4, angle - piercingArc / 2, angle + piercingArc / 2);
             ctx.closePath();
             ctx.fill();
         }
