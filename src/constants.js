@@ -265,6 +265,32 @@ export const PROC_CHAIN_LIGHTNING_DMG_MULT = 0.35;
 export const PROC_HEAVY_CRIT_EXTRA_DMG = 0.4; // +40% on crit
 export const PLAYER_BASE_CRIT_CHANCE = 0.05;  // 5% base crit chance
 
+// ── Upgrade Node System ──
+export const NODE_RARITY_COMMON   = 'common';
+export const NODE_RARITY_UNCOMMON = 'uncommon';
+export const NODE_RARITY_RARE     = 'rare';
+
+// ── Event System ──
+export const EVENT_MIN_STAGE       = 6;      // events appear from stage 6+
+export const EVENT_CHANCE           = 0.12;   // 12% per non-boss room
+export const STATE_EVENT            = 'EVENT'; // game state for event rooms
+
+// Event types
+export const EVENT_FORGE   = 'forge';
+export const EVENT_SHRINE  = 'shrine';
+export const EVENT_LIBRARY = 'library';
+export const EVENT_CHAOS   = 'chaos';
+export const EVENT_TRIAL   = 'trial';
+export const EVENT_TRADER  = 'trader';
+
+// ── Boss Scroll (unlock) ──
+export const STATE_BOSS_SCROLL      = 'BOSS_SCROLL'; // game state for scroll choice overlay
+export const BOSS_SCROLL_DROP_CHANCE = 0.20;  // 20% on boss kill
+
+// ── Forge Token in Boss Shop ──
+export const SHOP_FORGE_TOKEN_CHANCE = 0.25;  // 25% chance token appears in shop
+export const SHOP_FORGE_TOKEN_COST   = 18;    // coin cost
+
 // ── Combo / Kill-Chain ──
 export const COMBO_TIMEOUT = 2500;              // ms before combo resets
 export const COMBO_TIER_1 = 3;                  // kills for tier 1

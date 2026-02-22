@@ -11,6 +11,7 @@ import {
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
     STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS, STATE_LOADOUT,
+    STATE_EVENT, STATE_BOSS_SCROLL,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
     BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT,
@@ -21,6 +22,7 @@ import {
     PLAYER_INVULN_TIME,
     BOMB_RADIUS, BOMB_DAMAGE_MULT, BOMB_STUN_DURATION, BOMB_KNOCKBACK,
     COIN_DROP_LIFETIME,
+    SHOP_FORGE_TOKEN_COST, SHOP_FORGE_TOKEN_CHANCE,
     PICKUP_RAGE_SHARD, PICKUP_PIERCING_SHOT, PICKUP_SWIFT_BOOTS,
     PICKUP_SPEED_SURGE, PICKUP_IRON_SKIN,
     BUFF_RAGE_DAMAGE_MULT, BUFF_PIERCING_DAMAGE_MULT, BUFF_PIERCING_RANGE_MULT,
@@ -79,6 +81,18 @@ import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
 import * as DevTools from './ui/devTools.js';
+
+// ── Upgrade Node System ──
+import * as UpgradeEngine from './upgrades/upgradeEngine.js';
+
+// ── Unlock Map (achievements/biome mastery/scrolls) ──
+import { processAchievementUnlock as processAchUnlock, processBiomeMasteryBossKill, generateBossScrollChoices, applyBossScrollChoice, checkPityUnlock } from './unlocks/unlockMap.js';
+
+// ── Event System ──
+import * as EventSystem from './events/eventSystem.js';
+
+// ── Boss Scroll UI ──
+import { renderBossScrollOverlay } from './ui/bossScrollUI.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -226,6 +240,15 @@ export class Game {
         // ── Combat System ──
         this.abilitySystem = new AbilitySystem();
         this.procSystem = new ProcSystem();
+
+        // ── Upgrade Node / Event / Scroll state ──
+        this.eventState = null;              // current event state object (from eventSystem)
+        this.scrollChoices = null;           // boss scroll choices array (3 items)
+        this.scrollCursor = 0;              // cursor for boss scroll overlay
+        this.forgeTokenCount = 0;           // forge tokens held (from trader/trial/shop)
+        this.rerollTokenCount = 0;          // reroll tokens held (from trader)
+        this.hasForgeTokenInShop = false;   // whether forge token appears in current shop visit
+        this._pendingBossScroll = null;     // scroll choices deferred until after boss rewards
 
         // ── Loadout Screen state ──
         this.loadoutCursor = 0;
@@ -417,6 +440,14 @@ export class Game {
             timer: 3500,
             maxTimer: 3500,
         });
+
+        // ── Process achievement → item unlock via unlockMap ──
+        const unlocked = processAchUnlock(def.id);
+        for (const u of unlocked) {
+            const tLabel = u.type === 'ability' ? 'Ability' : u.type === 'proc' ? 'Passive' : 'Node';
+            showBigToast(`Achievement Unlock: ${tLabel} ${u.name}`, u.color, u.icon);
+            Audio.playRelicUnlock();
+        }
     }
 
     // ── Menu ───────────────────────────────────────────────
@@ -504,6 +535,17 @@ export class Game {
 
         // ── Combat System: equip from saved loadout ──
         this._equipSavedLoadout();
+
+        // ── Upgrade Node System: reset for new run ──
+        UpgradeEngine.resetForRun();
+        EventSystem.resetForRun();
+        this.eventState = null;
+        this.scrollChoices = null;
+        this.scrollCursor = 0;
+        this.forgeTokenCount = 0;
+        this.rerollTokenCount = 0;
+        this.hasForgeTokenInShop = false;
+        this._pendingBossScroll = null;
 
         // ── Achievement event: run start (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
@@ -887,6 +929,15 @@ export class Game {
             this.boss = null;
             this.bossVictoryDelay = 0;
             this.loadRoom(this.stage - 1);
+
+            // ── Check for random event ──
+            if (!this.trainingMode && !this.cheatsUsedThisRun) {
+                const eventType = EventSystem.rollForEvent(this.stage);
+                if (eventType) {
+                    this.eventState = EventSystem.createEventState(eventType, this._getUpgradeContext());
+                    this.state = STATE_EVENT;
+                }
+            }
         }
     }
 
@@ -1379,7 +1430,10 @@ export class Game {
 
     /** Update in-run shop input. */
     _updateRunShop() {
-        const maxIdx = RUN_SHOP_ITEM_IDS.length; // 0..5 items, 6 = continue
+        const extraRows = this.hasForgeTokenInShop ? 1 : 0;
+        const totalRows = RUN_SHOP_ITEM_IDS.length + extraRows; // items + optional forge + continue
+        const contIdx = totalRows;
+        const maxIdx = contIdx; // continue button index
 
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.runShopCursor = (this.runShopCursor - 1 + maxIdx + 1) % (maxIdx + 1);
@@ -1400,7 +1454,7 @@ export class Game {
         else if (wasPressed('Digit6')) buyIdx = 5;
 
         if (wasPressed('Enter') || wasPressed('Space')) {
-            if (this.runShopCursor === RUN_SHOP_ITEM_IDS.length) {
+            if (this.runShopCursor === contIdx) {
                 // Continue
                 Audio.playMenuSelect();
                 this._closeRunShop();
@@ -1415,8 +1469,12 @@ export class Game {
             return;
         }
 
-        if (buyIdx !== null && buyIdx < RUN_SHOP_ITEM_IDS.length) {
-            this._buyRunShopItem(buyIdx);
+        if (buyIdx !== null) {
+            if (buyIdx < RUN_SHOP_ITEM_IDS.length) {
+                this._buyRunShopItem(buyIdx);
+            } else if (buyIdx === RUN_SHOP_ITEM_IDS.length && this.hasForgeTokenInShop) {
+                this._buyForgeToken();
+            }
         }
     }
 
@@ -1468,10 +1526,262 @@ export class Game {
         showToast(`Purchased: ${item.name}`, item.color, item.icon);
     }
 
+    /** Purchase forge token from the boss shop. */
+    _buyForgeToken() {
+        if (this.runCoins < SHOP_FORGE_TOKEN_COST) {
+            showToast('Not enough coins!', '#e74c3c', '✗');
+            return;
+        }
+        this.runCoins -= SHOP_FORGE_TOKEN_COST;
+        this.forgeTokenCount++;
+        this.hasForgeTokenInShop = false; // max 1 per shop visit
+        Audio.playMenuSelect();
+        showToast('Purchased: Forge Token 🔨', '#ff9800', '🔨');
+    }
+
     /** Close run shop and return to playing (player walks through door to next room). */
     _closeRunShop() {
         this._cachedLevelUpChoices = null;
+        this.hasForgeTokenInShop = false;
         this.state = STATE_PLAYING;
+    }
+
+    // ── Event System ──────────────────────────────────────
+
+    /** Update event overlay interaction. */
+    _updateEvent() {
+        if (!this.eventState) { this.state = STATE_PLAYING; return; }
+
+        const es = this.eventState;
+
+        // Skip/exit on ESC at any phase
+        if (wasPressed('Escape')) {
+            Audio.playMenuNav();
+            this.eventState = null;
+            this.state = STATE_PLAYING;
+            return;
+        }
+
+        // Result phase → ENTER continues
+        if (es.phase === 'result' || es.phase === 'done' || es.phase === 'empty') {
+            if (wasPressed('Enter') || wasPressed('Space')) {
+                Audio.playMenuSelect();
+                this.eventState = null;
+                this.state = STATE_PLAYING;
+            }
+            return;
+        }
+
+        // Challenge phase (Trial) — handled by game update as timed survival
+        if (es.phase === 'challenge') {
+            // Trial event: just proceed (enemies already spawned in room)
+            // Timer countdown happens in _updatePlaying via eventState
+            if (wasPressed('Enter') || wasPressed('Space')) {
+                // Skip trial (forfeit)
+                es.phase = 'result';
+                es.result = { skipped: true };
+                Audio.playMenuNav();
+            }
+            return;
+        }
+
+        // Navigation
+        const items = this._getEventChoiceList(es);
+        const count = items.length;
+        if (count === 0) return;
+
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            es.cursor = (es.cursor - 1 + count) % count;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            es.cursor = (es.cursor + 1) % count;
+            Audio.playMenuNav();
+        }
+
+        // Confirm
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            this._confirmEventChoice(es);
+        }
+    }
+
+    /** Get the list of selectable items for the current event phase. */
+    _getEventChoiceList(es) {
+        if (es.phase === 'category') return es.categories || [];
+        if (es.phase === 'forge_nodes') return es.forgeNodeChoices || [];
+        if (es.phase === 'choosing') return es.choices || [];
+        if (es.phase === 'select_remove') {
+            const list = [...(es.appliedNodes || [])];
+            list.push({ id: '__skip__', name: 'Skip', icon: '', color: '#666' }); // skip option
+            return list;
+        }
+        return [];
+    }
+
+    /** Handle confirming a choice in the current event phase. */
+    _confirmEventChoice(es) {
+        Audio.playMenuSelect();
+
+        if (es.phase === 'category') {
+            // Forge: picked a category → show nodes from that category
+            const cat = es.categories[es.cursor];
+            if (!cat) return;
+            const context = this._getUpgradeContext();
+            es.forgeNodeChoices = UpgradeEngine.buildForgeChoices(cat.id, context, 3).map(n => ({
+                id: n.id, label: `${n.icon} ${n.name}: ${n.desc}`, color: n.color, nodeId: n.id,
+            }));
+            if (es.forgeNodeChoices.length === 0) {
+                es.phase = 'result';
+                es.result = { skipped: true };
+            } else {
+                es.phase = 'forge_nodes';
+                es.cursor = 0;
+            }
+            return;
+        }
+
+        if (es.phase === 'forge_nodes') {
+            const pick = es.forgeNodeChoices[es.cursor];
+            if (pick && pick.nodeId) {
+                UpgradeEngine.applyNode(pick.nodeId, 'forge');
+                const nodeDef = UpgradeEngine.getCombatMods(); // just for reference
+                es.phase = 'result';
+                es.result = { nodeApplied: pick };
+            }
+            return;
+        }
+
+        if (es.phase === 'choosing') {
+            const choice = es.choices[es.cursor];
+            if (!choice) return;
+
+            // Trader event
+            if (choice.reward) {
+                if (choice.cost > 0 && this.runCoins < choice.cost) {
+                    showToast('Not enough coins!', '#e74c3c', '✗');
+                    return;
+                }
+                if (choice.cost > 0) this.runCoins -= choice.cost;
+
+                if (choice.reward === 'forge_token') {
+                    this.forgeTokenCount++;
+                    es.phase = 'result';
+                    es.result = { tokenGranted: 'Forge' };
+                } else if (choice.reward === 'reroll_token') {
+                    this.rerollTokenCount++;
+                    es.phase = 'result';
+                    es.result = { tokenGranted: 'Reroll' };
+                }
+                return;
+            }
+
+            // Shrine/Chaos choices
+            if (choice.nodeId) {
+                UpgradeEngine.applyNode(choice.nodeId, 'event');
+                // Apply curse if present
+                if (choice.curse === 'hp_reduce' && choice.curseAmount && this.player) {
+                    const reduce = Math.floor(this.player.maxHp * choice.curseAmount);
+                    this.player.maxHp = Math.max(20, this.player.maxHp - reduce);
+                    this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+                    showToast(`Curse: -${reduce} Max HP`, '#e91e63', '💀');
+                }
+                es.phase = 'result';
+                es.result = { nodeApplied: choice };
+            } else if (choice.hpCost > 0 && choice.rareChoices) {
+                // Chaos: sacrifice HP for rare choices
+                const hpLoss = Math.floor(this.player.maxHp * choice.hpCost);
+                this.player.hp = Math.max(1, this.player.hp - hpLoss);
+                showToast(`Sacrificed ${hpLoss} HP`, '#e91e63', '💀');
+                // Show rare choices
+                es.choices = choice.rareChoices.map(n => ({
+                    label: `${n.icon} ${n.name}: ${n.desc}`,
+                    nodeId: n.id,
+                    color: n.color,
+                    hpCost: 0,
+                }));
+                es.cursor = 0;
+                // Stay in choosing phase with new choices
+            } else {
+                // Skip
+                es.phase = 'result';
+                es.result = { skipped: true };
+            }
+            return;
+        }
+
+        if (es.phase === 'select_remove') {
+            // Library: select node to remove
+            const nodes = es.appliedNodes || [];
+            if (es.cursor >= nodes.length) {
+                // Skip
+                es.phase = 'result';
+                es.result = { skipped: true };
+                return;
+            }
+            const toRemove = nodes[es.cursor];
+            UpgradeEngine.removeNode(toRemove.id);
+            // Now offer replacement choices
+            const context = this._getUpgradeContext();
+            const replacements = UpgradeEngine.pickRandomNodes('all', context, 3);
+            es.choices = replacements.map(n => ({
+                label: `${n.icon} ${n.name}: ${n.desc}`,
+                nodeId: n.id,
+                color: n.color,
+            }));
+            es.choices.push({ label: 'Skip (keep removal)', nodeId: null, color: '#666' });
+            es.phase = 'choosing';
+            es.cursor = 0;
+            return;
+        }
+    }
+
+    // ── Boss Scroll ──────────────────────────────────────
+
+    /** Update boss scroll choice overlay. */
+    _updateBossScroll() {
+        if (!this.scrollChoices || this.scrollChoices.length === 0) {
+            this.state = STATE_PLAYING;
+            return;
+        }
+
+        const count = this.scrollChoices.length;
+
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.scrollCursor = (this.scrollCursor - 1 + count) % count;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.scrollCursor = (this.scrollCursor + 1) % count;
+            Audio.playMenuNav();
+        }
+
+        if (wasPressed('Enter') || wasPressed('Space')) {
+            const chosen = this.scrollChoices[this.scrollCursor];
+            if (chosen) {
+                const result = applyBossScrollChoice(chosen);
+                if (result) {
+                    const typeLabel = result.type === 'ability' ? 'Ability' : result.type === 'proc' ? 'Passive' : 'Node';
+                    showBigToast(`${typeLabel} Unlocked: ${result.name}`, result.color, result.icon);
+                    Audio.playRelicUnlock();
+                }
+            }
+            Audio.playMenuSelect();
+            this.scrollChoices = null;
+            // Proceed to run shop or playing
+            if (this._pendingRunShop) {
+                this._pendingRunShop = false;
+                this.runShopCursor = 0;
+                this.hasForgeTokenInShop = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
+                this.state = STATE_SHOP_RUN;
+            } else {
+                this.state = STATE_PLAYING;
+            }
+        }
+
+        if (wasPressed('Escape')) {
+            // Can't skip scroll — must choose
+            // (optional: allow skip for UX, but design says "choose 1 of 3")
+        }
     }
 
     // ── Canyon / Pit Fall Handling ─────────────────────────
@@ -1614,6 +1924,8 @@ export class Game {
             case STATE_SHOP_RUN:        this._updateRunShop();       break;
             case STATE_ACHIEVEMENTS:    this._updateAchievements();  break;
             case STATE_LOADOUT:         this._updateLoadout();       break;
+            case STATE_EVENT:           this._updateEvent();         break;
+            case STATE_BOSS_SCROLL:     this._updateBossScroll();    break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -2278,6 +2590,33 @@ export class Game {
                 }
             }
 
+            // ── Biome mastery tracking + boss scroll (blocked by cheats) ──
+            if (!this.cheatsUsedThisRun) {
+                // Biome mastery
+                if (this.currentBiome) {
+                    const masteryUnlocks = processBiomeMasteryBossKill(this.currentBiome.id, this.stage);
+                    for (const u of masteryUnlocks) {
+                        const tLabel = u.type === 'ability' ? 'Ability' : u.type === 'proc' ? 'Passive' : 'Node';
+                        showBigToast(`Biome Mastery: ${tLabel} ${u.name}`, u.color, u.icon);
+                        Audio.playRelicUnlock();
+                    }
+                }
+
+                // Boss scroll drop chance
+                const scrollChoices = generateBossScrollChoices();
+                if (scrollChoices) {
+                    this._pendingBossScroll = scrollChoices;
+                    showToast('📜 Ancient Scroll dropped!', '#ffd700', '📜');
+                }
+
+                // Pity unlock check
+                const pity = checkPityUnlock(this.stage);
+                if (pity) {
+                    showBigToast(`Pity Unlock: ${pity.name}`, pity.color, pity.icon);
+                    Audio.playRelicUnlock();
+                }
+            }
+
             this.bossVictoryDelay = 1200; // 1.2s freeze before victory overlay
             return;
         }
@@ -2695,6 +3034,13 @@ export class Game {
         const chosen = choices[choiceIdx];
         if (chosen.type === 'base') {
             this.player.levelUp(chosen.id);
+        } else if (chosen.type === 'node') {
+            // Apply upgrade node from UpgradeEngine
+            UpgradeEngine.applyNode(chosen.nodeId || chosen.id, 'levelup');
+            // Still do the level-up stat bookkeeping (level counter, xp)
+            this.player.level++;
+            this.player.xp -= this.player.xpToNext;
+            this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
         } else if (chosen.type === 'runUpgrade') {
             // Activate run upgrade
             this.runUpgradesActive[chosen.id] = true;
@@ -2720,33 +3066,43 @@ export class Game {
             this.state = STATE_LEVEL_UP;
         } else {
             this._cachedLevelUpChoices = null;
-            // Check if a run shop was pending (deferred from boss victory)
-            if (this._pendingRunShop) {
-                this._pendingRunShop = false;
-                this.runShopCursor = 0;
-                this.state = STATE_SHOP_RUN;
-            } else {
-                this.state = STATE_PLAYING;
-            }
+            this._afterLevelUpChain();
         }
     }
 
+    /** Transition logic after all chained level-ups are resolved. */
+    _afterLevelUpChain() {
+        // Boss scroll pending?
+        if (this._pendingBossScroll) {
+            this.scrollChoices = this._pendingBossScroll;
+            this._pendingBossScroll = null;
+            this.scrollCursor = 0;
+            this.state = STATE_BOSS_SCROLL;
+            return;
+        }
+        // Run shop pending?
+        if (this._pendingRunShop) {
+            this._pendingRunShop = false;
+            this.runShopCursor = 0;
+            this.hasForgeTokenInShop = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
+            this.state = STATE_SHOP_RUN;
+            return;
+        }
+        this.state = STATE_PLAYING;
+    }
+
     /**
-     * Build array of level-up choices: 3 base + optionally 1 run upgrade.
-     * Each: { type: 'base'|'runUpgrade', id, label, color, key }
+     * Build array of level-up choices using UpgradeEngine (node-based + base stat fallbacks).
+     * Each: { type: 'node'|'base'|'runUpgrade', id, label, color, icon?, nodeId? }
      */
     _getLevelUpChoices() {
-        const choices = [
-            { type: 'base', id: 'hp',     label: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50', key: '1' },
-            { type: 'base', id: 'speed',  label: `+${UPGRADE_SPEED} Speed`, color: '#2196f3', key: '2' },
-            { type: 'base', id: 'damage', label: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336', key: '3' },
-        ];
+        const context = this._getUpgradeContext();
+        const choices = UpgradeEngine.buildLevelUpChoices(context, this.player);
 
-        // Add an unlocked run upgrade if available and not yet picked this run
+        // Also offer an unlocked run upgrade if available (as extra 4th option)
         const unlocked = getUnlockedRunUpgradeIds();
         const available = unlocked.filter(id => !this.runUpgradesActive[id]);
         if (available.length > 0) {
-            // Pick one random available upgrade to offer
             const id = available[Math.floor(Math.random() * available.length)];
             const def = RUN_UPGRADE_DEFINITIONS[id];
             if (def) {
@@ -2755,12 +3111,20 @@ export class Game {
                     id,
                     label: `${def.icon} ${def.name}: ${def.desc}`,
                     color: def.color,
-                    key: '4',
                 });
             }
         }
 
         return choices;
+    }
+
+    /** Build the context object used by UpgradeEngine for node eligibility checks. */
+    _getUpgradeContext() {
+        return {
+            equippedAbilities: this.abilitySystem.getEquippedIds(),
+            equippedProcs: this.procSystem.getEquippedIds(),
+            stage: this.stage,
+        };
     }
 
     /** Apply a chosen run upgrade's immediate effects. */
@@ -2948,13 +3312,9 @@ export class Game {
             return;
         }
 
-        // Open in-run shop after every boss
-        this.runShopCursor = 0;
-        this.state = STATE_SHOP_RUN;
-
-        // No level-up, no shop → back to playing (door is unlocked, walk through to continue)
-        this._cachedLevelUpChoices = null;
-        this.state = STATE_PLAYING;
+        // No level-up: scroll → shop → playing (via _afterLevelUpChain logic)
+        this._pendingRunShop = true;
+        this._afterLevelUpChain();
     }
 
     // ── Adaptive Music ───────────────────────────────────
@@ -2969,6 +3329,8 @@ export class Game {
                 break;
             case STATE_LEVEL_UP:
             case STATE_BOSS_VICTORY:
+            case STATE_EVENT:
+            case STATE_BOSS_SCROLL:
                 break;  // keep current danger
             case STATE_GAME_OVER:
                 Music.setDanger(0.18);
@@ -3246,7 +3608,12 @@ export class Game {
                 this.lastBossReward, RELIC_DEFINITIONS, RUN_UPGRADE_DEFINITIONS);
         } else if (this.state === STATE_SHOP_RUN) {
             renderRunShop(ctx, this.runShopCursor, this.runCoins, this.stage,
-                this.metaBoosterShieldCharges, this.bombCharges);
+                this.metaBoosterShieldCharges, this.bombCharges,
+                this.hasForgeTokenInShop, this.forgeTokenCount);
+        } else if (this.state === STATE_EVENT) {
+            EventSystem.renderEvent(ctx, this.eventState);
+        } else if (this.state === STATE_BOSS_SCROLL) {
+            renderBossScrollOverlay(ctx, this.scrollChoices || [], this.scrollCursor);
         }
     }
 

@@ -8,8 +8,9 @@ import { ABILITY_DEFINITIONS } from '../combat/abilities.js';
 import { PROC_DEFINITIONS } from '../combat/procs.js';
 import {
     ABILITY_ORDER, PROC_ORDER,
-    isAbilityUnlocked, isProcUnlocked, getNextUnlockHint,
+    isAbilityUnlocked, isProcUnlocked,
 } from '../combat/combatUnlocks.js';
+import { getUnlockSummary } from '../unlocks/unlockMap.js';
 
 /**
  * Render the loadout selection screen.
@@ -104,7 +105,8 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     const canStart = selectedAbilities.length >= 1;
 
     // ── Unlock progress hint ──
-    const hint = getNextUnlockHint(meta.stats.bossesKilledTotal);
+    const summary = getUnlockSummary();
+    const hint = `Unlocked: ${summary.abilities.unlocked}/${summary.abilities.total} abilities · ${summary.procs.unlocked}/${summary.procs.total} procs · ${summary.nodes.unlocked}/${summary.nodes.total} nodes`;
     if (hint) {
         ctx.fillStyle = '#555';
         ctx.font = '11px monospace';
@@ -243,13 +245,15 @@ function _renderRow(ctx, def, unlocked, selected, isCursor, y, meta, type, slotI
         // Locked item
         ctx.fillStyle = '#444';
         ctx.font = '14px monospace';
-        ctx.fillText(`🔒  ${def.name}`, leftX + 12, y + 5);
+        const lockText = `🔒  ${def.name}`;
+        ctx.fillText(lockText, leftX + 12, y + 5);
 
-        // Unlock hint
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#555';
-        ctx.font = '11px monospace';
-        ctx.fillText('Defeat more bosses to unlock', rightX, y + 5);
+        // Unlock hint — positioned after the name with a gap
+        const nameWidth = ctx.measureText(lockText).width;
+        const hintX = leftX + 12 + nameWidth + 12;
+        ctx.fillStyle = '#383838';
+        ctx.font = '10px monospace';
+        ctx.fillText('🏆 / Biome / Scrolls', hintX, y + 5);
     }
 
     ctx.textAlign = 'center';

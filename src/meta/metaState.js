@@ -20,6 +20,8 @@ export function createDefaultMetaState() {
         runUpgradesUnlocked: {},     // Record<upgradeId, true>
         unlockedAbilities: { shockwave: true },      // Record<abilityId, true>
         unlockedProcs:     { explosive_strikes: true }, // Record<procId, true>
+        unlockedNodes:     {},                          // Record<nodeId, true>
+        biomeMastery: {},                               // Record<biomeId, { bossesDefeated, bestStage }>
         stats: {
             bossesKilledTotal: 0,
             highestStage:      0,
@@ -53,6 +55,8 @@ export function validateMetaState(raw) {
         runUpgradesUnlocked: _objCopy(raw.runUpgradesUnlocked),
         unlockedAbilities:   _objCopyDefault(raw.unlockedAbilities, { shockwave: true }),
         unlockedProcs:       _objCopyDefault(raw.unlockedProcs, { explosive_strikes: true }),
+        unlockedNodes:       _objCopy(raw.unlockedNodes),
+        biomeMastery:        _validateBiomeMastery(raw.biomeMastery),
         stats: {
             bossesKilledTotal: _int(raw.stats?.bossesKilledTotal, 0),
             highestStage:      _int(raw.stats?.highestStage, 0),
@@ -108,6 +112,22 @@ function _objCopyDefault(obj, defaults) {
     if (obj && typeof obj === 'object') {
         for (const k of Object.keys(obj)) {
             if (obj[k] === true) out[k] = true;
+        }
+    }
+    return out;
+}
+
+/** Validate biomeMastery: Record<biomeId, { bossesDefeated, bestStage }> */
+function _validateBiomeMastery(raw) {
+    if (!raw || typeof raw !== 'object') return {};
+    const out = {};
+    for (const k of Object.keys(raw)) {
+        const entry = raw[k];
+        if (entry && typeof entry === 'object') {
+            out[k] = {
+                bossesDefeated: _int(entry.bossesDefeated, 0),
+                bestStage:      _int(entry.bestStage, 0),
+            };
         }
     }
     return out;
