@@ -940,6 +940,83 @@ export class Boss {
             ctx.fill();
             ctx.restore();
         }
+
+        // Bombardment danger zones (juggernaut — pulsing red/orange warning circles on the floor)
+        if (this.currentAttack === 'bombardment' && this.bombardTargets.length > 0) {
+            const windupTotal = BOSS_BOMBARDMENT_WINDUP * this.phaseMultiplier;
+            const progress = this.attackPhase === 1
+                ? Math.min(1, 1 - this.attackTimer / windupTotal)
+                : 1;
+            const pulse = Math.sin(Date.now() * 0.015) * 0.1;
+            const time = Date.now();
+
+            for (const t of this.bombardTargets) {
+                const r = BOSS_BOMBARDMENT_RADIUS;
+
+                if (this.attackPhase === 1) {
+                    // ── Windup: growing warning zone ──
+                    const zoneR = r * progress;
+
+                    // Outer ring (dashed, pulsing)
+                    ctx.save();
+                    ctx.globalAlpha = (0.25 + pulse) * progress;
+                    ctx.strokeStyle = '#ff3300';
+                    ctx.lineWidth = 2.5;
+                    ctx.setLineDash([6, 4]);
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, zoneR, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+
+                    // Fill
+                    ctx.save();
+                    ctx.globalAlpha = (0.08 + pulse * 0.5) * progress;
+                    ctx.fillStyle = '#ff4400';
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, zoneR, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Crosshair lines
+                    ctx.save();
+                    ctx.globalAlpha = (0.2 + pulse) * progress;
+                    ctx.strokeStyle = '#ff6600';
+                    ctx.lineWidth = 1;
+                    const cross = zoneR * 0.6;
+                    ctx.beginPath();
+                    ctx.moveTo(t.x - cross, t.y);
+                    ctx.lineTo(t.x + cross, t.y);
+                    ctx.moveTo(t.x, t.y - cross);
+                    ctx.lineTo(t.x, t.y + cross);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // Center dot (blinks faster as impact approaches)
+                    const blinkRate = 0.005 + progress * 0.025;
+                    const blink = Math.sin(time * blinkRate) > 0 ? 1 : 0.3;
+                    ctx.save();
+                    ctx.globalAlpha = blink * progress;
+                    ctx.fillStyle = '#ff0000';
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                } else {
+                    // ── Recovery phase: flash at impact then fade ──
+                    const recoveryProgress = this.attackTimer / 700; // 700ms recovery
+                    if (recoveryProgress > 0.5) {
+                        ctx.save();
+                        ctx.globalAlpha = (recoveryProgress - 0.5) * 0.3;
+                        ctx.fillStyle = '#ff6600';
+                        ctx.beginPath();
+                        ctx.arc(t.x, t.y, r * 0.4, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+            }
+        }
     }
 
     // ── Biome theme application ────────────────────────────

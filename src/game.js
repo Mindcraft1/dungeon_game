@@ -2057,6 +2057,18 @@ export class Game {
                         this.particles.bossSlam(evt.x, evt.y, evt.radius, this.boss.color);
                         triggerShake(10, 0.9);
                         break;
+                    case 'bombardment': {
+                        // Spawn explosion zones at each marked target
+                        for (const t of evt.targets) {
+                            this.explosions.push(new Explosion(
+                                t.x, t.y, evt.radius, evt.damage, evt.linger, this.boss.color,
+                            ));
+                            this.particles.rocketExplosion(t.x, t.y, evt.radius, this.boss.color);
+                        }
+                        Audio.playBossSlam();
+                        triggerShake(12, 0.9);
+                        break;
+                    }
                 }
             }
             this.boss._events = [];
@@ -3265,7 +3277,7 @@ export class Game {
         ctx.save();
         ctx.textAlign = 'center';
 
-        let y = CANVAS_HEIGHT - 80;
+        let y = 10;
 
         for (const t of this._achievementToasts) {
             const fadeMs = t.maxTimer * 0.3;
@@ -3295,7 +3307,7 @@ export class Game {
             ctx.fillText(display, CANVAS_WIDTH / 2, y + 20);
             ctx.shadowBlur = 0;
 
-            y -= h + 6;
+            y += h + 6;
         }
 
         ctx.restore();
