@@ -164,6 +164,7 @@ export class Game {
 
         // ── Boss ──
         this.boss = null;
+        this.cheatBosses = [];        // cheat-summoned bosses (no victory flow)
         this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
         this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
         this.lastBossReward = null;   // reward result from last boss kill
@@ -368,12 +369,21 @@ export class Game {
         const bossType = typeMap[cheatId];
         if (!bossType) return;
 
-        // Spawn the boss in the current room (encounter 0, current stage)
-        this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, 0, this.stage, this.currentBiome);
-        this.boss.cheatSummoned = true;  // flag: skip victory/reward flow on death
+        // Spawn the boss in the current room alongside existing enemies/bosses
+        const b = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, 0, this.stage, this.currentBiome);
+        b.cheatSummoned = true;
+        this.cheatBosses.push(b);
         Audio.playBossRoar();
 
-        this._cheatNotify(`SUMMONED ${this.boss.name.toUpperCase()}`, this.boss.color);
+        this._cheatNotify(`SUMMONED ${b.name.toUpperCase()}`, b.color);
+    }
+
+    /** All living bosses (real + cheat-summoned) */
+    _allBosses() {
+        const list = [];
+        if (this.boss && !this.boss.dead) list.push(this.boss);
+        for (const b of this.cheatBosses) { if (!b.dead) list.push(b); }
+        return list;
     }
 
     _cheatNotify(text, color) {
@@ -448,6 +458,7 @@ export class Game {
         this.comboPopups = [];
         this.comboFlash = 0;
         this.boss = null;
+        this.cheatBosses = [];
         this.bossVictoryDelay = 0;
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
@@ -853,6 +864,7 @@ export class Game {
         this.coinPickups = [];
         this.particles.clear();
         this.bossVictoryDelay = 0;
+        this.cheatBosses = [];
 
         // Determine boss type (rotates: Brute → Warlock → Phantom → Juggernaut)
         const encounter = Math.floor(this.stage / BOSS_STAGE_INTERVAL) - 1;
@@ -868,12 +880,6 @@ export class Game {
             achEmit('boss_fight_started', { stage: this.stage });
             achEmit('room_started', { stage: this.stage, enemyCount: 1, hasTraps: false });
         }
-    }
-
-
-
-        this._spawnTrainingEnemies(grid, spawnPos, doorPos);
-        this.state = STATE_PLAYING;
     }
 
     _returnFromTraining() {
@@ -897,6 +903,7 @@ export class Game {
         this.comboPopups = [];
         this.comboFlash = 0;
         this.boss = null;
+        this.cheatBosses = [];
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
@@ -1443,15 +1450,15 @@ export class Game {
                 e.stunTimer = BOMB_STUN_DURATION;
             }
         }
-        // Also damage + stun boss if present
-        if (this.boss && !this.boss.dead) {
-            const dx = this.boss.x - this.player.x;
-            const dy = this.boss.y - this.player.y;
+        // Also damage + stun all bosses (real + cheat-summoned)
+        for (const b of this._allBosses()) {
+            const dx = b.x - this.player.x;
+            const dy = b.y - this.player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < BOMB_RADIUS + this.boss.radius) {
-                this.boss.takeDamage(bombDamage);
+            if (dist < BOMB_RADIUS + b.radius) {
+                b.takeDamage(bombDamage);
                 // Bosses get a shorter stun
-                this.boss.stunTimer = Math.floor(BOMB_STUN_DURATION * 0.5);
+                b.stunTimer = Math.floor(BOMB_STUN_DURATION * 0.5);
             }
         }
         showToast('💣 BOOM!', '#ff9800', '💣');
@@ -1729,10 +1736,12 @@ export class Game {
         }
 
         // ── Ability Q/E input ──
+        const allBosses = this._allBosses();
         const combatContext = {
             player: this.player,
             enemies: this.enemies,
-            boss: this.boss && !this.boss.dead ? this.boss : null,
+            boss: allBosses.length > 0 ? allBosses[0] : null,
+            allBosses: allBosses,
             projectiles: this.projectiles,
             particles: this.particles,
             procSystem: this.procSystem,
@@ -1754,8 +1763,8 @@ export class Game {
 
         // Attack
         if (isDown('Space')) {
-            const targets = this.boss && !this.boss.dead
-                ? [...this.enemies, this.boss]
+            const targets = allBosses.length > 0
+                ? [...this.enemies, ...allBosses]
                 : this.enemies;
 
             // ── Cheat: One Hit Kill — temporarily set massive damage ──
@@ -1800,11 +1809,13 @@ export class Game {
                         }
                     }
                     // Boss hit sparks
-                    if (this.boss && !this.boss.dead && this.boss.damageFlashTimer > 100) {
-                        const bx = this.boss.x - this.player.x;
-                        const by = this.boss.y - this.player.y;
-                        const bd = Math.sqrt(bx * bx + by * by) || 1;
-                        this.particles.hitSparks(this.boss.x, this.boss.y, bx / bd, by / bd);
+                    for (const b of allBosses) {
+                        if (b.damageFlashTimer > 100) {
+                            const bx = b.x - this.player.x;
+                            const by = b.y - this.player.y;
+                            const bd = Math.sqrt(bx * bx + by * by) || 1;
+                            this.particles.hitSparks(b.x, b.y, bx / bd, by / bd);
+                        }
                     }
 
                     // ── Proc dispatch on melee hits ──
@@ -1814,15 +1825,17 @@ export class Game {
                         if (!e.dead && e.damageFlashTimer > 100) {
                             this.procSystem.handleHit(
                                 { source: this.player, target: e, damage: this.player.damage, isCrit, attackType: 'melee' },
-                                { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                                { enemies: this.enemies, boss: allBosses[0] || null, particles: this.particles },
                             );
                         }
                     }
-                    if (this.boss && !this.boss.dead && this.boss.damageFlashTimer > 100) {
-                        this.procSystem.handleHit(
-                            { source: this.player, target: this.boss, damage: this.player.damage, isCrit, attackType: 'melee' },
-                            { enemies: this.enemies, boss: this.boss, particles: this.particles },
-                        );
+                    for (const b of allBosses) {
+                        if (b.damageFlashTimer > 100) {
+                            this.procSystem.handleHit(
+                                { source: this.player, target: b, damage: this.player.damage, isCrit, attackType: 'melee' },
+                                { enemies: this.enemies, boss: allBosses[0] || null, particles: this.particles },
+                            );
+                        }
                     }
                     // Small impact on melee hits (screen shake + flash)
                     Impact.shake(1.5, 0.85);
@@ -1904,7 +1917,7 @@ export class Game {
                 // Proc dispatch: on kill
                 this.procSystem.handleKill(
                     { source: this.player, target: e, attackType: 'melee' },
-                    { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                    { enemies: this.enemies, boss: this._allBosses()[0] || null, particles: this.particles },
                 );
 
                 // Try to spawn a pickup drop
@@ -2016,7 +2029,69 @@ export class Game {
             }
         }
 
-        // Boss death
+        // ── Cheat bosses update ──
+        for (const cb of this.cheatBosses) {
+            if (cb.dead) continue;
+            cb.update(dt, this.player, this.grid, this.enemies, this.projectiles);
+
+            for (const evt of cb._events) {
+                switch (evt.type) {
+                    case 'slam':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, cb.color);
+                        triggerShake(8, 0.88);
+                        break;
+                    case 'phase_transition':
+                        Audio.playBossRoar();
+                        this.particles.bossPhaseTransition(cb.x, cb.y);
+                        triggerShake(10, 0.9);
+                        break;
+                    case 'charge': Audio.playTankCharge(); break;
+                    case 'summon': Audio.playBossRoar(); break;
+                    case 'projectile': Audio.playProjectile(); break;
+                    case 'rocket_fire': Audio.playProjectile(); break;
+                    case 'stomp':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, cb.color);
+                        triggerShake(10, 0.9);
+                        break;
+                    case 'bombardment': {
+                        for (const t of evt.targets) {
+                            this.explosions.push(new Explosion(
+                                t.x, t.y, evt.radius, evt.damage, evt.linger, cb.color,
+                            ));
+                            this.particles.rocketExplosion(t.x, t.y, evt.radius, cb.color);
+                        }
+                        Audio.playBossSlam();
+                        triggerShake(12, 0.9);
+                        break;
+                    }
+                }
+            }
+            cb._events = [];
+
+            if (cb.pendingSpawns.length > 0) {
+                const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15) * 0.7);
+                const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2) * 0.8;
+                const dmgBase = Math.floor((ENEMY_DAMAGE + (this.stage - 1) * 0.5) * 0.7);
+                for (const spawn of cb.pendingSpawns) {
+                    this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
+                }
+                cb.pendingSpawns = [];
+            }
+        }
+        // Remove dead cheat bosses
+        for (const cb of this.cheatBosses) {
+            if (cb.dead && !cb.xpGiven) {
+                cb.xpGiven = true;
+                Audio.playBossDeath();
+                this.particles.bossDeath(cb.x, cb.y, cb.color);
+                triggerShake(15, 0.92);
+            }
+        }
+        this.cheatBosses = this.cheatBosses.filter(b => !b.dead);
+
+        // Boss death (real boss only — cheat bosses handled above)
         if (this.boss && this.boss.dead && !this.boss.xpGiven) {
             this.boss.xpGiven = true;
             // Kill all remaining adds
@@ -2033,12 +2108,6 @@ export class Game {
             Audio.playBossDeath();
             this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
             triggerShake(15, 0.92);
-
-            // Cheat-summoned boss: just clear it, no victory/rewards
-            if (this.boss.cheatSummoned) {
-                this.boss = null;
-                return;
-            }
 
             // ── Achievement events: boss killed + room cleared (blocked by cheats) ──
             if (!this.cheatsUsedThisRun) {
@@ -2116,7 +2185,7 @@ export class Game {
         this.explosions = this.explosions.filter(ex => !ex.dead);
 
         // Player daggers — update + hit detection
-        const activeBoss = this.boss && !this.boss.dead ? this.boss : null;
+        const activeBoss = allBosses.length > 0 ? allBosses[0] : null;
         for (const d of this.playerProjectiles) {
             d.update(dt, this.enemies, activeBoss, this.grid);
             if (!d.dead) {
@@ -2135,7 +2204,7 @@ export class Game {
                 if (hitEntity && !hitEntity.dead) {
                     this.procSystem.handleHit(
                         { source: this.player, target: hitEntity, damage: d.damage || this.player.damage, isCrit: daggerCrit, attackType: 'dagger' },
-                        { enemies: this.enemies, boss: this.boss, particles: this.particles },
+                        { enemies: this.enemies, boss: allBosses[0] || null, particles: this.particles },
                     );
                 }
             }
@@ -2247,7 +2316,8 @@ export class Game {
         }
 
         // Door
-        const allFoes = this.boss && !this.boss.dead ? [...this.enemies, this.boss] : this.enemies;
+        const allBossesForDoor = this._allBosses();
+        const allFoes = allBossesForDoor.length > 0 ? [...this.enemies, ...allBossesForDoor] : this.enemies;
         this.door.update(dt, allFoes, this.trainingMode);
 
         // Door unlock sound + particles
@@ -2754,7 +2824,8 @@ export class Game {
         if (!this.player) return 0;
 
         const alive = this.enemies.filter(e => !e.dead);
-        const bossAlive = this.boss && !this.boss.dead;
+        const livingBosses = this._allBosses();
+        const bossAlive = livingBosses.length > 0;
 
         if (alive.length === 0 && !bossAlive) return 0.10;
 
@@ -2764,8 +2835,9 @@ export class Game {
         // Boss adds significant danger
         if (bossAlive) {
             danger += 0.25;
-            const dx = this.boss.x - this.player.x;
-            const dy = this.boss.y - this.player.y;
+            const b = livingBosses[0];
+            const dx = b.x - this.player.x;
+            const dy = b.y - this.player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             danger += 0.15 * Math.max(0, 1 - dist / 300);
         }
@@ -2879,6 +2951,7 @@ export class Game {
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
         if (this.boss && !this.boss.dead) this.boss.render(ctx);
+        for (const cb of this.cheatBosses) { if (!cb.dead) cb.render(ctx); }
         for (const p of this.projectiles) p.render(ctx);
         for (const d of this.playerProjectiles) d.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
@@ -2891,7 +2964,8 @@ export class Game {
 
         // Locked-door hint (real game only)
         if (!this.trainingMode && this.door.locked && this.door.isPlayerNear(this.player)) {
-            const lockText = this.boss && !this.boss.dead ? 'DEFEAT THE BOSS' : 'LOCKED';
+            const anyBossAlive = this._allBosses().length > 0;
+            const lockText = anyBossAlive ? 'DEFEAT THE BOSS' : 'LOCKED';
             this._renderTooltip(
                 this.door.x + this.door.width / 2,
                 this.door.y - 14,
@@ -2909,8 +2983,9 @@ export class Game {
         }
 
         let alive = this.enemies.filter(e => !e.dead).length;
-        if (this.boss && !this.boss.dead) alive++;
-        const isBossRoom = !!(this.boss);
+        const livingBosses = this._allBosses();
+        alive += livingBosses.length;
+        const isBossRoom = !!(this.boss) || this.cheatBosses.length > 0;
         const biomeName  = this.currentBiome ? this.currentBiome.name : null;
         const biomeColor = this.currentBiome ? this.currentBiome.nameColor : null;
         renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
@@ -2924,9 +2999,9 @@ export class Game {
         // ── Ability / Proc bar ──
         renderAbilityBar(ctx, this.abilitySystem, this.procSystem);
 
-        // Boss HP bar
-        if (this.boss && !this.boss.dead) {
-            renderBossHPBar(ctx, this.boss);
+        // Boss HP bars
+        for (const b of this._allBosses()) {
+            renderBossHPBar(ctx, b);
         }
 
         // ── Combo screen flash ──
