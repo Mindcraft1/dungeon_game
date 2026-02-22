@@ -76,6 +76,7 @@ import { PROC_IDS } from './combat/procs.js';
 import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
+import * as DevTools from './ui/devTools.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -356,6 +357,14 @@ export class Game {
                 }
                 break;
             }
+            case 'devtools': {
+                DevTools.toggle();
+                this._cheatNotify(
+                    DevTools.isVisible() ? 'DEV TOOLS OPENED' : 'DEV TOOLS CLOSED',
+                    '#4fc3f7',
+                );
+                break;
+            }
         }
     }
 
@@ -575,7 +584,10 @@ export class Game {
 
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, TRAINING_ENEMY_COUNT);
         this.enemies = spawns.map(p => new Enemy(
-            p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE,
+            p.x, p.y,
+            DevTools.getVal('enemyHp', ENEMY_HP),
+            DevTools.getVal('enemySpeed', ENEMY_SPEED) * 0.8,
+            DevTools.getVal('enemyDamage', ENEMY_DAMAGE),
         ));
     }
 
@@ -618,7 +630,10 @@ export class Game {
                 const all = [ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK];
                 type = all[Math.floor(Math.random() * all.length)];
             }
-            return new Enemy(p.x, p.y, ENEMY_HP, ENEMY_SPEED * 0.8, ENEMY_DAMAGE, type, 1);
+            const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
+            const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
+            const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
+            return new Enemy(p.x, p.y, eHp, eSpd * 0.8, eDmg, type, 1);
         });
     }
 
@@ -641,9 +656,12 @@ export class Game {
 
     _spawnEnemies(grid, spawnPos, doorPos) {
         const count = Math.min(2 + Math.floor((this.stage - 1) * 0.75), 10);
-        const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15));
-        const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2);
-        const dmgBase = ENEMY_DAMAGE + Math.floor((this.stage - 1) * 0.5);
+        const eHp  = DevTools.getVal('enemyHp',     ENEMY_HP);
+        const eSpd = DevTools.getVal('enemySpeed',   ENEMY_SPEED);
+        const eDmg = DevTools.getVal('enemyDamage',  ENEMY_DAMAGE);
+        const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15));
+        const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2);
+        const dmgBase = eDmg + Math.floor((this.stage - 1) * 0.5);
 
         const types = this._getEnemyTypes(this.stage, count, this.currentBiome);
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, count);
@@ -1494,6 +1512,13 @@ export class Game {
         for (const n of this.cheatNotifications) n.timer -= dt * 1000;
         this.cheatNotifications = this.cheatNotifications.filter(n => n.timer > 0);
 
+        // ── Dev Tools: apply overrides each frame ──
+        if (DevTools.hasOverrides()) {
+            DevTools.applyToPlayer(this.player);
+            DevTools.applyToEnemies(this.enemies);
+        }
+        DevTools.updateLiveStats(this);
+
         switch (this.state) {
             case STATE_MENU:            this._updateMenu();           break;
             case STATE_PROFILES:        this._updateProfiles();       break;
@@ -2020,9 +2045,12 @@ export class Game {
 
             // Process boss spawned adds
             if (this.boss.pendingSpawns.length > 0) {
-                const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15) * 0.7);
-                const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2) * 0.8;
-                const dmgBase = Math.floor((ENEMY_DAMAGE + (this.stage - 1) * 0.5) * 0.7);
+                const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
+                const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
+                const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
+                const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15) * 0.7);
+                const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2) * 0.8;
+                const dmgBase = Math.floor((eDmg + (this.stage - 1) * 0.5) * 0.7);
                 for (const spawn of this.boss.pendingSpawns) {
                     this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
                 }
@@ -2072,9 +2100,12 @@ export class Game {
             cb._events = [];
 
             if (cb.pendingSpawns.length > 0) {
-                const hpBase = Math.floor(ENEMY_HP * (1 + (this.stage - 1) * 0.15) * 0.7);
-                const spdBase = Math.min(ENEMY_SPEED * (1 + (this.stage - 1) * 0.05), ENEMY_SPEED * 2) * 0.8;
-                const dmgBase = Math.floor((ENEMY_DAMAGE + (this.stage - 1) * 0.5) * 0.7);
+                const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
+                const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
+                const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
+                const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15) * 0.7);
+                const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2) * 0.8;
+                const dmgBase = Math.floor((eDmg + (this.stage - 1) * 0.5) * 0.7);
                 for (const spawn of cb.pendingSpawns) {
                     this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
                 }
@@ -2311,7 +2342,7 @@ export class Game {
             const alive = this.enemies.filter(e => !e.dead).length;
             if (alive === 0) {
                 this.trainingRespawnTimer += dt * 1000;
-                if (this.trainingRespawnTimer >= TRAINING_RESPAWN_DELAY) {
+                if (this.trainingRespawnTimer >= DevTools.getVal('trainingRespawn', TRAINING_RESPAWN_DELAY)) {
                     this._respawnTrainingEnemies();
                 }
             }
@@ -3047,7 +3078,7 @@ export class Game {
 
         // Training respawn countdown
         if (this.trainingMode && this.enemies.every(e => e.dead)) {
-            const remaining = Math.max(0, TRAINING_RESPAWN_DELAY - this.trainingRespawnTimer);
+            const remaining = Math.max(0, DevTools.getVal('trainingRespawn', TRAINING_RESPAWN_DELAY) - this.trainingRespawnTimer);
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 14px monospace';
             ctx.textAlign = 'center';
@@ -3314,6 +3345,7 @@ export class Game {
         if (this.cheats.godmode)    cheats.push({ label: 'GOD',     color: '#ffd700' });
         if (this.cheats.onehitkill) cheats.push({ label: '1HIT',    color: '#ff4444' });
         if (this.cheats.xpboost)    cheats.push({ label: 'XP×10',   color: '#bb86fc' });
+        if (DevTools.hasOverrides()) cheats.push({ label: '🛠️ DEV',  color: '#4fc3f7' });
         // Always show "NO PROGRESS" badge when cheats have been used this run
         if (this.cheatsUsedThisRun) cheats.push({ label: '⛔ NO PROGRESS', color: '#ff6666' });
         if (cheats.length === 0) return;

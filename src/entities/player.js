@@ -19,6 +19,7 @@ import {
     PLAYER_BASE_CRIT_CHANCE,
 } from '../constants.js';
 import { resolveWalls } from '../collision.js';
+import { devOverrides, getVal } from '../ui/devTools.js';
 
 export class Player {
     constructor(x, y) {
@@ -92,7 +93,7 @@ export class Player {
                 this.dashTimer = 0;
             } else {
                 // Dash movement overrides normal movement
-                const dashSpeed = this.getEffectiveSpeed() * DASH_SPEED_MULT;
+                const dashSpeed = this.getEffectiveSpeed() * getVal('dashSpeedMult', DASH_SPEED_MULT);
                 this.x += this.dashDirX * dashSpeed * dt;
                 this.y += this.dashDirY * dashSpeed * dt;
                 resolveWalls(this, this.radius, grid);
@@ -142,8 +143,8 @@ export class Player {
         dirY /= len;
 
         this.dashing = true;
-        this.dashTimer = DASH_DURATION;
-        this.dashCooldown = DASH_COOLDOWN;
+        this.dashTimer = getVal('dashDuration', DASH_DURATION);
+        this.dashCooldown = getVal('dashCooldown', DASH_COOLDOWN);
         this.dashDirX = dirX;
         this.dashDirY = dirY;
         this.invulnTimer = Math.max(this.invulnTimer, DASH_INVULN_TIME);
@@ -159,12 +160,12 @@ export class Player {
 
         // Cooldown (may be reduced by Speed Surge buff)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
-        this.attackTimer = ATTACK_COOLDOWN * cdMult;
-        this.attackVisualTimer = ATTACK_DURATION;
+        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult;
+        this.attackVisualTimer = getVal('attackDuration', ATTACK_DURATION);
 
         // Range (may be extended by Piercing Shot buff)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
-        const effectiveRange = ATTACK_RANGE * rangeMult * (this.attackRangeMultiplier || 1);
+        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1);
 
         // Damage calculation
         let dmg = this.damage;
@@ -196,8 +197,9 @@ export class Player {
             while (diff < -Math.PI) diff += Math.PI * 2;
             if (Math.abs(diff) > ATTACK_ARC / 2) continue;
 
-            const kbX = dist > 0 ? (dx / dist) * ATTACK_KNOCKBACK * kbMult : 0;
-            const kbY = dist > 0 ? (dy / dist) * ATTACK_KNOCKBACK * kbMult : 0;
+            const kbVal = getVal('attackKnockback', ATTACK_KNOCKBACK);
+            const kbX = dist > 0 ? (dx / dist) * kbVal * kbMult : 0;
+            const kbY = dist > 0 ? (dy / dist) * kbVal * kbMult : 0;
 
             // Meta relic: Boss Hunter — extra damage vs bosses
             let finalDmg = dmg;
@@ -221,7 +223,7 @@ export class Player {
 
         // Cooldown (may be reduced by Speed Surge buff)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
-        this.daggerCooldown = DAGGER_COOLDOWN * cdMult;
+        this.daggerCooldown = getVal('daggerCooldown', DAGGER_COOLDOWN) * cdMult;
 
         // Direction (facing)
         const len = Math.sqrt(this.facingX * this.facingX + this.facingY * this.facingY);
@@ -229,7 +231,7 @@ export class Player {
         const dirY = len > 0 ? this.facingY / len : 0;
 
         // Damage: base = player damage × DAGGER_DAMAGE_MULT, with buff multipliers
-        let dmg = Math.floor(this.damage * DAGGER_DAMAGE_MULT);
+        let dmg = Math.floor(this.damage * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
 
@@ -244,7 +246,7 @@ export class Player {
 
         // Range (may be extended by Piercing Shot buff)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
-        const maxDist = DAGGER_RANGE * rangeMult;
+        const maxDist = getVal('daggerRange', DAGGER_RANGE) * rangeMult;
 
         // Spawn slightly in front of player
         const spawnOffset = this.radius + DAGGER_RADIUS + 2;
@@ -254,7 +256,7 @@ export class Player {
         return {
             x: spawnX, y: spawnY,
             dirX, dirY,
-            speed: DAGGER_SPEED,
+            speed: getVal('daggerSpeed', DAGGER_SPEED),
             damage: dmg,
             radius: DAGGER_RADIUS,
             color: DAGGER_COLOR,
@@ -270,7 +272,7 @@ export class Player {
         if (this.phaseShieldActive) {
             this.phaseShieldActive = false;
             this._removeBuff(PICKUP_PHASE_SHIELD);
-            this.invulnTimer = PLAYER_INVULN_TIME;
+            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
             this.damageFlashTimer = 80;
             return;
         }
@@ -287,7 +289,7 @@ export class Player {
         }
 
         this.hp = Math.max(0, this.hp - finalAmount);
-        this.invulnTimer = PLAYER_INVULN_TIME;
+        this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
         this.damageFlashTimer = 150;
     }
 
@@ -405,7 +407,7 @@ export class Player {
 
     _renderAttackArc(ctx) {
         if (this.attackVisualTimer <= 0) return;
-        const alpha = this.attackVisualTimer / ATTACK_DURATION;
+        const alpha = this.attackVisualTimer / getVal('attackDuration', ATTACK_DURATION);
         const angle = Math.atan2(this.facingY, this.facingX);
 
         ctx.save();
@@ -413,7 +415,7 @@ export class Player {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
-        ctx.arc(this.x, this.y, ATTACK_RANGE, angle - ATTACK_ARC / 2, angle + ATTACK_ARC / 2);
+        ctx.arc(this.x, this.y, getVal('attackRange', ATTACK_RANGE), angle - ATTACK_ARC / 2, angle + ATTACK_ARC / 2);
         ctx.closePath();
         ctx.fill();
         ctx.restore();

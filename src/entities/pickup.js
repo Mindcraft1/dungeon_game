@@ -8,6 +8,7 @@ import {
     DROP_CHANCE,
     COIN_DROP_LIFETIME, COIN_DROP_RADIUS, COIN_DROP_BOBBLE_SPEED, COIN_MAGNET_RANGE,
 } from '../constants.js';
+import { getVal } from '../ui/devTools.js';
 
 // ── Drop tables per enemy type ──
 // Each enemy type drops one of two items (50/50 offensive/defensive)
@@ -35,7 +36,7 @@ export const PICKUP_INFO = {
  * Returns a Pickup instance or null.
  */
 export function trySpawnPickup(enemyX, enemyY, enemyType) {
-    if (Math.random() > DROP_CHANCE) return null;
+    if (Math.random() > getVal('dropChance', DROP_CHANCE)) return null;
 
     const table = DROP_TABLE[enemyType] || DROP_TABLE[ENEMY_TYPE_BASIC];
     const pickupType = table[Math.floor(Math.random() * table.length)];

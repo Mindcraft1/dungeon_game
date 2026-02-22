@@ -21,6 +21,7 @@ const _cheatCodes = [
     { code: 'warlock', id: 'summon_warlock' },
     { code: 'phantom', id: 'summon_phantom' },
     { code: 'jugger',  id: 'summon_juggernaut' },
+    { code: 'devmod', id: 'devtools' },
 ];
 
 window.addEventListener('keydown', (e) => {

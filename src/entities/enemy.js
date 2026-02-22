@@ -16,6 +16,7 @@ import { resolveWalls } from '../collision.js';
 import { hasLineOfSight, findPath } from '../pathfinding.js';
 import { Projectile } from './projectile.js';
 import { updateStatus, initStatus, renderStatusEffects } from '../combat/statusEffects.js';
+import { getVal } from '../ui/devTools.js';
 
 export class Enemy {
     /**
@@ -66,7 +67,7 @@ export class Enemy {
                 this.maxHp = baseHp;
                 this.speed = baseSpeed;
                 this.damage = baseDamage;
-                this.xpValue = ENEMY_XP;
+                this.xpValue = getVal('enemyXp', ENEMY_XP);
                 break;
         }
 
@@ -225,8 +226,8 @@ export class Enemy {
                 this.x + dirX * (this.radius + PROJECTILE_RADIUS + 2),
                 this.y + dirY * (this.radius + PROJECTILE_RADIUS + 2),
                 dirX, dirY,
-                PROJECTILE_SPEED,
-                this.projectileDamage || PROJECTILE_DAMAGE,
+                getVal('projSpeed', PROJECTILE_SPEED),
+                this.projectileDamage || getVal('projDamage', PROJECTILE_DAMAGE),
                 PROJECTILE_RADIUS,
                 PROJECTILE_COLOR,
             ));
