@@ -137,7 +137,6 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         ['Q', 'Ability Slot 1'],
         ['E', 'Ability Slot 2'],
         ['B', 'Use Bomb'],
-        ['T', 'Teleport to Training'],
         ['P / ESC', 'Pause'],
     ];
 

@@ -11,9 +11,8 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {number} enemyCount    – 1..10
  * @param {boolean} damageOn     – whether damage is enabled
  * @param {boolean} dropsOn      – whether item drops are enabled
- * @param {boolean} fromGame     – true if player pressed T mid-game
  */
-export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabel, enemyCount, damageOn, dropsOn, fromGame) {
+export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabel, enemyCount, damageOn, dropsOn) {
     // ── Background ──
     ctx.fillStyle = 'rgba(10, 10, 18, 0.97)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);

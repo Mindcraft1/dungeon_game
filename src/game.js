@@ -145,7 +145,6 @@ export class Game {
         this.trainingEnemyCount = 3;
         this.trainingDamage = false;    // false = no damage (default), true = take damage
         this.trainingDrops = false;     // false = no drops in training (default), true = drops enabled
-        this._trainingFromGame = false; // true if opened via T key mid-game
 
         // ── Audio ──
         this.muted = Audio.isMuted();
@@ -372,24 +371,9 @@ export class Game {
         const bossType = typeMap[cheatId];
         if (!bossType) return;
 
-        // Load the boss arena
-        const { grid, spawnPos, doorPos } = parseBossRoom();
-        this.grid = grid;
-        this._currentSpawnPos = spawnPos;
-        this._placePlayer(spawnPos);
-        this.door = new Door(doorPos.col, doorPos.row);
-        this.enemies = [];
-        this.projectiles = [];
-        this.explosions = [];
-        this.playerProjectiles = [];
-        this.hazards = [];
-        this.pickups = [];
-        this.coinPickups = [];
-        this.particles.clear();
-        this.bossVictoryDelay = 0;
-
-        // Spawn the boss (encounter 0, current stage)
+        // Spawn the boss in the current room (encounter 0, current stage)
         this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, 0, this.stage, this.currentBiome);
+        this.boss.cheatSummoned = true;  // flag: skip victory/reward flow on death
         Audio.playBossRoar();
 
         this._cheatNotify(`SUMMONED ${this.boss.name.toUpperCase()}`, this.boss.color);
@@ -443,7 +427,7 @@ export class Game {
                 this.profileDeleting = false;
                 this.state = STATE_PROFILES;
             } else if (this.menuIndex === 5) {
-                this._openTrainingConfig(false);
+                this._openTrainingConfig();
             } else if (this.menuIndex === 6) {
                 this.settingsCursor = 0;
                 this.state = STATE_SETTINGS;
@@ -520,19 +504,16 @@ export class Game {
         }
     }
 
-    _openTrainingConfig(fromGame) {
-        this._trainingFromGame = fromGame;
+    _openTrainingConfig() {
         this.trainingConfigCursor = 0;
         this.state = STATE_TRAINING_CONFIG;
     }
 
     _startTraining() {
         this.trainingMode = true;
-        if (!this._trainingFromGame) {
-            this._savedGame = null;
-            this.player = null;
-            this._equipSavedLoadout();
-        }
+        this._savedGame = null;
+        this.player = null;
+        this._equipSavedLoadout();
         this.stage = 0;
         this.currentBiome = null;
         if (this.player) this.player.biomeSpeedMult = 1.0;
@@ -894,96 +875,16 @@ export class Game {
         }
     }
 
-    // ── Teleport to training (T key) ──────────────────────
 
-    _teleportToTraining() {
-        this._savedGame = {
-            stage: this.stage,
-            enemies: this.enemies,
-            door: this.door,
-            grid: this.grid,
-            projectiles: this.projectiles,
-            playerProjectiles: this.playerProjectiles,
-            explosions: this.explosions,
-            pickups: this.pickups,
-            coinPickups: this.coinPickups,
-            hazards: this.hazards,
-            boss: this.boss,
-            spawnPos: this._currentSpawnPos,
-        };
-        this._openTrainingConfig(true);
-    }
-
-    /** Actually enter training after config (when coming from mid-game) */
-    _enterTrainingFromGame() {
-        this.trainingMode = true;
-        this.projectiles = [];
-        this.explosions = [];
-        this.playerProjectiles = [];
-        this.stage = 0;
-        this.currentBiome = null;
-        this.player.biomeSpeedMult = 1.0;
-        this.controlsHintTimer = 4000;
-
-        let grid, spawnPos, doorPos;
-        if (this.trainingRoomIndex === -1) {
-            ({ grid, spawnPos, doorPos } = parseTrainingRoom());
-        } else {
-            ({ grid, spawnPos, doorPos } = parseRoom(this.trainingRoomIndex));
-        }
-        this.grid = grid;
-        this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
-        this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
-        this.player.hp = this.player.maxHp;
-        this.player.invulnTimer = 0;
-        this.player.attackTimer = 0;
-        this.player.attackVisualTimer = 0;
-        this.door = new Door(doorPos.col, doorPos.row);
-        this.trainingRespawnTimer = 0;
-        this.pickups = [];
-        this.coinPickups = [];
-        this.hazards = [];
 
         this._spawnTrainingEnemies(grid, spawnPos, doorPos);
         this.state = STATE_PLAYING;
     }
 
     _returnFromTraining() {
-        if (!this._savedGame) {
-            this.state = STATE_MENU;
-            this.menuIndex = 0;
-            this.trainingMode = false;
-            return;
-        }
-        // Restore saved game
-        this.stage = this._savedGame.stage;
-        this.enemies = this._savedGame.enemies;
-        this.door = this._savedGame.door;
-        this.grid = this._savedGame.grid;
-        this.projectiles = this._savedGame.projectiles || [];
-        this.explosions = this._savedGame.explosions || [];
-        this.playerProjectiles = this._savedGame.playerProjectiles || [];
-        this.pickups = this._savedGame.pickups || [];
-        this.coinPickups = this._savedGame.coinPickups || [];
-        this.hazards = this._savedGame.hazards || [];
-        this.boss = this._savedGame.boss || null;
+        this.state = STATE_MENU;
+        this.menuIndex = 0;
         this.trainingMode = false;
-        this._savedGame = null;
-
-        let spawnPos;
-        if (this._savedGame.spawnPos) {
-            spawnPos = this._savedGame.spawnPos;
-        } else if (this._isBossStage(this.stage)) {
-            ({ spawnPos } = parseBossRoom());
-        } else {
-            ({ spawnPos } = parseRoom(this.stage - 1));
-        }
-        this.player.x = spawnPos.col * TILE_SIZE + TILE_SIZE / 2;
-        this.player.y = spawnPos.row * TILE_SIZE + TILE_SIZE / 2;
-        this.player.hp = this.player.maxHp;
-        this.controlsHintTimer = 0;
-        this._updateBiome();  // restore biome from saved stage
-        this.state = STATE_PLAYING;
     }
 
     restart() {
@@ -1749,12 +1650,6 @@ export class Game {
             return;
         }
 
-        // Teleport to training (T)
-        if (!this.trainingMode && wasPressed('KeyT')) {
-            this._teleportToTraining();
-            return;
-        }
-
         // Pause / Return from training (Escape or P)
         if (wasPressed('Escape') || wasPressed('KeyP')) {
             if (this.trainingMode) {
@@ -2144,6 +2039,12 @@ export class Game {
             Audio.playBossDeath();
             this.particles.bossDeath(this.boss.x, this.boss.y, this.boss.color);
             triggerShake(15, 0.92);
+
+            // Cheat-summoned boss: just clear it, no victory/rewards
+            if (this.boss.cheatSummoned) {
+                this.boss = null;
+                return;
+            }
 
             // ── Achievement events: boss killed + room cleared (blocked by cheats) ──
             if (!this.cheatsUsedThisRun) {
@@ -2701,34 +2602,14 @@ export class Game {
         // Confirm (Enter / Space) — start training from any row
         if (wasPressed('Enter') || wasPressed('Space')) {
             Audio.playMenuSelect();
-            if (this._trainingFromGame) {
-                this._enterTrainingFromGame();
-            } else {
-                this._startTraining();
-            }
+            this._startTraining();
             return;
         }
 
         // Back
         if (wasPressed('Escape')) {
-            if (this._trainingFromGame) {
-                // Cancel: restore saved state and resume
-                if (this._savedGame) {
-                    this.stage = this._savedGame.stage;
-                    this.enemies = this._savedGame.enemies;
-                    this.door = this._savedGame.door;
-                    this.grid = this._savedGame.grid;
-                    this.projectiles = this._savedGame.projectiles || [];
-                    this.explosions = this._savedGame.explosions || [];
-                    this.hazards = this._savedGame.hazards || [];
-                    this._savedGame = null;
-                    this._updateBiome();  // restore biome from stage
-                }
-                this.state = STATE_PLAYING;
-            } else {
-                this.state = STATE_MENU;
-                this.menuIndex = 0;
-            }
+            this.state = STATE_MENU;
+            this.menuIndex = 0;
         }
     }
 
@@ -2958,7 +2839,6 @@ export class Game {
                 this.trainingEnemyCount,
                 this.trainingDamage,
                 this.trainingDrops,
-                this._trainingFromGame,
             );
             this._renderCheatNotifications(ctx);
             return;
