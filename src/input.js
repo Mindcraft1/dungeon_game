@@ -17,6 +17,10 @@ const _cheatCodes = [
     { code: 'bigxp',   id: 'xpboost' },
     { code: 'showme',  id: 'skipstage' },
     { code: 'maxlvl',  id: 'maxlevel' },
+    { code: 'brute',   id: 'summon_brute' },
+    { code: 'warlock', id: 'summon_warlock' },
+    { code: 'phantom', id: 'summon_phantom' },
+    { code: 'jugger',  id: 'summon_juggernaut' },
 ];
 
 window.addEventListener('keydown', (e) => {

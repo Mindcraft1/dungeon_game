@@ -350,7 +350,49 @@ export class Game {
                 }
                 break;
             }
+            case 'summon_brute':
+            case 'summon_warlock':
+            case 'summon_phantom':
+            case 'summon_juggernaut': {
+                if (this.state === STATE_PLAYING) {
+                    this._cheatSummonBoss(cheatId);
+                }
+                break;
+            }
         }
+    }
+
+    _cheatSummonBoss(cheatId) {
+        const typeMap = {
+            summon_brute:      BOSS_TYPE_BRUTE,
+            summon_warlock:    BOSS_TYPE_WARLOCK,
+            summon_phantom:    BOSS_TYPE_PHANTOM,
+            summon_juggernaut: BOSS_TYPE_JUGGERNAUT,
+        };
+        const bossType = typeMap[cheatId];
+        if (!bossType) return;
+
+        // Load the boss arena
+        const { grid, spawnPos, doorPos } = parseBossRoom();
+        this.grid = grid;
+        this._currentSpawnPos = spawnPos;
+        this._placePlayer(spawnPos);
+        this.door = new Door(doorPos.col, doorPos.row);
+        this.enemies = [];
+        this.projectiles = [];
+        this.explosions = [];
+        this.playerProjectiles = [];
+        this.hazards = [];
+        this.pickups = [];
+        this.coinPickups = [];
+        this.particles.clear();
+        this.bossVictoryDelay = 0;
+
+        // Spawn the boss (encounter 0, current stage)
+        this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, 0, this.stage, this.currentBiome);
+        Audio.playBossRoar();
+
+        this._cheatNotify(`SUMMONED ${this.boss.name.toUpperCase()}`, this.boss.color);
     }
 
     _cheatNotify(text, color) {
