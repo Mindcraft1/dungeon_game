@@ -35,6 +35,8 @@ const STAT_DEFS = [
     { key: 'bossDamage',  label: 'BOSS',   icon: '☠',  posColor: '#ff5722', negColor: '#ff5722' },
     { key: 'attackRange', label: 'RNG',    icon: '◎',  posColor: '#ff9800', negColor: '#ff9800' },
     { key: 'attackSpeed', label: 'ATK',    icon: '⚡', posColor: '#2ecc71', negColor: '#2ecc71' },
+    { key: 'critChance',  label: 'CRIT',   icon: '🎯', posColor: '#d50000', negColor: '#d50000', rawPct: true },
+    { key: 'critDamage',  label: 'CRIT×',  icon: '💎', posColor: '#ff1744', negColor: '#ff1744' },
 ];
 
 // Threshold to consider a modifier "active" (avoid floating point noise)
@@ -56,9 +58,11 @@ export function renderBuffSummary(ctx, mods) {
         const raw = mods[def.key];
         if (raw == null) continue;
 
-        // For "inverted" stats (defense, trap), < 1 means buff → show as positive %
         let pct;
-        if (def.invert) {
+        if (def.rawPct) {
+            // Raw percentage stat (e.g. crit chance 0.08 → 8%)
+            pct = raw * 100;
+        } else if (def.invert) {
             pct = (1 - raw) * 100;   // 0.97 → +3%, 1.15 → -15%
         } else {
             pct = (raw - 1) * 100;   // 1.24 → +24%, 0.85 → -15%
@@ -67,7 +71,7 @@ export function renderBuffSummary(ctx, mods) {
         if (Math.abs(pct) < EPSILON) continue; // skip zero modifiers
 
         const isPositive = pct > 0;
-        const sign = isPositive ? '+' : '';
+        const sign = def.rawPct ? '' : (isPositive ? '+' : '');
         const text = `${sign}${Math.round(pct * 10) / 10}%`;
 
         lines.push({

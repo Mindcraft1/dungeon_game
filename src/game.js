@@ -54,7 +54,7 @@ import { getBiomeForStage } from './biomes.js';
 // ── Meta Progression ──
 import * as MetaStore from './meta/metaStore.js';
 import * as RewardSystem from './meta/rewardSystem.js';
-import { RELIC_DEFINITIONS } from './meta/relics.js';
+import { RELIC_DEFINITIONS, RELIC_IDS, isRelicUnlocked } from './meta/relics.js';
 import { RUN_UPGRADE_DEFINITIONS, getUnlockedRunUpgradeIds } from './meta/rewardSystem.js';
 import { PERK_IDS, upgradePerk, canUpgrade, isMaxed as isPerkMaxed } from './meta/metaPerks.js';
 import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
@@ -75,8 +75,8 @@ import { ACHIEVEMENTS, TIER_ORDER } from './achievements/achievementsList.js';
 import { AbilitySystem } from './combat/abilitySystem.js';
 import { ProcSystem } from './combat/procSystem.js';
 import * as Impact from './combat/impactSystem.js';
-import { ABILITY_IDS } from './combat/abilities.js';
-import { PROC_IDS } from './combat/procs.js';
+import { ABILITY_IDS, ABILITY_DEFINITIONS } from './combat/abilities.js';
+import { PROC_IDS, PROC_DEFINITIONS } from './combat/procs.js';
 import { applyFreeze as applyFreezeStatus, applyBurn as applyBurnStatus } from './combat/statusEffects.js';
 import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
@@ -85,7 +85,7 @@ import * as DevTools from './ui/devTools.js';
 
 // ── Upgrade Node System ──
 import * as UpgradeEngine from './upgrades/upgradeEngine.js';
-import { getNode as getNodeDef } from './upgrades/nodes.js';
+import { getNode as getNodeDef, NODE_DEFINITIONS } from './upgrades/nodes.js';
 
 // ── Unlock Map (achievements/biome mastery/scrolls) ──
 import { processAchievementUnlock as processAchUnlock, processBiomeMasteryBossKill, generateBossScrollChoices, applyBossScrollChoice, checkPityUnlock } from './unlocks/unlockMap.js';
@@ -194,6 +194,7 @@ export class Game {
         this.bossRewardIndex = 0;     // 0=HP, 1=Damage, 2=Speed
         this.bossVictoryDelay = 0;    // ms delay before showing victory overlay
         this.lastBossReward = null;   // reward result from last boss kill
+        this.runUnlocksLog = [];      // all permanent unlocks earned this run [{icon, name, color, type}]
 
         // ── Biome system ──
         this.currentBiome = null;          // biome object for current stage
@@ -521,6 +522,8 @@ export class Game {
         this.metaModifiers = RewardSystem.onRunStart();
         this.bossesKilledThisRun = 0;
         this.runUpgradesActive = {};
+        this.runUnlocksLog = [];
+        this._gameOverEffects = null;
         this.shieldCharges = 0;
         this.regenTimer = 0;
         this._applyMetaModifiers();
@@ -1402,6 +1405,19 @@ export class Game {
         let attackSpeed = 1;
         if (p.hasBuff(PICKUP_SPEED_SURGE)) attackSpeed *= (1 / BUFF_SPEED_SURGE_CD_MULT);
 
+        // ── Crit chance (base + node bonuses) ──
+        const _cmods = UpgradeEngine.getCombatMods();
+        const _procMods = _cmods.procs || {};
+        const globalCritBonus = (_procMods.heavy_crit && _procMods.heavy_crit.globalCritBonus) || 0;
+        const critChance = p.critChance + globalCritBonus;
+
+        // ── Crit damage multiplier (only meaningful if heavy_crit proc is equipped) ──
+        let critDamage = 1;
+        if (this.procSystem.hasProc('heavy_crit')) {
+            const extraDmgMult = (_procMods.heavy_crit && _procMods.heavy_crit.extraDmgMult) || 1;
+            critDamage = 1 + (0.4 * extraDmgMult); // base heavy crit = +40%
+        }
+
         // ── Special effects (non-percentage abilities) ──
         const specials = [];
         if (this.runUpgradesActive.upgrade_lifesteal) {
@@ -1423,7 +1439,77 @@ export class Game {
             specials.push({ icon: '🟠', name: 'Next Hit 3×', color: '#e67e22' });
         }
 
-        return { damage, speed, maxHp, xpGain, defense, trapResist, bossDamage, attackRange, attackSpeed, specials };
+        return { damage, speed, maxHp, xpGain, defense, trapResist, bossDamage, attackRange, attackSpeed, critChance, critDamage, specials };
+    }
+
+    /**
+     * Gather ALL active effects for the pause/game-over screens.
+     * Returns an array of { category, icon, name, desc, color }.
+     */
+    _getAllActiveEffects() {
+        const effects = [];
+
+        // ── Equipped Abilities ──
+        for (const id of this.abilitySystem.getEquippedIds()) {
+            const def = ABILITY_DEFINITIONS[id];
+            if (def) effects.push({ category: 'Abilities', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+        }
+
+        // ── Equipped Procs (Passives) ──
+        for (const id of this.procSystem.getEquippedIds()) {
+            const def = PROC_DEFINITIONS[id];
+            if (def) effects.push({ category: 'Passives', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+        }
+
+        // ── Upgrade Nodes (from UpgradeEngine) ──
+        const appliedNodes = UpgradeEngine.getAppliedNodes();
+        for (const [nodeId, stacks] of Object.entries(appliedNodes)) {
+            if (stacks <= 0) continue;
+            const def = getNodeDef(nodeId);
+            if (!def) continue;
+            const stackLabel = stacks > 1 ? ` ×${stacks}` : '';
+            effects.push({ category: 'Upgrades', icon: def.icon, name: `${def.name}${stackLabel}`, desc: def.desc, color: def.color });
+        }
+
+        // ── Run Upgrades (level-up picks) ──
+        for (const [id, active] of Object.entries(this.runUpgradesActive)) {
+            if (!active) continue;
+            const def = RUN_UPGRADE_DEFINITIONS[id];
+            if (def) effects.push({ category: 'Run Upgrades', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+        }
+
+        // ── Active Relics ──
+        for (const id of RELIC_IDS) {
+            if (isRelicUnlocked(id)) {
+                const def = RELIC_DEFINITIONS[id];
+                effects.push({ category: 'Relics', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+            }
+        }
+
+        // ── Meta Booster ──
+        if (this.activeMetaBoosterId) {
+            const b = META_BOOSTERS[this.activeMetaBoosterId];
+            if (b) effects.push({ category: 'Booster', icon: b.icon, name: b.name, desc: b.desc || '', color: b.color });
+        }
+
+        // ── Biome Effect ──
+        if (this.currentBiome && this.currentBiome.effect) {
+            const b = this.currentBiome;
+            effects.push({ category: 'Biome', icon: '🌍', name: b.name, desc: b.effect || '', color: b.nameColor || '#888' });
+        }
+
+        // ── Temporary Pickup Buffs ──
+        if (this.player && this.player.activeBuffs) {
+            for (const buff of this.player.activeBuffs) {
+                const info = PICKUP_INFO[buff.type];
+                if (info) {
+                    const remaining = Math.ceil(buff.remaining / 1000);
+                    effects.push({ category: 'Pickups', icon: info.icon || '⬆', name: info.name || buff.type, desc: `${remaining}s remaining`, color: info.color || '#fff' });
+                }
+            }
+        }
+
+        return effects;
     }
 
     /** Update meta shop screen input. */
@@ -1909,6 +1995,7 @@ export class Game {
 
         // Check for game over (shouldn't happen since min 1 HP, but safety check)
         if (p.hp <= 0 && !this.trainingMode) {
+            this._gameOverEffects = this._getAllActiveEffects();
             this.state = STATE_GAME_OVER;
         }
     }
@@ -2726,11 +2813,13 @@ export class Game {
                     showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
                     Audio.playRelicUnlock();
                     achEmit('relic_unlocked', { relicId: reward.relicId });
+                    this.runUnlocksLog.push({ icon: relic.icon, name: relic.name, color: relic.color, type: 'Relic' });
                 }
                 // Toast for run upgrade unlock
                 if (reward.runUpgradeId) {
                     const upg = RUN_UPGRADE_DEFINITIONS[reward.runUpgradeId];
                     showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
+                    this.runUnlocksLog.push({ icon: upg.icon, name: upg.name, color: upg.color, type: 'Upgrade' });
                 }
             } else {
                 this.lastBossReward = { shardsGained: 0, relicId: null, runUpgradeId: null };
@@ -2744,6 +2833,7 @@ export class Game {
                     showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
                     Audio.playRelicUnlock();
                     this.lastBossReward.combatUnlock = combatUnlock;
+                    this.runUnlocksLog.push({ icon: combatUnlock.icon, name: combatUnlock.name, color: combatUnlock.color, type: label });
                 }
             }
 
@@ -2756,6 +2846,7 @@ export class Game {
                         const tLabel = u.type === 'ability' ? 'Ability' : u.type === 'proc' ? 'Passive' : 'Node';
                         showBigToast(`Biome Mastery: ${tLabel} ${u.name}`, u.color, u.icon);
                         Audio.playRelicUnlock();
+                        this.runUnlocksLog.push({ icon: u.icon, name: u.name, color: u.color, type: `Mastery ${tLabel}` });
                     }
                 }
 
@@ -2771,6 +2862,7 @@ export class Game {
                 if (pity) {
                     showBigToast(`Pity Unlock: ${pity.name}`, pity.color, pity.icon);
                     Audio.playRelicUnlock();
+                    this.runUnlocksLog.push({ icon: pity.icon, name: pity.name, color: pity.color, type: 'Pity Unlock' });
                 }
             }
 
@@ -3067,6 +3159,8 @@ export class Game {
                 if (!this.cheatsUsedThisRun) achEmit('revive_used', {});
             } else {
                 this._saveHighscore();
+                // Cache effects before clearing buffs (for game-over screen)
+                this._gameOverEffects = this._getAllActiveEffects();
                 this.player.clearBuffs();
                 this._comboReset();
                 Audio.playGameOver();
@@ -3827,7 +3921,7 @@ export class Game {
             renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady);
         } else if (this.state === STATE_GAME_OVER) {
             const runRewards = RewardSystem.getRunRewards();
-            renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards);
+            renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards, this._gameOverEffects || null, this.runUnlocksLog.length > 0 ? this.runUnlocksLog : null);
         } else if (this.state === STATE_BOSS_VICTORY) {
             renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
                 this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
@@ -3923,30 +4017,37 @@ export class Game {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Pause box
-        const boxW = 300;
-        const boxH = 200;
-        const bx = CANVAS_WIDTH / 2 - boxW / 2;
-        const by = CANVAS_HEIGHT / 2 - boxH / 2;
+        // ── Gather active effects ──
+        const effects = this._getAllActiveEffects();
+
+        // ── Layout: left panel = pause controls, right panel = effects ──
+        const totalW = effects.length > 0 ? 620 : 300;
+        const panelH = 440;
+        const bx = (CANVAS_WIDTH - totalW) / 2;
+        const by = (CANVAS_HEIGHT - panelH) / 2;
+
+        // Left panel (pause controls) - 280px wide
+        const leftW = 280;
 
         ctx.fillStyle = 'rgba(15, 15, 25, 0.95)';
-        ctx.fillRect(bx, by, boxW, boxH);
+        ctx.fillRect(bx, by, totalW, panelH);
         ctx.strokeStyle = '#4fc3f7';
         ctx.lineWidth = 2;
-        ctx.strokeRect(bx, by, boxW, boxH);
+        ctx.strokeRect(bx, by, totalW, panelH);
 
         ctx.textAlign = 'center';
 
         // Title
+        const leftCx = bx + leftW / 2;
         ctx.fillStyle = '#4fc3f7';
         ctx.font = 'bold 28px monospace';
-        ctx.fillText('PAUSED', CANVAS_WIDTH / 2, by + 50);
+        ctx.fillText('PAUSED', leftCx, by + 45);
 
         // Stage info
         ctx.fillStyle = '#888';
         ctx.font = '12px monospace';
         const biomeLabel = this.currentBiome ? `${this.currentBiome.name} · ` : '';
-        ctx.fillText(`${biomeLabel}Stage ${this.stage}  ·  Level ${this.player.level}`, CANVAS_WIDTH / 2, by + 72);
+        ctx.fillText(`${biomeLabel}Stage ${this.stage}  ·  Level ${this.player.level}`, leftCx, by + 67);
 
         // Options
         const options = [
@@ -3954,7 +4055,7 @@ export class Game {
             { label: 'BACK TO MENU', color: '#e74c3c' },
         ];
 
-        const startY = by + 110;
+        const startY = by + 105;
         const spacing = 44;
 
         options.forEach((opt, i) => {
@@ -3965,27 +4066,111 @@ export class Game {
                 const selW = 220;
                 const selH = 34;
                 ctx.fillStyle = 'rgba(79,195,247,0.08)';
-                ctx.fillRect(CANVAS_WIDTH / 2 - selW / 2, oy - 20, selW, selH);
+                ctx.fillRect(leftCx - selW / 2, oy - 20, selW, selH);
                 ctx.strokeStyle = opt.color;
                 ctx.lineWidth = 1.5;
-                ctx.strokeRect(CANVAS_WIDTH / 2 - selW / 2, oy - 20, selW, selH);
+                ctx.strokeRect(leftCx - selW / 2, oy - 20, selW, selH);
 
                 ctx.fillStyle = opt.color;
                 ctx.font = 'bold 14px monospace';
                 ctx.textAlign = 'right';
-                ctx.fillText('▸', CANVAS_WIDTH / 2 - 85, oy);
+                ctx.fillText('▸', leftCx - 85, oy);
                 ctx.textAlign = 'center';
             }
 
             ctx.fillStyle = selected ? opt.color : '#555';
-            ctx.font = `bold 16px monospace`;
-            ctx.fillText(opt.label, CANVAS_WIDTH / 2, oy);
+            ctx.font = 'bold 16px monospace';
+            ctx.fillText(opt.label, leftCx, oy);
         });
 
         // Hint
         ctx.fillStyle = '#444';
         ctx.font = '10px monospace';
-        ctx.fillText('P = Quick Resume', CANVAS_WIDTH / 2, by + boxH - 14);
+        ctx.fillText('P = Quick Resume', leftCx, by + panelH - 14);
+
+        // ── Right panel: Active Effects ──
+        if (effects.length > 0) {
+            const rightX = bx + leftW;
+            const rightW = totalW - leftW;
+
+            // Separator line
+            ctx.strokeStyle = 'rgba(79,195,247,0.25)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(rightX, by + 8);
+            ctx.lineTo(rightX, by + panelH - 8);
+            ctx.stroke();
+
+            // Header
+            ctx.fillStyle = '#4fc3f7';
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('ACTIVE EFFECTS', rightX + rightW / 2, by + 22);
+
+            // ── Render categorized effects with clipping ──
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(rightX + 2, by + 30, rightW - 4, panelH - 44);
+            ctx.clip();
+
+            let ey = by + 40;
+            const lineH = 14;
+            const catGap = 6;
+            let lastCat = '';
+
+            for (const fx of effects) {
+                if (fx.category !== lastCat) {
+                    if (lastCat !== '') ey += catGap;
+                    // Category header
+                    ctx.fillStyle = '#666';
+                    ctx.font = 'bold 8px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(fx.category.toUpperCase(), rightX + 10, ey + 7);
+                    ey += 12;
+                    lastCat = fx.category;
+                }
+
+                // Effect row: icon + name + desc
+                ctx.fillStyle = fx.color;
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(fx.icon, rightX + 10, ey + 8);
+
+                ctx.fillStyle = '#ccc';
+                ctx.font = '8px monospace';
+                const nameText = fx.name;
+                ctx.fillText(nameText, rightX + 24, ey + 8);
+
+                // Desc (truncated, dimmer)
+                if (fx.desc) {
+                    ctx.fillStyle = '#777';
+                    ctx.font = '7px monospace';
+                    const maxDescW = rightW - 36;
+                    let descText = fx.desc;
+                    if (ctx.measureText(descText).width > maxDescW) {
+                        while (descText.length > 0 && ctx.measureText(descText + '…').width > maxDescW) {
+                            descText = descText.slice(0, -1);
+                        }
+                        descText += '…';
+                    }
+                    ctx.fillText(descText, rightX + 24, ey + 17);
+                    ey += lineH + 6;
+                } else {
+                    ey += lineH;
+                }
+            }
+
+            ctx.restore();
+
+            // Scroll hint if content overflows
+            if (ey > by + panelH - 14) {
+                ctx.fillStyle = '#555';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('…more effects', rightX + rightW / 2, by + panelH - 6);
+            }
+        }
+
         ctx.textAlign = 'left';
     }
 

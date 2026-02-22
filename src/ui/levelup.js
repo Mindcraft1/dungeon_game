@@ -93,52 +93,167 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
 /**
  * Draw the Game-Over overlay.
  * @param {object|null} runRewards - meta progression run rewards summary
+ * @param {Array|null} activeEffects - all active effects [{category, icon, name, desc, color}]
+ * @param {Array|null} runUnlocks - permanent unlocks from this run [{icon, name, color, type}]
  */
-export function renderGameOverOverlay(ctx, stage, level, runRewards = null) {
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+export function renderGameOverOverlay(ctx, stage, level, runRewards = null, activeEffects = null, runUnlocks = null) {
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // ── Determine layout: full-width with two columns at bottom ──
+    const cx = CANVAS_WIDTH / 2;
+    const hasEffects = activeEffects && activeEffects.length > 0;
+    const hasUnlocks = runUnlocks && runUnlocks.length > 0;
 
     ctx.textAlign = 'center';
 
+    // Title
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 36px monospace';
-    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    ctx.fillText('GAME OVER', cx, 65);
 
     ctx.fillStyle = '#aaa';
     ctx.font = '16px monospace';
-    ctx.fillText(`Stage ${stage}  ·  Level ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 25);
+    ctx.fillText(`Stage ${stage}  ·  Level ${level}`, cx, 95);
 
     // Run summary (meta rewards)
+    let summaryY = 122;
     if (runRewards) {
-        let summaryY = CANVAS_HEIGHT / 2 + 5;
         ctx.font = '12px monospace';
 
         if (runRewards.bossesDefeatedThisRun > 0) {
             ctx.fillStyle = '#ff5722';
-            ctx.fillText(`Bosses Defeated: ${runRewards.bossesDefeatedThisRun}`, CANVAS_WIDTH / 2, summaryY);
-            summaryY += 18;
+            ctx.fillText(`Bosses Defeated: ${runRewards.bossesDefeatedThisRun}`, cx, summaryY);
+            summaryY += 17;
         }
 
         if (runRewards.coreShardsGainedThisRun > 0) {
             ctx.fillStyle = '#ffd700';
-            ctx.fillText(`◆ Core Shards Gained: +${runRewards.coreShardsGainedThisRun}`, CANVAS_WIDTH / 2, summaryY);
-            summaryY += 18;
+            ctx.fillText(`◆ Core Shards Gained: +${runRewards.coreShardsGainedThisRun}`, cx, summaryY);
+            summaryY += 17;
         }
 
         if (runRewards.relicUnlockedThisRun) {
             ctx.fillStyle = '#bb86fc';
-            ctx.fillText(`Relic Unlocked!`, CANVAS_WIDTH / 2, summaryY);
-            summaryY += 18;
+            ctx.fillText(`Relic Unlocked!`, cx, summaryY);
+            summaryY += 17;
         }
     }
 
+    // ── Unlocks earned this run ──
+    if (hasUnlocks) {
+        summaryY += 4;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('── UNLOCKED THIS RUN ──', cx, summaryY);
+        summaryY += 14;
+
+        for (const u of runUnlocks) {
+            ctx.fillStyle = u.color;
+            ctx.font = '10px monospace';
+            ctx.fillText(`${u.icon} ${u.type}: ${u.name}`, cx, summaryY);
+            summaryY += 14;
+        }
+    }
+
+    // ── Active Effects (two-column layout) ──
+    if (hasEffects) {
+        const panelTop = Math.max(summaryY + 10, 210);
+        const panelBottom = CANVAS_HEIGHT - 50;
+        const panelH = panelBottom - panelTop;
+
+        // Panel background
+        ctx.fillStyle = 'rgba(20,20,35,0.7)';
+        ctx.fillRect(30, panelTop - 6, CANVAS_WIDTH - 60, panelH + 12);
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(30, panelTop - 6, CANVAS_WIDTH - 60, panelH + 12);
+
+        // Header
+        ctx.fillStyle = '#888';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ACTIVE EFFECTS AT DEATH', cx, panelTop + 8);
+
+        // Clip for effects
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(32, panelTop + 14, CANVAS_WIDTH - 64, panelH - 18);
+        ctx.clip();
+
+        // Render effects in two columns
+        const colW = (CANVAS_WIDTH - 80) / 2;
+        const col1X = 42;
+        const col2X = 42 + colW + 10;
+        const rowH = 16;
+        let col = 0;
+        let row = 0;
+        const maxRows = Math.floor((panelH - 22) / rowH);
+        let lastCat = ['', ''];
+
+        for (const fx of activeEffects) {
+            const x = col === 0 ? col1X : col2X;
+            const y = panelTop + 20 + row * rowH;
+
+            // Category header
+            if (fx.category !== lastCat[col]) {
+                if (row > 0) row += 0.3;
+                const catY = panelTop + 20 + row * rowH;
+                if (row < maxRows) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = 'bold 7px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(fx.category.toUpperCase(), x, catY + 7);
+                }
+                row += 0.8;
+                lastCat[col] = fx.category;
+            }
+
+            if (row >= maxRows) {
+                if (col === 0) {
+                    col = 1;
+                    row = 0;
+                    lastCat[1] = '';
+                    continue;
+                }
+                break;
+            }
+
+            const fy = panelTop + 20 + row * rowH;
+
+            // Icon + name
+            ctx.fillStyle = fx.color;
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(fx.icon, x, fy + 8);
+
+            ctx.fillStyle = '#bbb';
+            ctx.font = '8px monospace';
+            const maxNameW = colW - 20;
+            let nameStr = fx.name;
+            if (ctx.measureText(nameStr).width > maxNameW) {
+                while (nameStr.length > 0 && ctx.measureText(nameStr + '…').width > maxNameW) {
+                    nameStr = nameStr.slice(0, -1);
+                }
+                nameStr += '…';
+            }
+            ctx.fillText(nameStr, x + 14, fy + 8);
+
+            row++;
+        }
+
+        ctx.restore();
+    }
+
+    // Navigation hints (always at bottom)
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER for menu', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 70);
+    ctx.fillText('Press ENTER for menu', cx, CANVAS_HEIGHT - 28);
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('G = Meta Progress', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 92);
+    ctx.fillText('G = Meta Progress', cx, CANVAS_HEIGHT - 12);
 
     ctx.textAlign = 'left';
 }
