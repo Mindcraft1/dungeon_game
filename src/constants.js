@@ -120,6 +120,12 @@ export const STATE_TRAINING_CONFIG = 'TRAINING_CONFIG';
 export const TRAINING_ENEMY_COUNT = 3;
 export const TRAINING_RESPAWN_DELAY = 2000; // ms before dead enemies respawn
 
+// ── Second Wave ──
+export const SECOND_WAVE_CHANCE = 0.15;       // 15% chance for a second wave after clearing
+export const SECOND_WAVE_MIN_STAGE = 5;       // no second waves before stage 5
+export const SECOND_WAVE_ENEMY_MULT = 0.75;   // wave 2 spawns 75% of normal enemy count
+export const SECOND_WAVE_ANNOUNCE_TIME = 2000; // ms to show "WAVE 2" banner
+
 // ── Pickups / Item Drops ──
 export const DROP_CHANCE = 0.25;           // 25% base drop chance
 export const PICKUP_RADIUS = 10;

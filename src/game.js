@@ -5,6 +5,7 @@ import {
     ENEMY_COLOR, SHOOTER_COLOR, TANK_COLOR, DASHER_COLOR,
     SHOOTER_INTRO_STAGE, TANK_INTRO_STAGE, DASHER_INTRO_STAGE,
     TRAINING_ENEMY_COUNT, TRAINING_RESPAWN_DELAY,
+    SECOND_WAVE_CHANCE, SECOND_WAVE_MIN_STAGE, SECOND_WAVE_ENEMY_MULT, SECOND_WAVE_ANNOUNCE_TIME,
     ATTACK_RANGE, DASH_COOLDOWN, DAGGER_COOLDOWN,
     UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
@@ -143,6 +144,11 @@ export class Game {
         this.trainingEnemyCount = 3;
         this.trainingDamage = false;    // false = no damage (default), true = take damage
         this.trainingDrops = false;     // false = no drops in training (default), true = drops enabled
+
+        // ── Second Wave ──
+        this.secondWaveTriggered = false;  // true after wave 2 has been rolled for this room
+        this.secondWaveActive = false;     // true while wave 2 enemies are alive
+        this.secondWaveAnnounceTimer = 0;  // ms remaining for "WAVE 2" banner
 
         // ── Audio ──
         this.muted = Audio.isMuted();
@@ -555,6 +561,11 @@ export class Game {
         this.coinPickups = [];
         this.playerProjectiles = [];
         this.particles.clear();
+
+        // Reset second wave state for new room
+        this.secondWaveTriggered = false;
+        this.secondWaveActive = false;
+        this.secondWaveAnnounceTimer = 0;
 
         // ── Achievement event: room started (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
@@ -1721,6 +1732,9 @@ export class Game {
             this.comboFlash -= dt * 1000;
         }
         // Biome announcement timer
+        if (this.secondWaveAnnounceTimer > 0) {
+            this.secondWaveAnnounceTimer -= dt * 1000;
+        }
         if (this.biomeAnnounceTimer > 0) {
             this.biomeAnnounceTimer -= dt * 1000;
         }
@@ -2353,13 +2367,53 @@ export class Game {
         const allFoes = allBossesForDoor.length > 0 ? [...this.enemies, ...allBossesForDoor] : this.enemies;
         this.door.update(dt, allFoes, this.trainingMode);
 
-        // Door unlock sound + particles
-        if (doorWasLocked && !this.door.locked) {
-            Audio.playDoorUnlock();
-            this.particles.doorUnlock(
-                this.door.x + this.door.width / 2,
-                this.door.y + this.door.height / 2,
+        // ── Second Wave check ──
+        // When all enemies die, roll for a second wave (stage 5+, non-boss, non-training, once per room)
+        if (doorWasLocked && !this.door.locked
+            && !this.trainingMode
+            && !this.secondWaveTriggered
+            && !this._isBossStage(this.stage)
+            && this.stage >= SECOND_WAVE_MIN_STAGE
+            && Math.random() < SECOND_WAVE_CHANCE) {
+            this.secondWaveTriggered = true;
+            this.secondWaveActive = true;
+            this.secondWaveAnnounceTimer = SECOND_WAVE_ANNOUNCE_TIME;
+
+            // Spawn a smaller wave of enemies
+            const baseCount = Math.min(2 + Math.floor((this.stage - 1) * 0.75), 10);
+            const waveCount = Math.max(2, Math.round(baseCount * SECOND_WAVE_ENEMY_MULT));
+            const spawns = getEnemySpawns(
+                this.grid, this._currentSpawnPos, { col: this.door.col, row: this.door.row }, waveCount,
             );
+            const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
+            const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
+            const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
+            const hpBase  = Math.floor(eHp * (1 + (this.stage - 1) * 0.15));
+            const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2);
+            const dmgBase = eDmg + Math.floor((this.stage - 1) * 0.5);
+            const types = this._getEnemyTypes(this.stage, waveCount, this.currentBiome);
+
+            this.enemies = spawns.map((p, i) => new Enemy(
+                p.x, p.y, hpBase, spdBase, dmgBase, types[i], this.stage,
+            ));
+            this.projectiles = [];
+
+            // Re-lock the door
+            this.door.locked = true;
+
+            // Effects
+            triggerShake(6, 0.9);
+            Audio.playBossRoar();  // dramatic sound for the ambush
+        } else {
+            // Normal door unlock — no second wave
+            if (doorWasLocked && !this.door.locked) {
+                if (this.secondWaveActive) this.secondWaveActive = false;
+                Audio.playDoorUnlock();
+                this.particles.doorUnlock(
+                    this.door.x + this.door.width / 2,
+                    this.door.y + this.door.height / 2,
+                );
+            }
         }
 
         if (this.trainingMode) {
@@ -3066,6 +3120,11 @@ export class Game {
             this._renderBiomeAnnouncement(ctx);
         }
 
+        // ── Second Wave announcement banner ──
+        if (this.secondWaveAnnounceTimer > 0) {
+            this._renderSecondWaveBanner(ctx);
+        }
+
         // Training mode banner
         if (this.trainingMode) {
             this._renderTrainingBanner(ctx);
@@ -3151,6 +3210,43 @@ export class Game {
         ctx.fillStyle = '#888';
         ctx.font = '11px monospace';
         ctx.fillText(`Stage ${this.stage}`, CANVAS_WIDTH / 2, cy + 20);
+
+        ctx.restore();
+    }
+
+    _renderSecondWaveBanner(ctx) {
+        const totalTime = SECOND_WAVE_ANNOUNCE_TIME;
+        const fadeIn = 200;
+        const fadeOut = 600;
+        const elapsed = totalTime - this.secondWaveAnnounceTimer;
+
+        let alpha;
+        if (elapsed < fadeIn) alpha = elapsed / fadeIn;
+        else if (this.secondWaveAnnounceTimer < fadeOut) alpha = this.secondWaveAnnounceTimer / fadeOut;
+        else alpha = 1;
+
+        const cy = CANVAS_HEIGHT / 2 - 20;
+
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.textAlign = 'center';
+
+        // Background bar
+        ctx.fillStyle = 'rgba(80, 0, 0, 0.65)';
+        ctx.fillRect(0, cy - 28, CANVAS_WIDTH, 60);
+
+        // "WAVE 2" text
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 26px monospace';
+        ctx.shadowColor = '#ff4444';
+        ctx.shadowBlur = 16;
+        ctx.fillText('⚔ SECOND WAVE ⚔', CANVAS_WIDTH / 2, cy + 4);
+        ctx.shadowBlur = 0;
+
+        // Subtitle
+        ctx.fillStyle = '#cc8888';
+        ctx.font = '12px monospace';
+        ctx.fillText('More enemies incoming!', CANVAS_WIDTH / 2, cy + 22);
 
         ctx.restore();
     }
