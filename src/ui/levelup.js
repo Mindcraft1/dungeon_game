@@ -164,6 +164,11 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
             const u = upgradeDefs[bossReward.runUpgradeId];
             unlockLines.push({ text: `${u.icon} New Upgrade: ${u.name}`, color: u.color });
         }
+        if (bossReward.combatUnlock) {
+            const cu = bossReward.combatUnlock;
+            const label = cu.type === 'ability' ? 'Ability' : 'Passive';
+            unlockLines.push({ text: `${cu.icon} ${label} Unlocked: ${cu.name}`, color: cu.color });
+        }
     }
     const extraH = unlockLines.length * 22 + (unlockLines.length > 0 ? 16 : 0);
 

@@ -2155,6 +2155,7 @@ export class Game {
                     const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
                     showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
                     Audio.playRelicUnlock();
+                    this.lastBossReward.combatUnlock = combatUnlock;
                 }
             }
 

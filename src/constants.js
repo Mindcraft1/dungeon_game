@@ -392,7 +392,7 @@ export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);
 
 // ── In-Run Shop Items (Coins) ──
 // ── Coin Drop Economy ──
-export const COIN_DROP_LIFETIME = 8000;      // 8s before disappearing
+export const COIN_DROP_LIFETIME = 4000;      // 4s before disappearing
 export const COIN_DROP_RADIUS = 8;
 export const COIN_DROP_BOBBLE_SPEED = 0.005;
 export const COIN_MAGNET_RANGE = 50;          // auto-attract range in px
