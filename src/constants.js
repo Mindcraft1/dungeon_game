@@ -150,6 +150,27 @@ export const BUFF_IRON_SKIN_REDUCE = 0.5;        // -50% damage taken
 // Max simultaneous buffs
 export const MAX_ACTIVE_BUFFS = 3;
 
+// ── Tile types (numeric grid values) ──
+export const TILE_FLOOR  = 0;
+export const TILE_WALL   = 1;
+export const TILE_CANYON = 2;
+
+// ── Canyon / Pit Trap ──
+export const CANYON_INTRO_STAGE       = 7;     // first stage canyons can appear
+export const CANYON_FALL_HP_PENALTY   = 0.35;  // 35% of maxHP lost on fall
+export const CANYON_FALL_COIN_PENALTY = 0.10;  // 10% of coins lost on fall
+export const MAX_DASH_CROSS_TILES    = 2;      // max canyon gap dashable
+
+// Canyon spawn rate by stage bracket (tiles per room)
+export const CANYON_COUNT_STAGE_7_10  = [1, 3];   // [min, max]
+export const CANYON_COUNT_STAGE_11_15 = [3, 8];
+export const CANYON_COUNT_STAGE_16    = [6, 14];
+
+// Canyon colors
+export const CANYON_COLOR_DEEP   = '#0a0a12';   // deep void
+export const CANYON_COLOR_EDGE   = '#2a1a3a';   // purple-tinted edge
+export const CANYON_COLOR_RIM    = '#4a3060';   // visible rim highlight
+
 // ── Hazards ──
 export const HAZARD_TYPE_SPIKES = 'spikes';
 export const HAZARD_TYPE_LAVA   = 'lava';

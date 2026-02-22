@@ -1,7 +1,10 @@
 import {
     TILE_SIZE, COLS, ROWS,
+    TILE_FLOOR, TILE_WALL, TILE_CANYON,
     HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW,
     HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE,
+    CANYON_INTRO_STAGE,
+    CANYON_COUNT_STAGE_7_10, CANYON_COUNT_STAGE_11_15, CANYON_COUNT_STAGE_16,
 } from './constants.js';
 import { Hazard } from './entities/hazard.js';
 import { isWall } from './collision.js';
@@ -158,12 +161,12 @@ const ROOM_TEMPLATES = [
         '#..................#',
         '####################',
     ],
-    // 7 – Mirror L-walls (two L-shapes in opposite corners)
+    // 7 – Mirror L-walls (two L-shapes in opposite corners) + canyon pits
     [
         '####################',
         '#..................#',
         '#..####............#',
-        '#..#...............#',
+        '#..#..CC...........#',
         '#..#...............#',
         '#..................#',
         '#..................#',
@@ -171,17 +174,17 @@ const ROOM_TEMPLATES = [
         '#..................#',
         '#..................#',
         '#...............#..#',
-        '#...............#..#',
+        '#..........CC...#..#',
         '#............####..#',
         '#..................#',
         '####################',
     ],
-    // 8 – Pillar grid (many single-tile obstacles)
+    // 8 – Pillar grid (many single-tile obstacles) + canyon pits
     [
         '####################',
         '#..................#',
         '#...#....#....#....#',
-        '#..................#',
+        '#.........CC.......#',
         '#..................#',
         '#..................#',
         '#...#....#....#....#',
@@ -189,7 +192,7 @@ const ROOM_TEMPLATES = [
         '#...#....#....#....#',
         '#..................#',
         '#..................#',
-        '#..................#',
+        '#.......CC.........#',
         '#...#....#....#....#',
         '#..................#',
         '####################',
@@ -230,12 +233,12 @@ const ROOM_TEMPLATES = [
         '#..................#',
         '####################',
     ],
-    // 11 – Pinch points (walls protruding from edges)
+    // 11 – Pinch points (walls protruding from edges) + canyon pits
     [
         '####################',
         '#..................#',
         '#..................#',
-        '###..............###',
+        '###.....CC......###',
         '#..................#',
         '#.##..........##...#',
         '#..................#',
@@ -243,42 +246,42 @@ const ROOM_TEMPLATES = [
         '#..................#',
         '#.##..........##...#',
         '#..................#',
-        '###..............###',
+        '###......CC.....###',
         '#..................#',
         '#..................#',
         '####################',
     ],
-    // 12 – Dense asymmetric (varied obstacle sizes and placement)
+    // 12 – Dense asymmetric (varied obstacle sizes and placement) + canyon pits
     [
         '####################',
         '#..................#',
         '#..##..............#',
         '#..##....##........#',
-        '#........##........#',
+        '#........##..CC....#',
         '#..............##..#',
         '#..............##..#',
         '#S................D#',
         '#.....##...........#',
         '#.....##...........#',
-        '#........##........#',
+        '#..CC....##........#',
         '#........##....##..#',
         '#..............##..#',
         '#..................#',
         '####################',
     ],
-    // 13 – Fortress (ring with side openings)
+    // 13 – Fortress (ring with side openings) + canyon pits
     [
         '####################',
         '#..................#',
         '#..................#',
         '#....##########....#',
-        '#....#........#....#',
+        '#....#..CC....#....#',
         '#....#........#....#',
         '#..................#',
         '#S................D#',
         '#..................#',
         '#....#........#....#',
-        '#....#........#....#',
+        '#....#....CC..#....#',
         '#....##########....#',
         '#..................#',
         '#..................#',
@@ -355,7 +358,7 @@ function _parse(template) {
         grid[row] = [];
         for (let col = 0; col < COLS; col++) {
             const ch = template[row][col];
-            grid[row][col] = ch === '#';
+            grid[row][col] = ch === '#' ? TILE_WALL : ch === 'C' ? TILE_CANYON : TILE_FLOOR;
             if (ch === 'S') spawnPos = { col, row };
             if (ch === 'D') doorPos  = { col, row };
         }
@@ -467,6 +470,11 @@ export function generateProceduralRoom(stage) {
     // ── Ensure safe zones around spawn and door ──
     _clearSafeZone(template, spawnCol, spawnRow, 2);
     _clearSafeZone(template, doorCol, doorRow, 2);
+
+    // ── Canyon / Pit placement (stage 7+) ──
+    if (stage >= CANYON_INTRO_STAGE) {
+        _placeCanyons(template, spawnCol, spawnRow, doorCol, doorRow, stage, _rng, _rngInt);
+    }
 
     // ── Eliminate isolated floor pockets ──
     // Any floor tile unreachable from spawn becomes a wall so enemies
@@ -624,7 +632,7 @@ function _ensureConnectivity(template, sc, sr, dc, dr) {
             if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
             if (visited[nr][nc]) continue;
             const ch = template[nr][nc];
-            if (ch === '#') continue;
+            if (ch === '#' || ch === 'C') continue;  // walls and canyons block
             visited[nr][nc] = true;
             queue.push({ r: nr, c: nc });
         }
@@ -638,7 +646,7 @@ function _ensureConnectivity(template, sc, sr, dc, dr) {
         else if (cr < dr) cr++;
         else if (cr > dr) cr--;
 
-        if (template[cr][cc] === '#') {
+        if (template[cr][cc] === '#' || template[cr][cc] === 'C') {
             template[cr][cc] = '.';
         }
         // Also clear one tile above or below for wider passage
@@ -654,7 +662,7 @@ function _ensureConnectivity(template, sc, sr, dc, dr) {
 /**
  * Flood-fill from spawn and convert every floor tile that is NOT reachable
  * into a wall. This prevents enemies from spawning in isolated pockets
- * created by obstacle placement.
+ * created by obstacle placement. Canyon tiles are left as-is (non-walkable).
  */
 function _fillUnreachable(template, sc, sr) {
     const visited = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
@@ -670,20 +678,156 @@ function _fillUnreachable(template, sc, sr) {
             if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
             if (visited[nr][nc]) continue;
             const ch = template[nr][nc];
-            if (ch === '#') continue;
+            if (ch === '#' || ch === 'C') continue;  // walls and canyons block flood-fill
             visited[nr][nc] = true;
             queue.push({ r: nr, c: nc });
         }
     }
 
-    // Any non-wall tile that wasn't visited is unreachable → make it a wall
+    // Any non-wall, non-canyon tile that wasn't visited is unreachable → make it a wall
     for (let r = 1; r < ROWS - 1; r++) {
         for (let c = 1; c < COLS - 1; c++) {
-            if (!visited[r][c] && template[r][c] !== '#') {
+            if (!visited[r][c] && template[r][c] !== '#' && template[r][c] !== 'C') {
                 template[r][c] = '#';
             }
         }
     }
+}
+
+// ── Canyon / Pit Placement ─────────────────────────────────
+
+/**
+ * Place canyon tiles in a procedural room.
+ * - Only on floor tiles away from spawn/door
+ * - After placement, BFS-validate that a walkable path S→D still exists
+ * - If a canyon would break connectivity or isolate enemy-spawnable floor, revert it
+ */
+function _placeCanyons(template, sc, sr, dc, dr, stage, _rng, _rngInt) {
+    // Determine how many canyon tiles to place based on stage bracket
+    let minC, maxC;
+    if (stage <= 10) {
+        [minC, maxC] = CANYON_COUNT_STAGE_7_10;
+    } else if (stage <= 15) {
+        [minC, maxC] = CANYON_COUNT_STAGE_11_15;
+    } else {
+        [minC, maxC] = CANYON_COUNT_STAGE_16;
+    }
+    const targetCount = _rngInt(minC, maxC);
+
+    // Collect candidate floor tiles (not near spawn/door, not border)
+    const candidates = [];
+    for (let r = 2; r < ROWS - 2; r++) {
+        for (let c = 2; c < COLS - 2; c++) {
+            const ch = template[r][c];
+            if (ch !== '.') continue;
+
+            // Min distance from spawn (4 tiles)
+            const dxS = c - sc, dyS = r - sr;
+            if (Math.sqrt(dxS * dxS + dyS * dyS) < 4) continue;
+
+            // Min distance from door (3 tiles)
+            const dxD = c - dc, dyD = r - dr;
+            if (Math.sqrt(dxD * dxD + dyD * dyD) < 3) continue;
+
+            candidates.push({ r, c });
+        }
+    }
+
+    // Shuffle candidates
+    for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(_rng() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    // Place canyons one by one, validating after each
+    let placed = 0;
+    for (const cand of candidates) {
+        if (placed >= targetCount) break;
+
+        // Tentatively place canyon
+        template[cand.r][cand.c] = 'C';
+
+        // Validate: S→D still connected via walkable tiles
+        if (!_bfsConnected(template, sc, sr, dc, dr)) {
+            // Revert
+            template[cand.r][cand.c] = '.';
+            continue;
+        }
+
+        // Validate: no floor tile becomes isolated (unreachable from spawn)
+        // We do a quick check — if any immediate floor neighbor becomes cut off, revert
+        if (_createsIsolatedFloor(template, sc, sr)) {
+            template[cand.r][cand.c] = '.';
+            continue;
+        }
+
+        placed++;
+    }
+}
+
+/**
+ * BFS check: is there a walkable path from (sc,sr) to (dc,dr)?
+ * Only walks through floor tiles ('.', 'S', 'D').
+ */
+function _bfsConnected(template, sc, sr, dc, dr) {
+    const visited = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const queue = [{ r: sr, c: sc }];
+    visited[sr][sc] = true;
+
+    while (queue.length > 0) {
+        const { r, c } = queue.shift();
+        if (r === dr && c === dc) return true;
+
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [ddr, ddc] of dirs) {
+            const nr = r + ddr;
+            const nc = c + ddc;
+            if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
+            if (visited[nr][nc]) continue;
+            const ch = template[nr][nc];
+            if (ch === '#' || ch === 'C') continue;
+            visited[nr][nc] = true;
+            queue.push({ r: nr, c: nc });
+        }
+    }
+    return false;
+}
+
+/**
+ * Check if placing a canyon has isolated any floor tiles from the spawn.
+ * Returns true if any floor tile is unreachable from spawn (bad — would create
+ * islands where enemies could spawn but player can't reach).
+ */
+function _createsIsolatedFloor(template, sc, sr) {
+    const visited = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const queue = [{ r: sr, c: sc }];
+    visited[sr][sc] = true;
+
+    while (queue.length > 0) {
+        const { r, c } = queue.shift();
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr <= 0 || nr >= ROWS - 1 || nc <= 0 || nc >= COLS - 1) continue;
+            if (visited[nr][nc]) continue;
+            const ch = template[nr][nc];
+            if (ch === '#' || ch === 'C') continue;
+            visited[nr][nc] = true;
+            queue.push({ r: nr, c: nc });
+        }
+    }
+
+    // Check if any walkable floor tile is not visited
+    for (let r = 1; r < ROWS - 1; r++) {
+        for (let c = 1; c < COLS - 1; c++) {
+            const ch = template[r][c];
+            if (ch !== '#' && ch !== 'C' && !visited[r][c]) {
+                return true;  // found isolated floor
+            }
+        }
+    }
+    return false;
 }
 
 /**
@@ -864,7 +1008,7 @@ function _findArrowTrapPositions(grid, spawnPos, doorPos, usedTiles) {
 
     for (let row = 1; row < grid.length - 1; row++) {
         for (let col = 1; col < grid[0].length - 1; col++) {
-            if (!grid[row][col]) continue; // not a wall
+            if (grid[row][col] !== 1) continue; // only actual wall tiles (not floor or canyon)
 
             // Check each cardinal direction for adjacent floor
             const dirs = [

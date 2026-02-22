@@ -17,8 +17,9 @@ import {
     PICKUP_CRUSHING_BLOW, PICKUP_IRON_SKIN,
     HAZARD_LAVA_SLOW,
     PLAYER_BASE_CRIT_CHANCE,
+    TILE_SIZE, TILE_CANYON, MAX_DASH_CROSS_TILES,
 } from '../constants.js';
-import { resolveWalls } from '../collision.js';
+import { resolveWalls, resolveWallsOnly, isCanyon } from '../collision.js';
 import { devOverrides, getVal } from '../ui/devTools.js';
 
 export class Player {
@@ -68,6 +69,12 @@ export class Player {
         this.metaSpikeDamageMultiplier = 1;
         this.metaLavaDotMultiplier = 1;
 
+        // ── Canyon / Pit tracking ──
+        this.lastSafeX = x;
+        this.lastSafeY = y;
+        this.fellInCanyon = false;  // set per-frame; game.js reads and clears it
+        this.canyonFallCooldown = 0; // ms — while >0 canyons block like walls
+
         // ── Crit Chance (base, can be upgraded) ──
         this.critChance = PLAYER_BASE_CRIT_CHANCE;
 
@@ -82,6 +89,7 @@ export class Player {
         }
 
         const ms = dt * 1000;
+        this.fellInCanyon = false;  // reset per frame
 
         // ── Dash logic ──
         if (this.dashCooldown > 0) this.dashCooldown -= ms;
@@ -91,12 +99,31 @@ export class Player {
             if (this.dashTimer <= 0) {
                 this.dashing = false;
                 this.dashTimer = 0;
+                // Dash ended — check if we landed on a canyon tile
+                this._checkCanyonFall(grid);
             } else {
-                // Dash movement overrides normal movement
+                // Dash movement: use resolveWallsOnly so we can cross canyon gaps
                 const dashSpeed = this.getEffectiveSpeed() * getVal('dashSpeedMult', DASH_SPEED_MULT);
                 this.x += this.dashDirX * dashSpeed * dt;
                 this.y += this.dashDirY * dashSpeed * dt;
-                resolveWalls(this, this.radius, grid);
+                resolveWallsOnly(this, this.radius, grid);
+
+                // During dash: count consecutive canyon tiles along dash path
+                // If we've crossed too wide a gap, clamp to last safe position
+                const col = Math.floor(this.x / TILE_SIZE);
+                const row = Math.floor(this.y / TILE_SIZE);
+                if (isCanyon(grid, col, row)) {
+                    // Count consecutive canyon tiles from last safe pos in dash direction
+                    const gapWidth = this._measureCanyonGap(grid, this.dashDirX, this.dashDirY);
+                    if (gapWidth > MAX_DASH_CROSS_TILES) {
+                        // Too wide — end dash and trigger fall (game.js teleports to spawn)
+                        this.dashing = false;
+                        this.dashTimer = 0;
+                        this.fellInCanyon = true;
+                    }
+                    // Narrow enough: let dash continue through
+                }
+
                 // Tick other timers and return (skip normal movement)
                 if (this.attackTimer > 0) this.attackTimer -= ms;
                 if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
@@ -108,10 +135,27 @@ export class Player {
             }
         }
 
+        // Tick canyon fall cooldown
+        if (this.canyonFallCooldown > 0) this.canyonFallCooldown -= ms;
+
         const moveSpeed = this.getEffectiveSpeed();
         this.x += movement.x * moveSpeed * dt;
         this.y += movement.y * moveSpeed * dt;
-        resolveWalls(this, this.radius, grid);
+
+        // During cooldown: canyons block like walls so player can't re-enter.
+        // Otherwise: canyons are passable and walking on one triggers a fall.
+        if (this.canyonFallCooldown > 0) {
+            resolveWalls(this, this.radius, grid);
+        } else {
+            resolveWallsOnly(this, this.radius, grid);
+        }
+
+        // Check if player stepped onto a canyon tile
+        const col = Math.floor(this.x / TILE_SIZE);
+        const row = Math.floor(this.y / TILE_SIZE);
+        if (this.canyonFallCooldown <= 0 && isCanyon(grid, col, row)) {
+            this.fellInCanyon = true;
+        }
 
         if (this.attackTimer > 0) this.attackTimer -= ms;
         if (this.attackVisualTimer > 0) this.attackVisualTimer -= ms;
@@ -119,6 +163,47 @@ export class Player {
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
         if (this.daggerCooldown > 0) this.daggerCooldown -= ms;
         this._updateBuffs(ms);
+    }
+
+    // ── Canyon helpers ───────────────────────────────────────
+
+    /** Check if dash ended on a canyon tile; if so, flag as fell. */
+    _checkCanyonFall(grid) {
+        const col = Math.floor(this.x / TILE_SIZE);
+        const row = Math.floor(this.y / TILE_SIZE);
+        if (isCanyon(grid, col, row)) {
+            // Dash ended inside canyon — teleport back to safe pos
+            this.fellInCanyon = true;
+        }
+    }
+
+    /**
+     * Measure the width of the canyon gap from lastSafePos along the dash direction.
+     * Returns number of consecutive canyon tiles in that direction.
+     */
+    _measureCanyonGap(grid, dirX, dirY) {
+        const safeCol = Math.floor(this.lastSafeX / TILE_SIZE);
+        const safeRow = Math.floor(this.lastSafeY / TILE_SIZE);
+
+        // Determine step direction (dominant axis or diagonal)
+        const stepC = dirX > 0.3 ? 1 : dirX < -0.3 ? -1 : 0;
+        const stepR = dirY > 0.3 ? 1 : dirY < -0.3 ? -1 : 0;
+        if (stepC === 0 && stepR === 0) return 999; // can't determine direction
+
+        let canyonCount = 0;
+        let c = safeCol + stepC;
+        let r = safeRow + stepR;
+
+        while (c >= 0 && c < grid[0].length && r >= 0 && r < grid.length) {
+            if (isCanyon(grid, c, r)) {
+                canyonCount++;
+            } else {
+                break; // hit non-canyon — end of gap
+            }
+            c += stepC;
+            r += stepR;
+        }
+        return canyonCount;
     }
 
     /**

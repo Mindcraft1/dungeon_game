@@ -1,10 +1,27 @@
-import { TILE_SIZE } from './constants.js';
+import { TILE_SIZE, TILE_WALL, TILE_CANYON } from './constants.js';
 
-/** Check whether grid cell (col, row) is a wall (out-of-bounds counts as wall) */
+/**
+ * Check whether grid cell (col, row) blocks movement (wall OR canyon).
+ * Out-of-bounds counts as blocking.
+ */
 export function isWall(grid, col, row) {
     if (row < 0 || row >= grid.length) return true;
     if (col < 0 || col >= grid[0].length) return true;
-    return grid[row][col];
+    return grid[row][col] !== 0;   // anything non-floor blocks movement
+}
+
+/** True only for actual wall tiles (not canyon) — used for rendering / wall-specific logic */
+export function isWallTile(grid, col, row) {
+    if (row < 0 || row >= grid.length) return true;
+    if (col < 0 || col >= grid[0].length) return true;
+    return grid[row][col] === TILE_WALL;
+}
+
+/** True only for canyon tiles */
+export function isCanyon(grid, col, row) {
+    if (row < 0 || row >= grid.length) return false;
+    if (col < 0 || col >= grid[0].length) return false;
+    return grid[row][col] === TILE_CANYON;
 }
 
 /**
@@ -22,38 +39,62 @@ export function resolveWalls(entity, radius, grid) {
         for (let col = startCol; col <= endCol; col++) {
             if (!isWall(grid, col, row)) continue;
 
-            const tileL = col * TILE_SIZE;
-            const tileT = row * TILE_SIZE;
-            const tileR = tileL + TILE_SIZE;
-            const tileB = tileT + TILE_SIZE;
+            _pushOut(entity, radius, col, row);
+        }
+    }
+}
 
-            // Closest point on AABB to circle centre
-            const closestX = Math.max(tileL, Math.min(entity.x, tileR));
-            const closestY = Math.max(tileT, Math.min(entity.y, tileB));
+/**
+ * Push a circle entity out of overlapping WALL tiles only (ignores canyon).
+ * Used during dash to allow crossing over canyon gaps.
+ */
+export function resolveWallsOnly(entity, radius, grid) {
+    const startCol = Math.floor((entity.x - radius) / TILE_SIZE);
+    const endCol   = Math.floor((entity.x + radius) / TILE_SIZE);
+    const startRow = Math.floor((entity.y - radius) / TILE_SIZE);
+    const endRow   = Math.floor((entity.y + radius) / TILE_SIZE);
 
-            const dx = entity.x - closestX;
-            const dy = entity.y - closestY;
-            const distSq = dx * dx + dy * dy;
+    for (let row = startRow; row <= endRow; row++) {
+        for (let col = startCol; col <= endCol; col++) {
+            if (!isWallTile(grid, col, row)) continue;
 
-            if (distSq < radius * radius) {
-                if (distSq > 0) {
-                    const dist = Math.sqrt(distSq);
-                    const overlap = radius - dist;
-                    entity.x += (dx / dist) * overlap;
-                    entity.y += (dy / dist) * overlap;
-                } else {
-                    // Centre is inside the tile → push out via shortest axis
-                    const oL = entity.x - tileL + radius;
-                    const oR = tileR - entity.x + radius;
-                    const oT = entity.y - tileT + radius;
-                    const oB = tileB - entity.y + radius;
-                    const min = Math.min(oL, oR, oT, oB);
-                    if (min === oL)      entity.x = tileL - radius;
-                    else if (min === oR) entity.x = tileR + radius;
-                    else if (min === oT) entity.y = tileT - radius;
-                    else                 entity.y = tileB + radius;
-                }
-            }
+            _pushOut(entity, radius, col, row);
+        }
+    }
+}
+
+/** Internal: push circle entity out of a single tile AABB */
+function _pushOut(entity, radius, col, row) {
+    const tileL = col * TILE_SIZE;
+    const tileT = row * TILE_SIZE;
+    const tileR = tileL + TILE_SIZE;
+    const tileB = tileT + TILE_SIZE;
+
+    // Closest point on AABB to circle centre
+    const closestX = Math.max(tileL, Math.min(entity.x, tileR));
+    const closestY = Math.max(tileT, Math.min(entity.y, tileB));
+
+    const dx = entity.x - closestX;
+    const dy = entity.y - closestY;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq < radius * radius) {
+        if (distSq > 0) {
+            const dist = Math.sqrt(distSq);
+            const overlap = radius - dist;
+            entity.x += (dx / dist) * overlap;
+            entity.y += (dy / dist) * overlap;
+        } else {
+            // Centre is inside the tile → push out via shortest axis
+            const oL = entity.x - tileL + radius;
+            const oR = tileR - entity.x + radius;
+            const oT = entity.y - tileT + radius;
+            const oB = tileB - entity.y + radius;
+            const min = Math.min(oL, oR, oT, oB);
+            if (min === oL)      entity.x = tileL - radius;
+            else if (min === oR) entity.x = tileR + radius;
+            else if (min === oT) entity.y = tileT - radius;
+            else                 entity.y = tileB + radius;
         }
     }
 }

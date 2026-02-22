@@ -26,6 +26,7 @@ import {
     BUFF_RAGE_DAMAGE_MULT, BUFF_PIERCING_DAMAGE_MULT, BUFF_PIERCING_RANGE_MULT,
     BUFF_SWIFT_SPEED_MULT, BUFF_SPEED_SURGE_CD_MULT, BUFF_IRON_SKIN_REDUCE,
     HAZARD_LAVA_SLOW,
+    CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
@@ -550,6 +551,16 @@ export class Game {
         const { grid, spawnPos, doorPos } = this.proceduralRooms
             ? generateProceduralRoom(this.stage || 1)
             : parseRoom(templateIndex);
+
+        // Strip canyon tiles from rooms if stage is below canyon intro stage
+        if ((this.stage || 1) < CANYON_INTRO_STAGE) {
+            for (let r = 0; r < grid.length; r++) {
+                for (let c = 0; c < grid[r].length; c++) {
+                    if (grid[r][c] === 2) grid[r][c] = 0;  // canyon → floor
+                }
+            }
+        }
+
         this.grid = grid;
         this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
@@ -586,6 +597,7 @@ export class Game {
     _loadTrainingRoom() {
         const { grid, spawnPos, doorPos } = parseTrainingRoom();
         this.grid = grid;
+        this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
@@ -611,6 +623,7 @@ export class Game {
             ({ grid, spawnPos, doorPos } = parseRoom(this.trainingRoomIndex));
         }
         this.grid = grid;
+        this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
         this.trainingRespawnTimer = 0;
@@ -659,6 +672,9 @@ export class Game {
             this.player.attackTimer = 0;
             this.player.attackVisualTimer = 0;
         }
+        // Set initial safe position to spawn
+        this.player.lastSafeX = px;
+        this.player.lastSafeY = py;
         // Apply biome speed modifier
         this.player.biomeSpeedMult = this.currentBiome
             ? this.currentBiome.playerSpeedMult
@@ -1458,6 +1474,59 @@ export class Game {
         this.state = STATE_PLAYING;
     }
 
+    // ── Canyon / Pit Fall Handling ─────────────────────────
+
+    /** Apply canyon fall penalty: HP loss, coin loss, teleport to safety, screen shake. */
+    _applyCanyonFall() {
+        const p = this.player;
+
+        // HP penalty (percentage of max HP)
+        const noDamage = this.trainingMode && !this.trainingDamage;
+        if (!noDamage && !this.cheats.godmode) {
+            const dmg = Math.max(1, Math.floor(p.maxHp * CANYON_FALL_HP_PENALTY));
+            p.hp = Math.max(1, p.hp - dmg);  // can't kill from fall (min 1 HP)
+            p.damageFlashTimer = 300;
+            p.invulnTimer = Math.max(p.invulnTimer, PLAYER_INVULN_TIME);
+        }
+
+        // Coin penalty
+        if (this.runCoins > 0) {
+            const coinLoss = Math.max(1, Math.floor(this.runCoins * CANYON_FALL_COIN_PENALTY));
+            this.runCoins = Math.max(0, this.runCoins - coinLoss);
+        }
+
+        // Teleport back to room spawn
+        const sp = this._currentSpawnPos;
+        if (sp) {
+            p.x = sp.col * TILE_SIZE + TILE_SIZE / 2;
+            p.y = sp.row * TILE_SIZE + TILE_SIZE / 2;
+        }
+        p.dashing = false;
+        p.dashTimer = 0;
+        p.canyonFallCooldown = 800; // ms — canyons block like walls during this window
+
+        // Visual / audio feedback
+        triggerShake(4, 0.85);
+        Audio.playHit();
+        this.particles.hitSparks(p.x, p.y, 0, -1);
+
+        // Floating text popup
+        this.comboPopups.push({
+            text: 'You fell!',
+            x: p.x,
+            y: p.y - 30,
+            timer: 1200,
+            maxTimer: 1200,
+            color: '#ff4444',
+            size: 16,
+        });
+
+        // Check for game over (shouldn't happen since min 1 HP, but safety check)
+        if (p.hp <= 0 && !this.trainingMode) {
+            this.state = STATE_GAME_OVER;
+        }
+    }
+
     /** Activate bomb (B key) — Big AoE damage + stun around player. */
     _activateBomb() {
         if (this.bombCharges <= 0) return;
@@ -1702,6 +1771,11 @@ export class Game {
         // Reset lava slow flag each frame (hazards will set it if player is on lava)
         this.player.onLava = false;
         this.player.update(dt, movement, this.grid);
+
+        // ── Canyon fall check ──
+        if (this.player.fellInCanyon) {
+            this._applyCanyonFall();
+        }
 
         // ── Impact System: update hit-stop + time scale ──
         Impact.update(dt * 1000);

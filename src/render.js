@@ -1,4 +1,9 @@
-import { TILE_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, COLOR_FLOOR, COLOR_WALL, COLOR_WALL_LIGHT, COLOR_WALL_DARK } from './constants.js';
+import {
+    TILE_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT,
+    COLOR_FLOOR, COLOR_WALL, COLOR_WALL_LIGHT, COLOR_WALL_DARK,
+    TILE_WALL, TILE_CANYON,
+    CANYON_COLOR_DEEP, CANYON_COLOR_EDGE, CANYON_COLOR_RIM,
+} from './constants.js';
 
 // ── Deterministic seeded random for decorations ─────────────
 // Simple hash so decorations stay stable per-tile per-room.
@@ -26,7 +31,7 @@ function _hasFloorNeighbour(grid, row, col) {
     const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
     for (const [dr, dc] of dirs) {
         const r = row + dr, c = col + dc;
-        if (r >= 0 && r < grid.length && c >= 0 && c < grid[0].length && !grid[r][c]) return true;
+        if (r >= 0 && r < grid.length && c >= 0 && c < grid[0].length && grid[r][c] === 0) return true;
     }
     return false;
 }
@@ -49,8 +54,9 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
         for (let col = 0; col < grid[row].length; col++) {
             const x = col * TILE_SIZE;
             const y = row * TILE_SIZE;
+            const cell = grid[row][col];
 
-            if (grid[row][col]) {
+            if (cell === TILE_WALL) {
                 // Wall – base fill
                 ctx.fillStyle = wallColor;
                 ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
@@ -73,6 +79,9 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
                         _drawWallDecor(ctx, x, y, type, col, row, decorSeed);
                     }
                 }
+            } else if (cell === TILE_CANYON) {
+                // ── Canyon / Pit tile ───────────────────────
+                _drawCanyonTile(ctx, x, y, col, row, grid, decorSeed);
             } else {
                 // Floor
                 ctx.fillStyle = floorColor;
@@ -216,6 +225,75 @@ function _drawFloorDecor(ctx, x, y, type, col, row, seed) {
             break;
         }
     }
+}
+
+// ── Canyon / Pit tile rendering ─────────────────────────────
+function _drawCanyonTile(ctx, x, y, col, row, grid, seed) {
+    const S = TILE_SIZE;
+    const cx = x + S / 2;
+    const cy = y + S / 2;
+
+    // Deep void fill
+    ctx.fillStyle = CANYON_COLOR_DEEP;
+    ctx.fillRect(x, y, S, S);
+
+    // Inner gradient: dark center with slightly lighter edges
+    const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, S * 0.6);
+    grad.addColorStop(0, 'rgba(0,0,0,0.6)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, S, S);
+
+    // Edge highlight — draw rim on sides adjacent to non-canyon tiles
+    const rimWidth = 3;
+    ctx.fillStyle = CANYON_COLOR_EDGE;
+
+    // Top edge
+    const topSolid = row > 0 && grid[row - 1][col] !== TILE_CANYON;
+    if (topSolid) {
+        ctx.fillRect(x, y, S, rimWidth);
+        ctx.fillStyle = CANYON_COLOR_RIM;
+        ctx.fillRect(x, y, S, 1);
+        ctx.fillStyle = CANYON_COLOR_EDGE;
+    }
+    // Bottom edge
+    const botSolid = row < grid.length - 1 && grid[row + 1][col] !== TILE_CANYON;
+    if (botSolid) {
+        ctx.fillRect(x, y + S - rimWidth, S, rimWidth);
+        ctx.fillStyle = CANYON_COLOR_RIM;
+        ctx.fillRect(x, y + S - 1, S, 1);
+        ctx.fillStyle = CANYON_COLOR_EDGE;
+    }
+    // Left edge
+    const leftSolid = col > 0 && grid[row][col - 1] !== TILE_CANYON;
+    if (leftSolid) {
+        ctx.fillRect(x, y, rimWidth, S);
+        ctx.fillStyle = CANYON_COLOR_RIM;
+        ctx.fillRect(x, y, 1, S);
+        ctx.fillStyle = CANYON_COLOR_EDGE;
+    }
+    // Right edge
+    const rightSolid = col < grid[0].length - 1 && grid[row][col + 1] !== TILE_CANYON;
+    if (rightSolid) {
+        ctx.fillRect(x + S - rimWidth, y, rimWidth, S);
+        ctx.fillStyle = CANYON_COLOR_RIM;
+        ctx.fillRect(x + S - 1, y, 1, S);
+        ctx.fillStyle = CANYON_COLOR_EDGE;
+    }
+
+    // Subtle shimmer / depth lines for visual interest
+    const h1 = _tileHash(col, row, seed + 900);
+    const h2 = _tileHash(col, row, seed + 901);
+    ctx.strokeStyle = 'rgba(80, 50, 120, 0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 4 + h1 * 12, y + 6 + h2 * 8);
+    ctx.lineTo(x + 20 + h2 * 10, y + 14 + h1 * 12);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 10 + h2 * 15, y + 20 + h1 * 6);
+    ctx.lineTo(x + 28 + h1 * 8, y + 30 + h2 * 6);
+    ctx.stroke();
 }
 
 // ── Wall decoration shapes ──────────────────────────────────
