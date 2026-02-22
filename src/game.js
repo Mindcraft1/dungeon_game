@@ -135,9 +135,6 @@ export class Game {
         // Pause menu selection
         this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
 
-        // Saved real-game state for returning from training
-        this._savedGame = null;
-
         // ── Training config ──
         this.trainingConfigCursor = 0;  // 0=room, 1=enemy type, 2=count, 3=start
         this.trainingRoomIndex = -1;    // -1 = training room, 0..13 = game rooms
@@ -437,7 +434,6 @@ export class Game {
 
     _startGame() {
         this.trainingMode = false;
-        this._savedGame = null;
         this.stage = 1;
         this.player = null;
         this.pickups = [];
@@ -511,7 +507,6 @@ export class Game {
 
     _startTraining() {
         this.trainingMode = true;
-        this._savedGame = null;
         this.player = null;
         this._equipSavedLoadout();
         this.stage = 0;
@@ -891,7 +886,6 @@ export class Game {
         this.state = STATE_MENU;
         this.menuIndex = 0;
         this.trainingMode = false;
-        this._savedGame = null;
         this.projectiles = [];
         this.explosions = [];
         this.playerProjectiles = [];
@@ -2907,11 +2901,10 @@ export class Game {
 
         // Training door hint
         if (this.trainingMode && this.door.isPlayerNear(this.player)) {
-            const label = this._savedGame ? 'RETURN (or ESC)' : 'EXIT (or ESC)';
             this._renderTooltip(
                 this.door.x + this.door.width / 2,
                 this.door.y - 14,
-                label, '#27ae60',
+                'EXIT (or ESC)', '#27ae60',
             );
         }
 
@@ -3156,11 +3149,7 @@ export class Game {
 
         ctx.fillStyle = '#888';
         ctx.font = '10px monospace';
-        if (this._savedGame) {
-            ctx.fillText('ESC = Return to game  |  Door = Return', CANVAS_WIDTH / 2, by - 6);
-        } else {
-            ctx.fillText('ESC = Back to menu  |  Door = Exit', CANVAS_WIDTH / 2, by - 6);
-        }
+        ctx.fillText('ESC = Back to menu  |  Door = Exit', CANVAS_WIDTH / 2, by - 6);
         ctx.textAlign = 'left';
     }
 
