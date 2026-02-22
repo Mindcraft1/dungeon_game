@@ -415,7 +415,7 @@ export const META_BOOSTERS = {
         icon:  '🛡️',
         color: '#00bcd4',
         cost:  12,
-        unlock: null,  // always available
+        unlock: { stat: 'runsPlayed', value: 5, label: 'Complete 5 runs' },
     },
     meta_booster_weapon_core: {
         id:    'meta_booster_weapon_core',
@@ -424,7 +424,7 @@ export const META_BOOSTERS = {
         icon:  '⚔️',
         color: '#f44336',
         cost:  25,
-        unlock: null,  // always available
+        unlock: { stat: 'bossesKilledTotal', value: 5, label: 'Kill 5 bosses total' },
     },
     meta_booster_training_manual: {
         id:    'meta_booster_training_manual',
@@ -433,7 +433,7 @@ export const META_BOOSTERS = {
         icon:  '📖',
         color: '#9c27b0',
         cost:  10,
-        unlock: null,  // always available
+        unlock: { stat: 'runsPlayed', value: 3, label: 'Complete 3 runs' },
     },
     meta_booster_panic_button: {
         id:    'meta_booster_panic_button',
@@ -442,7 +442,7 @@ export const META_BOOSTERS = {
         icon:  '💀',
         color: '#ffd700',
         cost:  30,
-        unlock: null,  // always available
+        unlock: { stat: 'bossesKilledTotal', value: 15, label: 'Kill 15 bosses total' },
     },
     meta_booster_lucky_start: {
         id:    'meta_booster_lucky_start',
@@ -451,7 +451,7 @@ export const META_BOOSTERS = {
         icon:  '🍀',
         color: '#4caf50',
         cost:  8,
-        unlock: { stat: 'runsPlayed', value: 3, label: 'Complete 3 runs' },
+        unlock: { stat: 'runsPlayed', value: 8, label: 'Complete 8 runs' },
     },
     meta_booster_thick_skin: {
         id:    'meta_booster_thick_skin',
@@ -460,7 +460,7 @@ export const META_BOOSTERS = {
         icon:  '🪨',
         color: '#795548',
         cost:  20,
-        unlock: { stat: 'bossesKilledTotal', value: 3, label: 'Kill 3 bosses total' },
+        unlock: { stat: 'bossesKilledTotal', value: 10, label: 'Kill 10 bosses total' },
     },
     meta_booster_swift_feet: {
         id:    'meta_booster_swift_feet',
@@ -469,7 +469,7 @@ export const META_BOOSTERS = {
         icon:  '💨',
         color: '#2196f3',
         cost:  15,
-        unlock: { stat: 'highestStage', value: 10, label: 'Reach stage 10' },
+        unlock: { stat: 'highestStage', value: 20, label: 'Reach stage 20' },
     },
     meta_booster_scavenger: {
         id:    'meta_booster_scavenger',
@@ -478,7 +478,7 @@ export const META_BOOSTERS = {
         icon:  '🪙',
         color: '#ffab00',
         cost:  22,
-        unlock: { stat: 'highestStage', value: 15, label: 'Reach stage 15' },
+        unlock: { stat: 'highestStage', value: 30, label: 'Reach stage 30' },
     },
 };
 export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);
