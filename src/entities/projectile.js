@@ -75,9 +75,10 @@ export class Projectile {
 /**
  * Player-fired dagger projectile — collides with enemies/boss, not with the player.
  * Has a max travel distance, knockback, and dagger-shaped rendering.
+ * Supports pierce, ricochet, fire trail, and returning (boomerang) via combatMods.
  */
 export class PlayerProjectile {
-    constructor(x, y, dirX, dirY, speed, damage, radius, color, maxDist, knockback) {
+    constructor(x, y, dirX, dirY, speed, damage, radius, color, maxDist, knockback, modOpts = {}) {
         this.x = x;
         this.y = y;
         this.startX = x;
@@ -93,33 +94,106 @@ export class PlayerProjectile {
         this.dead = false;
         this.hitTarget = null; // set when hitting an enemy (for particles)
         this.bossDamageMultiplier = 1; // meta relic: Boss Hunter
+
+        // ── Node-driven modifiers ──
+        this.pierceRemaining = modOpts.pierce || 0;      // how many enemies to pass through
+        this.ricochetRemaining = modOpts.ricochet || 0;   // how many wall bounces
+        this.fireTrail = modOpts.fireTrail || false;       // spawn fire zones
+        this.fireTrailDuration = modOpts.fireTrailDuration || 0;
+        this.fireTrailDps = modOpts.fireTrailDps || 0;
+        this.returning = modOpts.returning || false;        // boomerang back to owner
+        this.critBonus = modOpts.critBonus || 0;
+
+        this._hitSet = new Set();          // track already-pierced enemies
+        this._returning = false;           // currently on return trip
+        this._ownerRef = modOpts.owner || null; // player ref for returning
+        this._fireTrailTimer = 0;          // spawn fire zones periodically
     }
 
     update(dt, enemies, boss, grid) {
         if (this.dead) return;
 
+        // ── Returning (boomerang) logic ──
+        if (this.returning && !this._returning) {
+            // Check max distance — switch to return trip
+            const dx0 = this.x - this.startX;
+            const dy0 = this.y - this.startY;
+            if (dx0 * dx0 + dy0 * dy0 > this.maxDist * this.maxDist) {
+                this._returning = true;
+            }
+        }
+
+        if (this._returning && this._ownerRef) {
+            // Fly back toward the player
+            const tx = this._ownerRef.x - this.x;
+            const ty = this._ownerRef.y - this.y;
+            const td = Math.sqrt(tx * tx + ty * ty) || 1;
+            this.dirX = tx / td;
+            this.dirY = ty / td;
+            // If close enough to owner, despawn
+            if (td < this._ownerRef.radius + this.radius + 4) {
+                this.dead = true;
+                return;
+            }
+        }
+
         this.x += this.dirX * this.speed * dt;
         this.y += this.dirY * this.speed * dt;
 
-        // Max distance check
-        const dx = this.x - this.startX;
-        const dy = this.y - this.startY;
-        if (dx * dx + dy * dy > this.maxDist * this.maxDist) {
-            this.dead = true;
-            return;
+        // ── Fire trail: spawn fire zones along path ──
+        if (this.fireTrail) {
+            this._fireTrailTimer += dt * 1000;
+            if (this._fireTrailTimer >= 60) { // every 60ms
+                this._fireTrailTimer -= 60;
+                // pendingFireZones is consumed by game.js
+                if (!this.pendingFireZones) this.pendingFireZones = [];
+                this.pendingFireZones.push({
+                    x: this.x, y: this.y,
+                    duration: this.fireTrailDuration,
+                    dps: this.fireTrailDps,
+                    radius: 12,
+                });
+            }
         }
 
-        // Wall collision
+        // Max distance check (skip for returning daggers on return trip)
+        if (!this._returning) {
+            const dx = this.x - this.startX;
+            const dy = this.y - this.startY;
+            if (dx * dx + dy * dy > this.maxDist * this.maxDist) {
+                if (this.returning) {
+                    this._returning = true;
+                } else {
+                    this.dead = true;
+                    return;
+                }
+            }
+        }
+
+        // Wall collision (ricochet support)
         const col = Math.floor(this.x / TILE_SIZE);
         const row = Math.floor(this.y / TILE_SIZE);
         if (isWall(grid, col, row)) {
-            this.dead = true;
-            return;
+            if (this.ricochetRemaining > 0) {
+                this.ricochetRemaining--;
+                // Reflect off the wall — determine which axis to flip
+                const prevCol = Math.floor((this.x - this.dirX * this.speed * dt) / TILE_SIZE);
+                const prevRow = Math.floor((this.y - this.dirY * this.speed * dt) / TILE_SIZE);
+                if (prevCol !== col) this.dirX = -this.dirX;
+                if (prevRow !== row) this.dirY = -this.dirY;
+                // Push out of wall
+                this.x += this.dirX * this.speed * dt * 2;
+                this.y += this.dirY * this.speed * dt * 2;
+            } else {
+                this.dead = true;
+                return;
+            }
         }
 
-        // Enemy collision
+        // Enemy collision (pierce support)
         for (const e of enemies) {
             if (e.dead) continue;
+            if (this._hitSet.has(e)) continue; // already pierced through this enemy
             const ex = this.x - e.x;
             const ey = this.y - e.y;
             if (ex * ex + ey * ey < (this.radius + e.radius) ** 2) {
@@ -128,13 +202,20 @@ export class PlayerProjectile {
                 const kbY = (ey / dist) * this.knockback;
                 e.takeDamage(this.damage, kbX, kbY);
                 this.hitTarget = { x: e.x, y: e.y, dirX: this.dirX, dirY: this.dirY, entity: e };
-                this.dead = true;
-                return;
+                this._hitSet.add(e);
+
+                if (this.pierceRemaining > 0) {
+                    this.pierceRemaining--;
+                    // Don't die — continue through
+                } else {
+                    this.dead = true;
+                    return;
+                }
             }
         }
 
-        // Boss collision
-        if (boss && !boss.dead) {
+        // Boss collision (pierce support)
+        if (boss && !boss.dead && !this._hitSet.has(boss)) {
             const bx = this.x - boss.x;
             const by = this.y - boss.y;
             if (bx * bx + by * by < (this.radius + boss.radius) ** 2) {
@@ -146,8 +227,14 @@ export class PlayerProjectile {
                     : this.damage;
                 boss.takeDamage(bossDmg, kbX, kbY);
                 this.hitTarget = { x: boss.x, y: boss.y, dirX: this.dirX, dirY: this.dirY, entity: boss };
-                this.dead = true;
-                return;
+                this._hitSet.add(boss);
+
+                if (this.pierceRemaining > 0) {
+                    this.pierceRemaining--;
+                } else {
+                    this.dead = true;
+                    return;
+                }
             }
         }
     }
@@ -195,10 +282,19 @@ export class PlayerProjectile {
         ctx.closePath();
         ctx.fill();
 
-        // Cyan tint overlay
+        // Cyan tint overlay (or fire tint for fire trail daggers)
         ctx.globalAlpha = 0.6;
-        ctx.fillStyle = this.color;
+        ctx.fillStyle = this.fireTrail ? '#ff6d00' : this.color;
         ctx.fill();
+
+        // Fire trail glow aura
+        if (this.fireTrail) {
+            ctx.globalAlpha = 0.2 + Math.sin(Date.now() * 0.01) * 0.1;
+            ctx.fillStyle = '#ff6d00';
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.restore();
     }

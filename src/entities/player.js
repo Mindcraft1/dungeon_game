@@ -21,6 +21,7 @@ import {
 } from '../constants.js';
 import { resolveWalls, resolveWallsOnly, isCanyon } from '../collision.js';
 import { devOverrides, getVal } from '../ui/devTools.js';
+import { applyFreeze, applyBurn } from '../combat/statusEffects.js';
 
 export class Player {
     constructor(x, y) {
@@ -209,8 +210,11 @@ export class Player {
     /**
      * Attempt to start a dash in the given direction.
      * Returns true if the dash was started, false if on cooldown or no direction.
+     * @param {object} movement - { x, y }
+     * @param {object} [mods] - combatMods.dash from UpgradeEngine (optional)
+     * @param {object} [globalMods] - combatMods.global from UpgradeEngine (optional)
      */
-    tryDash(movement) {
+    tryDash(movement, mods = {}, globalMods = {}) {
         if (this.dashing) return false;
         if (this.dashCooldown > 0) return false;
 
@@ -227,9 +231,13 @@ export class Player {
         dirX /= len;
         dirY /= len;
 
+        // Duration + cooldown with node multipliers
+        const durationMult = (mods.durationMult || 1);
+        const cdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
+
         this.dashing = true;
-        this.dashTimer = getVal('dashDuration', DASH_DURATION);
-        this.dashCooldown = getVal('dashCooldown', DASH_COOLDOWN);
+        this.dashTimer = getVal('dashDuration', DASH_DURATION) * durationMult;
+        this.dashCooldown = getVal('dashCooldown', DASH_COOLDOWN) * cdMult;
         this.dashDirX = dirX;
         this.dashDirY = dirY;
         this.invulnTimer = Math.max(this.invulnTimer, DASH_INVULN_TIME);
@@ -238,24 +246,33 @@ export class Player {
 
     /**
      * Directional melee attack (120° arc in facing direction).
-     * Returns the number of enemies hit, or -1 if on cooldown.
+     * Returns an object { hitCount, hitEnemies, killed } or -1 if on cooldown.
+     * @param {Array} enemies - enemies + bosses to check
+     * @param {object} [mods] - combatMods.melee from UpgradeEngine (optional)
+     * @param {object} [globalMods] - combatMods.global from UpgradeEngine (optional)
      */
-    attack(enemies) {
+    attack(enemies, mods = {}, globalMods = {}) {
         if (this.attackTimer > 0) return -1;
 
-        // Cooldown (may be reduced by Speed Surge buff)
+        // Cooldown (may be reduced by Speed Surge buff, melee nodes, global nodes)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
-        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult;
+        const nodeCdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
+        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult * nodeCdMult;
         this.attackVisualTimer = getVal('attackDuration', ATTACK_DURATION);
 
         // Range (may be extended by Piercing Shot buff)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
         const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1);
 
+        // Attack arc (base + node widening)
+        const effectiveArc = ATTACK_ARC * (mods.arcMult || 1);
+
         // Damage calculation
         let dmg = this.damage;
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
+        // Global damage multiplier from nodes
+        if (globalMods.damageMult) dmg = Math.floor(dmg * globalMods.damageMult);
 
         // Crushing Blow: one-time 3× nuke
         let kbMult = 1;
@@ -266,8 +283,24 @@ export class Player {
             this._removeBuff(PICKUP_CRUSHING_BLOW);
         }
 
+        // Knockback multiplier from nodes
+        kbMult *= (mods.knockbackMult || 1);
+
+        // Lunge: move player forward before attack resolves
+        if (mods.lunge && mods.lungeDistance) {
+            const lungeX = this.facingX * mods.lungeDistance;
+            const lungeY = this.facingY * mods.lungeDistance;
+            this.x += lungeX;
+            this.y += lungeY;
+        }
+
         const facingAngle = Math.atan2(this.facingY, this.facingX);
 
+        // Extra targets from node: how many extra enemies beyond the normal set
+        const maxTargets = enemies.length; // hit all in arc by default
+        // (extraTargets is used for Kill Nova gating, not limiting arc hits)
+
+        const hitEnemies = [];
         let hitCount = 0;
         for (const enemy of enemies) {
             if (enemy.dead) continue;
@@ -276,11 +309,11 @@ export class Player {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > effectiveRange + enemy.radius) continue;
 
-            // Angle check
+            // Angle check with node-widened arc
             let diff = Math.atan2(dy, dx) - facingAngle;
             while (diff > Math.PI)  diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
-            if (Math.abs(diff) > ATTACK_ARC / 2) continue;
+            if (Math.abs(diff) > effectiveArc / 2) continue;
 
             const kbVal = getVal('attackKnockback', ATTACK_KNOCKBACK);
             const kbX = dist > 0 ? (dx / dist) * kbVal * kbMult : 0;
@@ -293,22 +326,36 @@ export class Player {
             }
 
             enemy.takeDamage(finalDmg, kbX, kbY);
+            hitEnemies.push(enemy);
             hitCount++;
+
+            // Stun chance from node (Staggering Blows)
+            if (mods.stunChance && Math.random() < mods.stunChance) {
+                applyFreeze(enemy, mods.stunDuration || 500);
+            }
+            // Bleed chance from node (Serrated Edge) → burn DoT
+            if (mods.bleedChance && Math.random() < mods.bleedChance) {
+                applyBurn(enemy, mods.bleedDuration || 2000, mods.bleedDps || 5);
+            }
         }
-        return hitCount;
+
+        return { hitCount, hitEnemies, killed: hitEnemies.filter(e => e.dead) };
     }
 
     /**
      * Try to throw a dagger projectile in the facing direction.
-     * Returns a projectile config object { x, y, dirX, dirY, speed, damage, radius, color, maxDist, knockback }
+     * Returns an array of projectile config objects (may include spread/extra daggers)
      * or null if on cooldown.
+     * @param {object} [mods] - combatMods.dagger from UpgradeEngine (optional)
+     * @param {object} [globalMods] - combatMods.global from UpgradeEngine (optional)
      */
-    tryThrow() {
+    tryThrow(mods = {}, globalMods = {}) {
         if (this.daggerCooldown > 0) return null;
 
-        // Cooldown (may be reduced by Speed Surge buff)
+        // Cooldown (may be reduced by Speed Surge buff + global node)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
-        this.daggerCooldown = getVal('daggerCooldown', DAGGER_COOLDOWN) * cdMult;
+        const globalCdMult = (globalMods.cooldownMult || 1);
+        this.daggerCooldown = getVal('daggerCooldown', DAGGER_COOLDOWN) * cdMult * globalCdMult;
 
         // Direction (facing)
         const len = Math.sqrt(this.facingX * this.facingX + this.facingY * this.facingY);
@@ -319,6 +366,8 @@ export class Player {
         let dmg = Math.floor(this.damage * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
+        // Global damage multiplier from nodes
+        if (globalMods.damageMult) dmg = Math.floor(dmg * globalMods.damageMult);
 
         // Crushing Blow: one-time 3× nuke on ranged too
         let kbMult = 1;
@@ -333,21 +382,84 @@ export class Player {
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
         const maxDist = getVal('daggerRange', DAGGER_RANGE) * rangeMult;
 
+        // Speed multiplier from nodes
+        const speedMult = (mods.speedMult || 1);
+
+        // Crit bonus from nodes (added to player base crit)
+        const critBonus = (mods.critBonus || 0);
+
         // Spawn slightly in front of player
         const spawnOffset = this.radius + DAGGER_RADIUS + 2;
-        const spawnX = this.x + dirX * spawnOffset;
-        const spawnY = this.y + dirY * spawnOffset;
 
-        return {
-            x: spawnX, y: spawnY,
-            dirX, dirY,
-            speed: getVal('daggerSpeed', DAGGER_SPEED),
-            damage: dmg,
-            radius: DAGGER_RADIUS,
-            color: DAGGER_COLOR,
-            maxDist,
-            knockback: DAGGER_KNOCKBACK * kbMult,
-        };
+        // Build list of daggers to throw
+        const daggers = [];
+        const baseAngle = Math.atan2(dirY, dirX);
+
+        // Determine total dagger count (1 base + extraProjectiles from nodes)
+        const extraDaggers = mods.extraProjectiles || 0;
+        const totalDaggers = 1 + extraDaggers;
+
+        // Spread pattern from node (Fan of Knives)
+        const useSpread = mods.spreadPattern && (mods.spreadCount || 0) >= 2;
+
+        if (useSpread) {
+            // Fan pattern: spreadCount daggers in a spreadArc arc
+            const spreadCount = mods.spreadCount || 3;
+            const spreadArc = mods.spreadArc || 0.4; // radians
+            for (let i = 0; i < spreadCount; i++) {
+                const frac = spreadCount === 1 ? 0 : (i / (spreadCount - 1)) - 0.5;
+                const angle = baseAngle + frac * spreadArc * 2;
+                const dX = Math.cos(angle);
+                const dY = Math.sin(angle);
+                daggers.push({
+                    x: this.x + dX * spawnOffset,
+                    y: this.y + dY * spawnOffset,
+                    dirX: dX, dirY: dY,
+                    speed: getVal('daggerSpeed', DAGGER_SPEED) * speedMult,
+                    damage: dmg,
+                    radius: DAGGER_RADIUS,
+                    color: DAGGER_COLOR,
+                    maxDist,
+                    knockback: DAGGER_KNOCKBACK * kbMult,
+                    pierce: mods.pierce || 0,
+                    ricochet: mods.ricochet || 0,
+                    fireTrail: mods.fireTrail || false,
+                    fireTrailDuration: mods.fireTrailDuration || 0,
+                    fireTrailDps: mods.fireTrailDps || 0,
+                    returning: mods.returning || false,
+                    critBonus,
+                });
+            }
+        } else {
+            // Standard throw: 1 center dagger + extras offset slightly
+            for (let i = 0; i < totalDaggers; i++) {
+                // Spread extra daggers slightly (±0.1 rad per extra)
+                const offset = i === 0 ? 0 : (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2) * 0.1;
+                const angle = baseAngle + offset;
+                const dX = Math.cos(angle);
+                const dY = Math.sin(angle);
+                daggers.push({
+                    x: this.x + dX * spawnOffset,
+                    y: this.y + dY * spawnOffset,
+                    dirX: dX, dirY: dY,
+                    speed: getVal('daggerSpeed', DAGGER_SPEED) * speedMult,
+                    damage: dmg,
+                    radius: DAGGER_RADIUS,
+                    color: DAGGER_COLOR,
+                    maxDist,
+                    knockback: DAGGER_KNOCKBACK * kbMult,
+                    pierce: mods.pierce || 0,
+                    ricochet: mods.ricochet || 0,
+                    fireTrail: mods.fireTrail || false,
+                    fireTrailDuration: mods.fireTrailDuration || 0,
+                    fireTrailDps: mods.fireTrailDps || 0,
+                    returning: mods.returning || false,
+                    critBonus,
+                });
+            }
+        }
+
+        return daggers;
     }
 
     takeDamage(amount) {

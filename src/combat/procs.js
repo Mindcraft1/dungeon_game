@@ -25,10 +25,11 @@ export const PROC_DEFINITIONS = {
 
         onProc(event, context) {
             const { target, source } = event;
-            const { enemies, boss, particles } = context;
+            const { enemies, boss, particles, procMods = {}, globalMods = {} } = context;
             if (!target || target.dead) return;
 
-            const dmg = Math.floor(source.damage * PROC_EXPLOSIVE_DMG_MULT);
+            const effectiveRadius = PROC_EXPLOSIVE_RADIUS * (procMods.radiusMult || 1);
+            const dmg = Math.floor(source.damage * PROC_EXPLOSIVE_DMG_MULT * (procMods.dmgMult || 1) * (globalMods.damageMult || 1));
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
 
             for (const e of targets) {
@@ -36,7 +37,7 @@ export const PROC_DEFINITIONS = {
                 const dx = e.x - target.x;
                 const dy = e.y - target.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > PROC_EXPLOSIVE_RADIUS + (e.radius || 12)) continue;
+                if (dist > effectiveRadius + (e.radius || 12)) continue;
 
                 const d = dist || 1;
                 e.takeDamage(dmg, (dx / d) * 8, (dy / d) * 8);
@@ -50,7 +51,7 @@ export const PROC_DEFINITIONS = {
             showProcTrigger('Explosive Strikes', '🔥', '#ff6d00');
 
             if (particles) {
-                particles.procExplosion(target.x, target.y, PROC_EXPLOSIVE_RADIUS);
+                particles.procExplosion(target.x, target.y, effectiveRadius);
             }
         },
     },
@@ -66,20 +67,23 @@ export const PROC_DEFINITIONS = {
 
         onProc(event, context) {
             const { target, source } = event;
-            const { enemies, boss, particles } = context;
+            const { enemies, boss, particles, procMods = {}, globalMods = {} } = context;
             if (!target || target.dead) return;
 
-            const dmg = Math.floor(source.damage * PROC_CHAIN_LIGHTNING_DMG_MULT);
+            const dmg = Math.floor(source.damage * PROC_CHAIN_LIGHTNING_DMG_MULT * (globalMods.damageMult || 1));
             const allTargets = boss && !boss.dead ? [...enemies, boss] : enemies;
             const hit = new Set();
             hit.add(target);
 
+            const effectiveRange = PROC_CHAIN_LIGHTNING_RANGE * (procMods.rangeMult || 1);
+            const totalJumps = PROC_CHAIN_LIGHTNING_JUMPS + (procMods.extraJumps || 0);
+
             let current = target;
             const chainPositions = [{ x: target.x, y: target.y }];
 
-            for (let jump = 0; jump < PROC_CHAIN_LIGHTNING_JUMPS; jump++) {
+            for (let jump = 0; jump < totalJumps; jump++) {
                 let nearest = null;
-                let nearestDist = PROC_CHAIN_LIGHTNING_RANGE;
+                let nearestDist = effectiveRange;
 
                 for (const e of allTargets) {
                     if (e.dead || hit.has(e)) continue;
@@ -124,11 +128,12 @@ export const PROC_DEFINITIONS = {
 
         onProc(event, context) {
             const { target, damage } = event;
-            const { particles } = context;
+            const { particles, procMods = {} } = context;
             if (!target || target.dead) return;
 
-            // Extra damage
-            const extraDmg = Math.floor(damage * PROC_HEAVY_CRIT_EXTRA_DMG);
+            // Extra damage (node can increase crit damage multiplier)
+            const extraDmgMult = PROC_HEAVY_CRIT_EXTRA_DMG * (procMods.extraDmgMult || 1);
+            const extraDmg = Math.floor(damage * extraDmgMult);
             target.takeDamage(extraDmg, 0, 0);
 
             // Big impact

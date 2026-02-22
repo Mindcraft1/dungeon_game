@@ -77,6 +77,7 @@ import { ProcSystem } from './combat/procSystem.js';
 import * as Impact from './combat/impactSystem.js';
 import { ABILITY_IDS } from './combat/abilities.js';
 import { PROC_IDS } from './combat/procs.js';
+import { applyFreeze as applyFreezeStatus, applyBurn as applyBurnStatus } from './combat/statusEffects.js';
 import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
@@ -84,6 +85,7 @@ import * as DevTools from './ui/devTools.js';
 
 // ── Upgrade Node System ──
 import * as UpgradeEngine from './upgrades/upgradeEngine.js';
+import { getNode as getNodeDef } from './upgrades/nodes.js';
 
 // ── Unlock Map (achievements/biome mastery/scrolls) ──
 import { processAchievementUnlock as processAchUnlock, processBiomeMasteryBossKill, generateBossScrollChoices, applyBossScrollChoice, checkPityUnlock } from './unlocks/unlockMap.js';
@@ -132,6 +134,8 @@ export class Game {
         this.projectiles = [];
         this.playerProjectiles = [];  // player-fired daggers
         this.explosions = [];         // lingering rocket explosion zones
+        this._fireZones = [];         // fire trail damage zones (from dagger/dash fire trail nodes)
+        this._killNovaCooldown = 0;   // Kill Nova cooldown tracker
         this.pickups = [];
         this.coinPickups = [];        // physical coin drops from enemies
         this.hazards = [];
@@ -496,6 +500,8 @@ export class Game {
         this.pickups = [];
         this.coinPickups = [];
         this.playerProjectiles = [];
+        this._fireZones = [];
+        this._killNovaCooldown = 0;
         this.controlsHintTimer = 5000;
         this.cheatsUsedThisRun = false;  // reset cheat flag for new run
         this.cheats.godmode = false;
@@ -613,6 +619,7 @@ export class Game {
         this.pickups = [];
         this.coinPickups = [];
         this.playerProjectiles = [];
+        this._fireZones = [];
         this.particles.clear();
 
         // Reset second wave state for new room
@@ -672,6 +679,7 @@ export class Game {
         this.projectiles = [];
         this.explosions = [];
         this.playerProjectiles = [];
+        this._fireZones = [];
         this.pickups = [];
         this.coinPickups = [];
         this.hazards = [];
@@ -955,6 +963,7 @@ export class Game {
         this.projectiles = [];
         this.explosions = [];
         this.playerProjectiles = [];
+        this._fireZones = [];
         this.hazards = [];
         this.pickups = [];
         this.coinPickups = [];
@@ -991,6 +1000,7 @@ export class Game {
         this.projectiles = [];
         this.explosions = [];
         this.playerProjectiles = [];
+        this._fireZones = [];
         this.pickups = [];
         this.coinPickups = [];
         this.hazards = [];
@@ -1272,6 +1282,71 @@ export class Game {
             return 1.20;
         }
         return 1;
+    }
+
+    // ── Fire Zone helpers (used by dagger fire trail + dash fire trail) ──
+
+    /** Spawn a lingering fire damage zone at (x, y). */
+    _spawnFireZone(x, y, dps, duration, radius) {
+        if (!this._fireZones) this._fireZones = [];
+        this._fireZones.push({ x, y, dps, timer: duration, radius, tickTimer: 0 });
+    }
+
+    /** Spawn orange/red fire trail particles at (x, y) via particle system. */
+    _spawnFireTrailParticles(x, y) {
+        // Use the particle system's internal array directly
+        if (this.particles && this.particles.particles) {
+            const colors = ['#ff6d00', '#ff9800', '#ffab40', '#ff3d00'];
+            const c = colors[Math.floor(Math.random() * colors.length)];
+            this.particles.particles.push({
+                x: x + (Math.random() - 0.5) * 6,
+                y: y + (Math.random() - 0.5) * 6,
+                vx: (Math.random() - 0.5) * 20,
+                vy: -20 - Math.random() * 30,
+                radius: 1.5 + Math.random() * 2,
+                color: c,
+                lifetime: 200 + Math.random() * 200,
+                maxLifetime: 400,
+                dead: false,
+                friction: 0.95,
+                gravity: -40,
+                shrink: true,
+                glow: true,
+                glowColor: '#ff6d00',
+                shape: 'circle',
+                update(dt) {
+                    if (this.dead) return;
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                    this.vy += this.gravity * dt;
+                    this.vx *= this.friction;
+                    this.vy *= this.friction;
+                    this.lifetime -= dt * 1000;
+                    if (this.lifetime <= 0) this.dead = true;
+                },
+                render(ctx) {
+                    if (this.dead) return;
+                    const alpha = Math.max(0, this.lifetime / this.maxLifetime);
+                    const r = this.shrink ? this.radius * alpha : this.radius;
+                    if (this.glow) {
+                        ctx.save();
+                        ctx.globalAlpha = alpha * 0.3;
+                        ctx.fillStyle = this.glowColor;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, r * 2.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                },
+            });
+        }
     }
 
     /**
@@ -1644,9 +1719,9 @@ export class Game {
             const pick = es.forgeNodeChoices[es.cursor];
             if (pick && pick.nodeId) {
                 UpgradeEngine.applyNode(pick.nodeId, 'forge');
-                const nodeDef = UpgradeEngine.getCombatMods(); // just for reference
+                const nDef = getNodeDef(pick.nodeId);
                 es.phase = 'result';
-                es.result = { nodeApplied: pick };
+                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? nDef.name : pick.nodeId, color: pick.color } };
             }
             return;
         }
@@ -1685,8 +1760,9 @@ export class Game {
                     this.player.hp = Math.min(this.player.hp, this.player.maxHp);
                     showToast(`Curse: -${reduce} Max HP`, '#e91e63', '💀');
                 }
+                const nDef = getNodeDef(choice.nodeId);
                 es.phase = 'result';
-                es.result = { nodeApplied: choice };
+                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? nDef.name : choice.nodeId, color: choice.color } };
             } else if (choice.hpCost > 0 && choice.rareChoices) {
                 // Chaos: sacrifice HP for rare choices
                 const hpLoss = Math.floor(this.player.maxHp * choice.hpCost);
@@ -2136,9 +2212,19 @@ export class Game {
             this.particles.biomeAmbient(this.currentBiome);
         }
 
+        // ── Get current combat mods from upgrade nodes ──
+        const _cmods = UpgradeEngine.getCombatMods();
+        const _meleeMods  = _cmods.melee  || {};
+        const _daggerMods = _cmods.dagger || {};
+        const _dashMods   = _cmods.dash   || {};
+        const _globalMods = _cmods.global || {};
+
+        // Track dash state before update (for end-of-dash effects)
+        const wasDashing = this.player.dashing;
+
         // Dash / Dodge Roll (M key)
         if (wasPressed('KeyM')) {
-            if (this.player.tryDash(movement)) {
+            if (this.player.tryDash(movement, _dashMods, _globalMods)) {
                 Audio.playPlayerDash();
                 this.particles.dashBurst(this.player.x, this.player.y);
             }
@@ -2159,6 +2245,51 @@ export class Game {
                 this.player.x, this.player.y,
                 this.player.dashDirX, this.player.dashDirY,
             );
+            // Dash fire trail (Blazing Dash node) — spawn fire zones along path
+            if (_dashMods.fireTrail) {
+                if (!this._dashFireTrailTimer) this._dashFireTrailTimer = 0;
+                this._dashFireTrailTimer += dt * 1000;
+                if (this._dashFireTrailTimer >= 50) {
+                    this._dashFireTrailTimer -= 50;
+                    this._spawnFireZone(this.player.x, this.player.y, _dashMods.fireTrailDps || 6, _dashMods.fireTrailDuration || 800, 14);
+                }
+            }
+        }
+
+        // Dash just ended — check for end-of-dash effects
+        if (wasDashing && !this.player.dashing) {
+            this._dashFireTrailTimer = 0;
+            // Impact Dash (endShockwave node): AoE + knockback at dash end
+            if (_dashMods.endShockwave) {
+                const swRadius = _dashMods.endShockwaveRadius || 50;
+                const swKb = _dashMods.endShockwaveKb || 15;
+                const swTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of swTargets) {
+                    if (e.dead) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > swRadius + (e.radius || 12)) continue;
+                    const d = dist || 1;
+                    e.takeDamage(Math.floor(this.player.damage * 0.3), (dx / d) * swKb, (dy / d) * swKb);
+                }
+                Impact.shake(6, 0.88);
+                this.particles.abilityShockwave(this.player.x, this.player.y, swRadius);
+            }
+            // Stunning Rush (stunOnHit node): stun nearby enemies at dash end
+            if (_dashMods.stunOnHit) {
+                const stunRadius = 40;
+                const stunDur = _dashMods.stunDuration || 400;
+                const stunTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of stunTargets) {
+                    if (e.dead) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (Math.sqrt(dx * dx + dy * dy) <= stunRadius + (e.radius || 12)) {
+                        applyFreezeStatus(e, stunDur);
+                    }
+                }
+            }
         }
 
         // ── Ability Q/E input ──
@@ -2205,11 +2336,17 @@ export class Game {
                 this.player.damage = Math.floor(this.player.damage * shopDmgMult);
             }
 
-            const hitCount = this.player.attack(targets);
+            const attackResult = this.player.attack(targets, _meleeMods, _globalMods);
 
             if (savedDmg !== undefined) {
                 this.player.damage = savedDmg;
             }
+
+            // attack() now returns { hitCount, hitEnemies, killed } or -1
+            const hitCount = typeof attackResult === 'object' ? attackResult.hitCount : attackResult;
+            const hitEnemies = typeof attackResult === 'object' ? attackResult.hitEnemies : [];
+            const killedEnemies = typeof attackResult === 'object' ? attackResult.killed : [];
+
             if (hitCount >= 0) {
                 Audio.playAttack();
                 // Attack arc particles
@@ -2225,49 +2362,57 @@ export class Game {
                         const healAmt = Math.max(1, Math.floor(this.player.damage * 0.01 * hitCount));
                         this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
                     }
-                    // Hit sparks on each damaged enemy
-                    for (const e of this.enemies) {
-                        if (!e.dead && e.damageFlashTimer > 100) {
+                    // Hit sparks on each hit enemy
+                    for (const e of hitEnemies) {
+                        if (!e.dead) {
                             const dx = e.x - this.player.x;
                             const dy = e.y - this.player.y;
                             const d = Math.sqrt(dx * dx + dy * dy) || 1;
                             this.particles.hitSparks(e.x, e.y, dx / d, dy / d);
                         }
                     }
-                    // Boss hit sparks
-                    for (const b of allBosses) {
-                        if (b.damageFlashTimer > 100) {
-                            const bx = b.x - this.player.x;
-                            const by = b.y - this.player.y;
-                            const bd = Math.sqrt(bx * bx + by * by) || 1;
-                            this.particles.hitSparks(b.x, b.y, bx / bd, by / bd);
-                        }
-                    }
 
                     // ── Proc dispatch on melee hits ──
                     const isCrit = Math.random() < this.player.critChance;
-                    // Fire procs for each enemy that was just hit (flash timer indicates recent hit)
-                    for (const e of this.enemies) {
-                        if (!e.dead && e.damageFlashTimer > 100) {
+                    for (const e of hitEnemies) {
+                        if (!e.dead) {
                             this.procSystem.handleHit(
                                 { source: this.player, target: e, damage: this.player.damage, isCrit, attackType: 'melee' },
                                 { enemies: this.enemies, boss: allBosses[0] || null, particles: this.particles },
                             );
                         }
                     }
-                    for (const b of allBosses) {
-                        if (b.damageFlashTimer > 100) {
-                            this.procSystem.handleHit(
-                                { source: this.player, target: b, damage: this.player.damage, isCrit, attackType: 'melee' },
-                                { enemies: this.enemies, boss: allBosses[0] || null, particles: this.particles },
-                            );
+
+                    // ── Kill Nova (melee node) — AoE burst on kill ──
+                    if (_meleeMods.killNova && killedEnemies.length > 0) {
+                        if (!this._killNovaCooldown || this._killNovaCooldown <= 0) {
+                            const novaRadius = _meleeMods.killNovaRadius || 60;
+                            const novaDmg = Math.floor(this.player.damage * (_meleeMods.killNovaDmgMult || 0.4));
+                            const novaTarget = killedEnemies[0];
+                            const novaTargets = allBosses.length > 0 ? [...this.enemies, ...allBosses] : this.enemies;
+                            for (const e of novaTargets) {
+                                if (e.dead) continue;
+                                const dx = e.x - novaTarget.x;
+                                const dy = e.y - novaTarget.y;
+                                const dist = Math.sqrt(dx * dx + dy * dy);
+                                if (dist > novaRadius + (e.radius || 12)) continue;
+                                const d = dist || 1;
+                                e.takeDamage(novaDmg, (dx / d) * 8, (dy / d) * 8);
+                            }
+                            this.particles.abilityShockwave(novaTarget.x, novaTarget.y, novaRadius);
+                            Impact.shake(5, 0.88);
+                            this._killNovaCooldown = _meleeMods.killNovaCooldown || 1000;
                         }
                     }
+
                     // Small impact on melee hits (screen shake + flash)
                     Impact.shake(1.5, 0.85);
                 }
             }
         }
+
+        // ── Kill Nova cooldown tick ──
+        if (this._killNovaCooldown > 0) this._killNovaCooldown -= dt * 1000;
 
         // Ranged Attack (N key) — throw dagger
         if (wasPressed('KeyN')) {
@@ -2278,28 +2423,40 @@ export class Game {
                 savedDmgDagger = this.player.damage;
                 this.player.damage = Math.floor(this.player.damage * shopDmgMultDagger);
             }
-            const throwData = this.player.tryThrow();
+            const throwDataArr = this.player.tryThrow(_daggerMods, _globalMods);
             if (savedDmgDagger !== undefined) {
                 this.player.damage = savedDmgDagger;
             }
-            if (throwData) {
-                const dagger = new PlayerProjectile(
-                    throwData.x, throwData.y,
-                    throwData.dirX, throwData.dirY,
-                    throwData.speed, throwData.damage,
-                    throwData.radius, throwData.color,
-                    throwData.maxDist, throwData.knockback,
-                );
-                // Meta relic: Boss Hunter — extra damage vs bosses
-                if (this.metaModifiers && this.metaModifiers.bossDamageMultiplier > 1) {
-                    dagger.bossDamageMultiplier = this.metaModifiers.bossDamageMultiplier;
+            if (throwDataArr && throwDataArr.length > 0) {
+                for (const throwData of throwDataArr) {
+                    const dagger = new PlayerProjectile(
+                        throwData.x, throwData.y,
+                        throwData.dirX, throwData.dirY,
+                        throwData.speed, throwData.damage,
+                        throwData.radius, throwData.color,
+                        throwData.maxDist, throwData.knockback,
+                        {
+                            pierce: throwData.pierce,
+                            ricochet: throwData.ricochet,
+                            fireTrail: throwData.fireTrail,
+                            fireTrailDuration: throwData.fireTrailDuration,
+                            fireTrailDps: throwData.fireTrailDps,
+                            returning: throwData.returning,
+                            critBonus: throwData.critBonus,
+                            owner: this.player,
+                        },
+                    );
+                    // Meta relic: Boss Hunter — extra damage vs bosses
+                    if (this.metaModifiers && this.metaModifiers.bossDamageMultiplier > 1) {
+                        dagger.bossDamageMultiplier = this.metaModifiers.bossDamageMultiplier;
+                    }
+                    this.playerProjectiles.push(dagger);
                 }
-                this.playerProjectiles.push(dagger);
                 Audio.playDaggerThrow();
-                // Throw particles
+                // Throw particles (use first dagger for position)
                 this.particles.daggerThrow(
-                    throwData.x, throwData.y,
-                    throwData.dirX, throwData.dirY,
+                    throwDataArr[0].x, throwDataArr[0].y,
+                    throwDataArr[0].dirX, throwDataArr[0].dirY,
                 );
             }
         }
@@ -2647,19 +2804,37 @@ export class Game {
         // Player daggers — update + hit detection
         const activeBoss = allBosses.length > 0 ? allBosses[0] : null;
         for (const d of this.playerProjectiles) {
+            // Store previous hitTarget to detect new hits (piercing daggers hit multiple times)
+            const prevHitTarget = d.hitTarget;
             d.update(dt, this.enemies, activeBoss, this.grid);
+
             if (!d.dead) {
-                this.particles.daggerTrail(d.x, d.y, d.color);
+                // Normal dagger trail
+                this.particles.daggerTrail(d.x, d.y, d.fireTrail ? '#ff6d00' : d.color);
+                // Fire trail: spawn fire zone particles along path
+                if (d.fireTrail) {
+                    this._spawnFireTrailParticles(d.x, d.y);
+                }
             }
-            // Hit sparks when dagger hits a target
-            if (d.dead && d.hitTarget) {
+
+            // Consume pending fire zones (from dagger fire trail)
+            if (d.pendingFireZones && d.pendingFireZones.length > 0) {
+                for (const fz of d.pendingFireZones) {
+                    this._spawnFireZone(fz.x, fz.y, fz.dps, fz.duration, fz.radius);
+                }
+                d.pendingFireZones = [];
+            }
+
+            // Hit sparks when dagger hits a target (new hit detected)
+            if (d.hitTarget && d.hitTarget !== prevHitTarget) {
                 Audio.playDaggerHit();
                 this.particles.hitSparks(
                     d.hitTarget.x, d.hitTarget.y,
                     d.hitTarget.dirX, d.hitTarget.dirY,
                 );
-                // Proc dispatch on dagger hit
-                const daggerCrit = Math.random() < this.player.critChance;
+                // Proc dispatch on dagger hit (include dagger crit bonus from nodes)
+                const daggerCritChance = this.player.critChance + (d.critBonus || 0);
+                const daggerCrit = Math.random() < daggerCritChance;
                 const hitEntity = d.hitTarget.entity || d.hitTarget;
                 if (hitEntity && !hitEntity.dead) {
                     this.procSystem.handleHit(
@@ -2670,6 +2845,36 @@ export class Game {
             }
         }
         this.playerProjectiles = this.playerProjectiles.filter(d => !d.dead);
+
+        // ── Fire Zones — update lingering damage areas ──
+        if (this._fireZones) {
+            for (let i = this._fireZones.length - 1; i >= 0; i--) {
+                const fz = this._fireZones[i];
+                fz.timer -= dt * 1000;
+                if (fz.timer <= 0) {
+                    this._fireZones.splice(i, 1);
+                    continue;
+                }
+                // Damage enemies in zone
+                fz.tickTimer = (fz.tickTimer || 0) - dt * 1000;
+                if (fz.tickTimer <= 0) {
+                    fz.tickTimer = 200; // tick every 200ms
+                    const fzTargets = allBosses.length > 0 ? [...this.enemies, ...allBosses] : this.enemies;
+                    for (const e of fzTargets) {
+                        if (e.dead) continue;
+                        const dx = e.x - fz.x;
+                        const dy = e.y - fz.y;
+                        if (dx * dx + dy * dy <= (fz.radius + (e.radius || 12)) ** 2) {
+                            e.takeDamage(Math.ceil(fz.dps * 0.2), 0, 0); // 200ms × dps fraction
+                        }
+                    }
+                }
+                // Visual: fire particles
+                if (Math.random() < 0.4) {
+                    this._spawnFireTrailParticles(fz.x + (Math.random() - 0.5) * fz.radius, fz.y + (Math.random() - 0.5) * fz.radius);
+                }
+            }
+        }
 
         // Hazards — update (damage, projectile spawning)
         for (const h of this.hazards) {
@@ -2891,6 +3096,7 @@ export class Game {
             this.projectiles = [];
             this.explosions = [];
             this.playerProjectiles = [];
+            this._fireZones = [];
             this.pickups = [];
             this.coinPickups = [];
             this._respawnTrainingEnemies();
@@ -3471,6 +3677,26 @@ export class Game {
         renderRoom(ctx, this.grid, this.currentBiome, this.stage || 0);
         for (const h of this.hazards) h.render(ctx);
         for (const ex of this.explosions) ex.render(ctx);
+
+        // ── Fire zones (from dagger/dash fire trail) ──
+        if (this._fireZones) {
+            for (const fz of this._fireZones) {
+                const alpha = Math.min(1, fz.timer / 300) * 0.35;
+                ctx.save();
+                ctx.globalAlpha = alpha + Math.sin(Date.now() * 0.008 + fz.x) * 0.1;
+                ctx.fillStyle = '#ff6d00';
+                ctx.beginPath();
+                ctx.arc(fz.x, fz.y, fz.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = alpha * 0.5;
+                ctx.fillStyle = '#ff3d00';
+                ctx.beginPath();
+                ctx.arc(fz.x, fz.y, fz.radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
         this.door.render(ctx);
         for (const e of this.enemies) e.render(ctx);
         if (this.boss && !this.boss.dead) this.boss.render(ctx);

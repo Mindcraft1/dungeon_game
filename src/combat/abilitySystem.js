@@ -4,6 +4,7 @@
 
 import { MAX_ACTIVE_ABILITIES } from '../constants.js';
 import { getAbility } from './abilities.js';
+import * as UpgradeEngine from '../upgrades/upgradeEngine.js';
 
 export class AbilitySystem {
     constructor() {
@@ -63,13 +64,24 @@ export class AbilitySystem {
         const def = getAbility(id);
         if (!def) return false;
 
-        const result = def.onUse(context);
+        // ── Read ability-specific mods from upgrade nodes ──
+        const cmods = UpgradeEngine.getCombatMods();
+        const abilityMods = (cmods.abilities && cmods.abilities[id]) || {};
+        const globalMods = cmods.global || {};
 
-        // Set cooldown
-        this.cooldowns.set(id, def.cooldownSec);
+        // Pass mods into context so ability definitions can read them
+        const enrichedContext = { ...context, abilityMods, globalMods };
+        const result = def.onUse(enrichedContext);
+
+        // Set cooldown (with node + global cooldown multiplier)
+        const cdMult = (abilityMods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
+        this.cooldowns.set(id, def.cooldownSec * cdMult);
 
         // If ability returns a persistent state object, store it
         if (result && typeof result === 'object' && result.active) {
+            // Store mods in state so onUpdate can access them
+            result._abilityMods = abilityMods;
+            result._globalMods = globalMods;
             this.activeStates.set(id, result);
         }
 
@@ -93,8 +105,13 @@ export class AbilitySystem {
         for (const [id, state] of this.activeStates.entries()) {
             const def = getAbility(id);
             if (def && def.onUpdate && state && state.active) {
-                const newState = def.onUpdate(context, dt, state);
+                // Pass enriched context with mods stored in state
+                const enrichedContext = { ...context, abilityMods: state._abilityMods || {}, globalMods: state._globalMods || {} };
+                const newState = def.onUpdate(enrichedContext, dt, state);
                 if (newState && newState.active) {
+                    // Preserve mods reference
+                    newState._abilityMods = state._abilityMods;
+                    newState._globalMods = state._globalMods;
                     this.activeStates.set(id, newState);
                 } else {
                     this.activeStates.delete(id);

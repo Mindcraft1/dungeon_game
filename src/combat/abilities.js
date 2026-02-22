@@ -26,8 +26,9 @@ export const ABILITY_DEFINITIONS = {
         desc: `AoE burst (r${ABILITY_SHOCKWAVE_RADIUS}), ${ABILITY_SHOCKWAVE_DMG_MULT}× DMG + KB`,
 
         onUse(ctx) {
-            const { player, enemies, boss, particles, procSystem } = ctx;
-            const baseDmg = Math.floor(player.damage * ABILITY_SHOCKWAVE_DMG_MULT);
+            const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
+            const baseDmg = Math.floor(player.damage * ABILITY_SHOCKWAVE_DMG_MULT * (globalMods.damageMult || 1));
+            const effectiveRadius = ABILITY_SHOCKWAVE_RADIUS * (abilityMods.radiusMult || 1);
 
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
             let hitCount = 0;
@@ -37,15 +38,22 @@ export const ABILITY_DEFINITIONS = {
                 const dx = e.x - player.x;
                 const dy = e.y - player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > ABILITY_SHOCKWAVE_RADIUS + (e.radius || 12)) continue;
+                if (dist > effectiveRadius + (e.radius || 12)) continue;
 
                 // Knockback scales inversely with distance
                 const d = dist || 1;
-                const kbScale = 1 - (dist / (ABILITY_SHOCKWAVE_RADIUS + e.radius));
+                const kbScale = 1 - (dist / (effectiveRadius + e.radius));
                 const kb = ABILITY_SHOCKWAVE_KB * Math.max(0.3, kbScale);
                 e.takeDamage(baseDmg, (dx / d) * kb, (dy / d) * kb);
                 Impact.flashEntity(e, 80);
                 hitCount++;
+
+                // Concussive Blast: stun in inner radius
+                if (abilityMods.stunDuration && abilityMods.stunInnerRadius) {
+                    if (dist <= effectiveRadius * abilityMods.stunInnerRadius) {
+                        applyFreeze(e, abilityMods.stunDuration);
+                    }
+                }
 
                 // Trigger proc on each hit
                 if (procSystem) {
@@ -62,7 +70,27 @@ export const ABILITY_DEFINITIONS = {
 
             // Visual: expanding ring (via particle system)
             if (particles) {
-                particles.abilityShockwave(player.x, player.y, ABILITY_SHOCKWAVE_RADIUS);
+                particles.abilityShockwave(player.x, player.y, effectiveRadius);
+            }
+
+            // Aftershock (double pulse): schedule second pulse
+            if (abilityMods.doublePulse) {
+                const secondDelay = abilityMods.secondPulseDelay || 300;
+                const secondDmgMult = abilityMods.secondPulseDmgMult || 0.6;
+                setTimeout(() => {
+                    const dmg2 = Math.floor(baseDmg * secondDmgMult);
+                    for (const e of targets) {
+                        if (e.dead) continue;
+                        const dx2 = e.x - player.x;
+                        const dy2 = e.y - player.y;
+                        const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                        if (dist2 > effectiveRadius + (e.radius || 12)) continue;
+                        const d2 = dist2 || 1;
+                        e.takeDamage(dmg2, (dx2 / d2) * 6, (dy2 / d2) * 6);
+                    }
+                    Impact.shake(8, 0.87);
+                    if (particles) particles.abilityShockwave(player.x, player.y, effectiveRadius * 0.8);
+                }, secondDelay);
             }
 
             return hitCount;
@@ -79,13 +107,15 @@ export const ABILITY_DEFINITIONS = {
         desc: `Spinning blades for ${ABILITY_BLADESTORM_DURATION}s, tick DMG in r${ABILITY_BLADESTORM_RADIUS}`,
 
         onUse(ctx) {
-            const { player } = ctx;
+            const { player, abilityMods = {} } = ctx;
+            // Duration bonus from nodes (+1s per stack of Prolonged Storm)
+            const bonusDuration = abilityMods.durationBonus || 0;
             // Mark the ability as active with duration tracking
             Impact.bigImpact(60, 8, 0.88);
             Impact.screenFlash('#e040fb', 0.3, 0.004);
             return {
                 active: true,
-                remaining: ABILITY_BLADESTORM_DURATION,
+                remaining: ABILITY_BLADESTORM_DURATION + bonusDuration,
                 tickTimer: 0,
                 angle: 0,
             };
@@ -93,7 +123,8 @@ export const ABILITY_DEFINITIONS = {
 
         onUpdate(ctx, dt, state) {
             if (!state || !state.active) return state;
-            const { player, enemies, boss, particles, procSystem } = ctx;
+            const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
+            const effectiveRadius = ABILITY_BLADESTORM_RADIUS * (abilityMods.radiusMult || 1);
 
             state.remaining -= dt;
             state.tickTimer -= dt;
@@ -107,7 +138,7 @@ export const ABILITY_DEFINITIONS = {
             // Tick damage
             if (state.tickTimer <= 0) {
                 state.tickTimer = ABILITY_BLADESTORM_TICK;
-                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT);
+                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT * (globalMods.damageMult || 1));
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
 
                 let tickHits = 0;
@@ -116,7 +147,7 @@ export const ABILITY_DEFINITIONS = {
                     const dx = e.x - player.x;
                     const dy = e.y - player.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > ABILITY_BLADESTORM_RADIUS + (e.radius || 12)) continue;
+                    if (dist > effectiveRadius + (e.radius || 12)) continue;
 
                     // Push enemies outward on each tick
                     const d = dist || 1;
@@ -138,7 +169,7 @@ export const ABILITY_DEFINITIONS = {
 
             // Visual: spinning blade particles (per frame, high frequency)
             if (particles && Math.random() < 0.7) {
-                particles.abilityBladeStorm(player.x, player.y, ABILITY_BLADESTORM_RADIUS, state.angle);
+                particles.abilityBladeStorm(player.x, player.y, effectiveRadius, state.angle);
             }
 
             return state;
@@ -166,7 +197,8 @@ export const ABILITY_DEFINITIONS = {
 
         onUpdate(ctx, dt, state) {
             if (!state || !state.active) return state;
-            const { player, enemies, boss, particles } = ctx;
+            const { player, enemies, boss, particles, abilityMods = {} } = ctx;
+            const effectiveRadius = ABILITY_GRAVITY_RADIUS * (abilityMods.radiusMult || 1);
 
             state.pullRemaining -= dt;
 
@@ -179,7 +211,7 @@ export const ABILITY_DEFINITIONS = {
                     const dx = player.x - e.x;
                     const dy = player.y - e.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > ABILITY_GRAVITY_RADIUS + (e.radius || 12)) continue;
+                    if (dist > effectiveRadius + (e.radius || 12)) continue;
                     if (dist < 5) continue; // don't pull into player center
 
                     const pullStr = ABILITY_GRAVITY_FORCE * dt;
@@ -192,7 +224,7 @@ export const ABILITY_DEFINITIONS = {
 
                 // Visual: pull lines (more frequent)
                 if (particles && Math.random() < 0.6) {
-                    particles.abilityGravityPull(player.x, player.y, ABILITY_GRAVITY_RADIUS);
+                    particles.abilityGravityPull(player.x, player.y, effectiveRadius);
                 }
             } else if (!state.slowApplied) {
                 // Apply slow after pull ends
@@ -203,7 +235,7 @@ export const ABILITY_DEFINITIONS = {
                     const dx = player.x - e.x;
                     const dy = player.y - e.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < ABILITY_GRAVITY_RADIUS + (e.radius || 12)) {
+                    if (dist < effectiveRadius + (e.radius || 12)) {
                         applySlow(e, ABILITY_GRAVITY_SLOW_DURATION * 1000, 0.4);
                     }
                 }
@@ -223,9 +255,11 @@ export const ABILITY_DEFINITIONS = {
         desc: `Freeze enemies in r${ABILITY_FREEZE_RADIUS} for ${ABILITY_FREEZE_DURATION}s`,
 
         onUse(ctx) {
-            const { player, enemies, boss, particles, procSystem } = ctx;
+            const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
-            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT);
+            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT * (globalMods.damageMult || 1));
+            const effectiveRadius = ABILITY_FREEZE_RADIUS * (abilityMods.radiusMult || 1);
+            const freezeDuration = ABILITY_FREEZE_DURATION + (abilityMods.durationBonus || 0);
             let hitCount = 0;
 
             for (const e of targets) {
@@ -233,9 +267,9 @@ export const ABILITY_DEFINITIONS = {
                 const dx = e.x - player.x;
                 const dy = e.y - player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > ABILITY_FREEZE_RADIUS + (e.radius || 12)) continue;
+                if (dist > effectiveRadius + (e.radius || 12)) continue;
 
-                applyFreeze(e, ABILITY_FREEZE_DURATION * 1000);
+                applyFreeze(e, freezeDuration * 1000);
                 if (dmg > 0) {
                     e.takeDamage(dmg, 0, 0);
                 }
@@ -247,7 +281,7 @@ export const ABILITY_DEFINITIONS = {
             Impact.screenFlash('#80d8ff', 0.35, 0.003);
 
             if (particles) {
-                particles.abilityFreezePulse(player.x, player.y, ABILITY_FREEZE_RADIUS);
+                particles.abilityFreezePulse(player.x, player.y, effectiveRadius);
             }
 
             return hitCount;

@@ -108,12 +108,19 @@ export function isNodeEligible(nodeId, context) {
 /**
  * Base nodes are common/uncommon melee/dagger/dash/global nodes without special unlock requirements.
  * They are always available in the upgrade pool even without being explicitly unlocked.
+ * Ability-specific and proc-specific nodes are also auto-available when the player
+ * has the corresponding ability/proc equipped (they're gated by that requirement instead).
  */
 function _isBaseNode(def) {
     if (def.category === 'global') return true;
     if (['melee', 'dagger', 'dash'].includes(def.category)) {
         // base: common rarity without requires
         return def.rarity === NODE_RARITY_COMMON && !def.requires;
+    }
+    // Ability-specific and proc-specific nodes are "base" — they're gated
+    // by the equipped ability/proc requirement, not by meta unlock
+    if (def.category.startsWith('ability:') || def.category.startsWith('proc:')) {
+        return true;
     }
     return false;
 }

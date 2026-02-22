@@ -4,6 +4,7 @@
 
 import { MAX_ACTIVE_PROCS } from '../constants.js';
 import { getProc } from './procs.js';
+import * as UpgradeEngine from '../upgrades/upgradeEngine.js';
 
 export class ProcSystem {
     constructor() {
@@ -36,21 +37,37 @@ export class ProcSystem {
      * @param {object} context – { enemies, boss, particles }
      */
     handleHit(event, context) {
+        const cmods = UpgradeEngine.getCombatMods();
+        const procMods = cmods.procs || {};
+        const globalMods = cmods.global || {};
+
+        // Global crit bonus from heavy_crit node (Keen Eye)
+        const globalCritBonus = (procMods.heavy_crit && procMods.heavy_crit.globalCritBonus) || 0;
+
         for (const procId of this.slots) {
             if (!procId) continue;
             const def = getProc(procId);
             if (!def) continue;
 
+            // Get proc-specific mods from upgrade nodes
+            const mods = procMods[procId] || {};
+
             if (def.trigger === 'onHit') {
-                if (Math.random() < def.chance) {
-                    def.onProc(event, context);
+                const chanceBonus = mods.chanceBonus || 0;
+                if (Math.random() < (def.chance + chanceBonus)) {
+                    // Pass mods + globalMods into context so proc can use them
+                    def.onProc(event, { ...context, procMods: mods, globalMods });
                 }
             }
 
             // Heavy Crit fires only when isCrit is true
-            if (def.trigger === 'onCrit' && event.isCrit) {
-                if (Math.random() < def.chance) {
-                    def.onProc(event, context);
+            // Apply global crit bonus to determine if it was a crit
+            if (def.trigger === 'onCrit') {
+                const isCritWithBonus = event.isCrit || (globalCritBonus > 0 && Math.random() < globalCritBonus);
+                if (isCritWithBonus) {
+                    if (Math.random() < def.chance) {
+                        def.onProc(event, { ...context, procMods: mods, globalMods });
+                    }
                 }
             }
         }
