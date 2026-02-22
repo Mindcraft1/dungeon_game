@@ -965,13 +965,13 @@ export class Game {
         }
 
         // Toggle selection (Space or Enter on a non-start item)
-        const togglePressed = wasPressed('Space') || (wasPressed('Enter') && this.loadoutCursor !== startIdx);
+        const togglePressed = (wasPressed('Space') && this.loadoutCursor !== startIdx) || (wasPressed('Enter') && this.loadoutCursor !== startIdx);
         if (togglePressed && this.loadoutCursor < startIdx) {
             this._loadoutToggle(this.loadoutCursor);
         }
 
-        // Confirm (Enter on START)
-        if (wasPressed('Enter') && this.loadoutCursor === startIdx) {
+        // Confirm (Enter or Space on START)
+        if ((wasPressed('Enter') || wasPressed('Space')) && this.loadoutCursor === startIdx) {
             if (this.loadoutAbilities.length >= 1) {
                 // Save loadout to meta
                 const meta = MetaStore.getState();

@@ -142,7 +142,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('W/S Navigate  ·  SPACE Select / Deselect  ·  ENTER Start  ·  ESC Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
+    ctx.fillText('W/S Navigate  ·  SPACE Select / Deselect  ·  SPACE/ENTER Start  ·  ESC Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
 
     ctx.textAlign = 'left';
 }
