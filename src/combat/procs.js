@@ -10,6 +10,8 @@ import {
     PROC_HEAVY_CRIT_EXTRA_DMG,
 } from '../constants.js';
 import * as Impact from './impactSystem.js';
+import * as Audio from '../audio.js';
+import { showProcTrigger } from '../ui/uiAbilityBar.js';
 
 export const PROC_DEFINITIONS = {
     explosive_strikes: {
@@ -44,6 +46,8 @@ export const PROC_DEFINITIONS = {
             Impact.hitStop(90);
             Impact.shake(8, 0.88);
             Impact.screenFlash('#ff6d00', 0.3, 0.004);
+            Audio.playProcExplosion();
+            showProcTrigger('Explosive Strikes', '🔥', '#ff6d00');
 
             if (particles) {
                 particles.procExplosion(target.x, target.y, PROC_EXPLOSIVE_RADIUS);
@@ -101,6 +105,8 @@ export const PROC_DEFINITIONS = {
             Impact.hitStop(60);
             Impact.shake(6, 0.87);
             Impact.screenFlash('#ffeb3b', 0.25, 0.005);
+            Audio.playChainLightning();
+            showProcTrigger('Chain Lightning', '⚡', '#ffeb3b');
             if (particles && chainPositions.length > 1) {
                 particles.procChainLightning(chainPositions);
             }
@@ -130,6 +136,8 @@ export const PROC_DEFINITIONS = {
             Impact.shake(10, 0.88);
             Impact.flashEntity(target, 120);
             Impact.screenFlash('#ff1744', 0.35, 0.004);
+            Audio.playCritImpact();
+            showProcTrigger('CRIT!', '💎', '#ff1744');
 
             if (particles) {
                 particles.procCritImpact(target.x, target.y);

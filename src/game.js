@@ -73,7 +73,7 @@ import { ProcSystem } from './combat/procSystem.js';
 import * as Impact from './combat/impactSystem.js';
 import { ABILITY_IDS } from './combat/abilities.js';
 import { PROC_IDS } from './combat/procs.js';
-import { renderAbilityBar } from './ui/uiAbilityBar.js';
+import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
 
@@ -1669,6 +1669,7 @@ export class Game {
 
         // ── Impact System: update hit-stop + time scale ──
         Impact.update(dt * 1000);
+        updateProcNotifs(dt * 1000);
         const timeScale = Impact.getTimeScale();
         const effectiveDt = dt * timeScale;
 

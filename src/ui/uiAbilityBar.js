@@ -1,8 +1,43 @@
 // ── UI: Ability Bar ───────────────────────────────────────
 // Renders ability slot indicators (Q/E) and proc labels in the HUD.
+// Also shows floating proc-trigger notifications.
 // ────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+
+// ── Proc Trigger Notification Queue ──
+const _procNotifs = [];   // { text, color, icon, timer, maxTimer }
+const PROC_NOTIF_DURATION = 1200; // ms
+
+/**
+ * Call this when a proc fires to show a floating notification.
+ * @param {string} name  – proc name
+ * @param {string} icon  – emoji icon
+ * @param {string} color – CSS color
+ */
+export function showProcTrigger(name, icon, color) {
+    _procNotifs.push({
+        text: `${icon} ${name}!`,
+        color,
+        timer: PROC_NOTIF_DURATION,
+        maxTimer: PROC_NOTIF_DURATION,
+    });
+    // Cap queue so old ones fall off
+    if (_procNotifs.length > 5) _procNotifs.shift();
+}
+
+/**
+ * Tick notification timers. Call once per frame from game update.
+ * @param {number} dtMs – frame delta in milliseconds
+ */
+export function updateProcNotifs(dtMs) {
+    for (let i = _procNotifs.length - 1; i >= 0; i--) {
+        _procNotifs[i].timer -= dtMs;
+        if (_procNotifs[i].timer <= 0) {
+            _procNotifs.splice(i, 1);
+        }
+    }
+}
 
 /**
  * Render the ability bar at the bottom-center of the screen.
@@ -98,34 +133,86 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
         }
     }
 
-    // ── Proc Labels (small, right of ability bar) ──
+    // ── Proc Labels (right of ability bar) ──
     if (procSystem) {
         const procStartX = centerX + 50;
-        const procY = baseY + 8;
+        const procY = baseY + 4;
 
         for (let i = 0; i < 2; i++) {
             const info = procSystem.getSlotInfo(i);
             if (!info) continue;
 
-            const px = procStartX + i * 70;
-            const pw = 64;
-            const ph = 20;
+            const px = procStartX + i * 82;
+            const pw = 76;
+            const ph = 24;
 
             // Background
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(px, procY, pw, ph);
 
             // Colored left accent
             ctx.fillStyle = info.color;
-            ctx.fillRect(px, procY, 2, ph);
+            ctx.fillRect(px, procY, 3, ph);
 
-            // Icon + name
+            // Border
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(px, procY, pw, ph);
+
+            // Icon + truncated name
             ctx.save();
             ctx.fillStyle = info.color;
-            ctx.font = '8px monospace';
+            ctx.font = '9px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`${info.icon} ${info.name}`, px + 5, procY + 13);
+            // Truncate name to fit: max ~9 chars
+            let displayName = info.name;
+            if (displayName.length > 10) displayName = displayName.slice(0, 9) + '…';
+            ctx.fillText(`${info.icon} ${displayName}`, px + 6, procY + 15);
             ctx.restore();
         }
+    }
+
+    // ── Proc Trigger Notifications (floating above ability bar) ──
+    if (_procNotifs.length > 0) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 13px monospace';
+
+        for (let i = _procNotifs.length - 1; i >= 0; i--) {
+            const n = _procNotifs[i];
+            const progress = 1 - n.timer / n.maxTimer; // 0→1
+
+            // Fade in fast, fade out in last 40%
+            let alpha;
+            if (progress < 0.1) {
+                alpha = progress / 0.1;
+            } else if (progress > 0.6) {
+                alpha = 1 - (progress - 0.6) / 0.4;
+            } else {
+                alpha = 1;
+            }
+
+            // Float upward
+            const floatY = baseY - 20 - progress * 40 - ((_procNotifs.length - 1 - i) * 22);
+            // Scale pop on entry
+            const scale = progress < 0.1 ? 0.8 + progress / 0.1 * 0.2 : 1;
+
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, alpha);
+            ctx.translate(centerX + 90, floatY);
+            ctx.scale(scale, scale);
+
+            // Drop shadow for readability
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillText(n.text, 1, 1);
+
+            // Main text
+            ctx.fillStyle = n.color;
+            ctx.fillText(n.text, 0, 0);
+
+            ctx.restore();
+        }
+
+        ctx.restore();
     }
 }
