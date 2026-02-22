@@ -16,6 +16,7 @@ import {
     BOSS_RING_WINDUP, BOSS_CLONE_WINDUP,
     BOSS_ROCKET_WINDUP, BOSS_ROCKET_SPEED, BOSS_ROCKET_RADIUS,
     BOSS_BARRAGE_WINDUP, BOSS_BARRAGE_INTERVAL,
+    BOSS_BOMBARDMENT_WINDUP, BOSS_BOMBARDMENT_RADIUS, BOSS_BOMBARDMENT_COUNT, BOSS_BOMBARDMENT_LINGER,
     BOSS_STOMP_WINDUP, BOSS_STOMP_RADIUS,
     BOSS_HIT_COOLDOWN,
     BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR, BOSS_JUGGERNAUT_COLOR,
@@ -23,8 +24,9 @@ import {
     BOSS_XP_REWARD,
     ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK,
     PROJECTILE_SPEED, PROJECTILE_RADIUS,
+    TILE_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT,
 } from '../constants.js';
-import { resolveWalls } from '../collision.js';
+import { resolveWalls, isWall } from '../collision.js';
 import { Projectile, RocketProjectile } from './projectile.js';
 
 export class Boss {
@@ -130,6 +132,9 @@ export class Boss {
         // Stomp indicator (juggernaut)
         this.stompIndicatorRadius = 0;
 
+        // Bombardment state (juggernaut)
+        this.bombardTargets = [];   // [{x,y},...] floor positions to strike
+
         // AoE slam indicator
         this.slamIndicatorRadius = 0;
 
@@ -153,6 +158,7 @@ export class Boss {
     update(dt, player, grid, enemies, projectiles) {
         if (this.dead) return;
 
+        this._lastGrid = grid;   // cache for bombardment target picking
         const ms = dt * 1000;
 
         // Stun: skip AI while stunned
@@ -229,6 +235,7 @@ export class Boss {
                 this.attackTimer = atk.windup * this.phaseMultiplier;
 
                 if (atk.name === 'slam') this.slamIndicatorRadius = 0;
+                if (atk.name === 'bombardment') this.bombardTargets = [];
                 return;
             }
         }
@@ -256,10 +263,11 @@ export class Boss {
                 ];
             case BOSS_TYPE_JUGGERNAUT:
                 return [
-                    { name: 'rocket',  weight: 3,   windup: BOSS_ROCKET_WINDUP },
-                    { name: 'barrage', weight: 2.5, windup: BOSS_BARRAGE_WINDUP },
-                    { name: 'stomp',   weight: 2,   windup: BOSS_STOMP_WINDUP },
-                    { name: 'summon',  weight: 1,   windup: BOSS_SUMMON_WINDUP },
+                    { name: 'rocket',      weight: 2.5, windup: BOSS_ROCKET_WINDUP },
+                    { name: 'barrage',     weight: 2,   windup: BOSS_BARRAGE_WINDUP },
+                    { name: 'bombardment', weight: 3,   windup: BOSS_BOMBARDMENT_WINDUP },
+                    { name: 'stomp',       weight: 2,   windup: BOSS_STOMP_WINDUP },
+                    { name: 'summon',      weight: 1,   windup: BOSS_SUMMON_WINDUP },
                 ];
             default:
                 return [{ name: 'slam', weight: 1, windup: BOSS_SLAM_WINDUP }];
@@ -316,6 +324,13 @@ export class Boss {
                 const progress = 1 - this.attackTimer / windupTotal;
                 const targetR = this.phase === 2 ? BOSS_STOMP_RADIUS * 1.25 : BOSS_STOMP_RADIUS;
                 this.stompIndicatorRadius = targetR * progress;
+                break;
+            }
+            case 'bombardment': {
+                // Pick targets once at the start of windup
+                if (this.bombardTargets.length === 0) {
+                    this._pickBombardTargets(player);
+                }
                 break;
             }
         }
@@ -415,6 +430,18 @@ export class Boss {
                 this.attackTimer = 600; // recovery
                 break;
             }
+            case 'bombardment': {
+                // All targets explode simultaneously
+                this._events.push({
+                    type: 'bombardment',
+                    targets: this.bombardTargets.map(t => ({ ...t })),
+                    radius: BOSS_BOMBARDMENT_RADIUS,
+                    damage: Math.floor(this.damage * 0.5),
+                    linger: BOSS_BOMBARDMENT_LINGER,
+                });
+                this.attackTimer = 700; // recovery
+                break;
+            }
         }
     }
 
@@ -491,6 +518,10 @@ export class Boss {
                 // Indicator fading during recovery
                 this.stompIndicatorRadius *= 0.91;
                 break;
+
+            case 'bombardment':
+                // Targets fade out during recovery
+                break;
         }
     }
 
@@ -500,6 +531,7 @@ export class Boss {
         this.attackCooldown = BOSS_ATTACK_COOLDOWN * this.phaseMultiplier;
         this.slamIndicatorRadius = 0;
         this.stompIndicatorRadius = 0;
+        this.bombardTargets = [];
     }
 
     // ── Projectile attacks ─────────────────────────────────
@@ -607,6 +639,87 @@ export class Boss {
             BOSS_ROCKET_RADIUS,
             this.color,
         ));
+    }
+
+    // ── Bombardment (juggernaut) ───────────────────────────
+
+    /**
+     * Pick random floor-tile positions as bombardment targets.
+     * Spread across the arena, some biased toward the player.
+     */
+    _pickBombardTargets(player) {
+        const grid = this._lastGrid;
+        const count = this.phase === 2
+            ? BOSS_BOMBARDMENT_COUNT + 3
+            : BOSS_BOMBARDMENT_COUNT;
+
+        // Collect all walkable floor tile centers
+        const floors = [];
+        if (grid) {
+            for (let r = 0; r < grid.length; r++) {
+                for (let c = 0; c < grid[0].length; c++) {
+                    if (!grid[r][c]) {
+                        floors.push({
+                            x: c * TILE_SIZE + TILE_SIZE / 2,
+                            y: r * TILE_SIZE + TILE_SIZE / 2,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Fallback if grid unavailable: random canvas positions
+        if (floors.length === 0) {
+            for (let i = 0; i < count; i++) {
+                this.bombardTargets.push({
+                    x: 80 + Math.random() * (CANVAS_WIDTH - 160),
+                    y: 80 + Math.random() * (CANVAS_HEIGHT - 160),
+                });
+            }
+            return;
+        }
+
+        // Shuffle floors (Fisher-Yates)
+        for (let i = floors.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [floors[i], floors[j]] = [floors[j], floors[i]];
+        }
+
+        // Pick targets — bias ~40% toward player vicinity
+        const nearPlayer = [];
+        const farTiles = [];
+        const nearDist = TILE_SIZE * 4;  // within 4 tiles of player = "near"
+
+        for (const f of floors) {
+            const dx = f.x - player.x;
+            const dy = f.y - player.y;
+            if (Math.sqrt(dx * dx + dy * dy) < nearDist) {
+                nearPlayer.push(f);
+            } else {
+                farTiles.push(f);
+            }
+        }
+
+        const nearCount = Math.min(Math.ceil(count * 0.4), nearPlayer.length);
+        const farCount  = Math.min(count - nearCount, farTiles.length);
+
+        for (let i = 0; i < nearCount; i++) {
+            this.bombardTargets.push(nearPlayer[i]);
+        }
+        for (let i = 0; i < farCount; i++) {
+            this.bombardTargets.push(farTiles[i]);
+        }
+
+        // Fill any remainder from whatever's left
+        let remaining = count - this.bombardTargets.length;
+        let idx = 0;
+        while (remaining > 0 && idx < floors.length) {
+            const f = floors[idx++];
+            if (!this.bombardTargets.includes(f)) {
+                this.bombardTargets.push(f);
+                remaining--;
+            }
+        }
     }
 
     // ── Summon attacks ─────────────────────────────────────

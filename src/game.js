@@ -419,6 +419,9 @@ export class Game {
         this.playerProjectiles = [];
         this.controlsHintTimer = 5000;
         this.cheatsUsedThisRun = false;  // reset cheat flag for new run
+        this.cheats.godmode = false;
+        this.cheats.onehitkill = false;
+        this.cheats.xpboost = false;
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
@@ -515,12 +518,14 @@ export class Game {
         this.playerProjectiles = [];
         this.particles.clear();
 
-        // ── Achievement event: room started ──
-        achEmit('room_started', {
-            stage: this.stage,
-            enemyCount: this.enemies.length,
-            hasTraps: this.hazards.length > 0,
-        });
+        // ── Achievement event: room started (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('room_started', {
+                stage: this.stage,
+                enemyCount: this.enemies.length,
+                hasTraps: this.hazards.length > 0,
+            });
+        }
 
         // Run upgrade: shield — grant shield charge as invuln at room start
         if (this.runUpgradesActive && this.runUpgradesActive.upgrade_shield && this.shieldCharges > 0) {
@@ -840,9 +845,11 @@ export class Game {
         Audio.playBossRoar();
         this.controlsHintTimer = 3000;
 
-        // ── Achievement events: boss fight + room started ──
-        achEmit('boss_fight_started', { stage: this.stage });
-        achEmit('room_started', { stage: this.stage, enemyCount: 1, hasTraps: false });
+        // ── Achievement events: boss fight + room started (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('boss_fight_started', { stage: this.stage });
+            achEmit('room_started', { stage: this.stage, enemyCount: 1, hasTraps: false });
+        }
     }
 
     // ── Teleport to training (T key) ──────────────────────
@@ -956,6 +963,11 @@ export class Game {
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
+        // Reset cheat state for new run
+        this.cheatsUsedThisRun = false;
+        this.cheats.godmode = false;
+        this.cheats.onehitkill = false;
+        this.cheats.xpboost = false;
         // Shop state reset (keep purchasedMetaBoosterId — it persists across runs)
         this.runCoins = 0;
         this.activeMetaBoosterId = null;
@@ -1430,8 +1442,10 @@ export class Game {
         this.runCoins -= item.cost;
         Audio.playMenuSelect();
 
-        // ── Achievement event: run shop purchase ──
-        achEmit('shop_purchase_run_item', { itemId: id, costCoins: item.cost });
+        // ── Achievement event: run shop purchase (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('shop_purchase_run_item', { itemId: id, costCoins: item.cost });
+        }
 
         switch (id) {
             case 'run_item_max_hp_boost':
@@ -2204,8 +2218,10 @@ export class Game {
             this.particles.playerDamage(this.player.x, this.player.y);
             triggerShake(6, 0.86);
 
-            // ── Achievement event: player took damage ──
-            achEmit('player_took_damage', { amount: hpBefore - this.player.hp, stage: this.stage });
+            // ── Achievement event: player took damage (blocked by cheats) ──
+            if (!this.cheatsUsedThisRun) {
+                achEmit('player_took_damage', { amount: hpBefore - this.player.hp, stage: this.stage });
+            }
 
             // Run upgrade: thorns — 10% chance reflect 5 dmg to nearest enemy
             if (this.runUpgradesActive.upgrade_thorns) {
@@ -2245,8 +2261,10 @@ export class Game {
                 this.player.applyBuff(pk.type);
                 pk.dead = true;
 
-                // ── Achievement event: pickup collected ──
-                achEmit('pickup_collected', { pickupType: pk.type });
+                // ── Achievement event: pickup collected (blocked by cheats) ──
+                if (!this.cheatsUsedThisRun) {
+                    achEmit('pickup_collected', { pickupType: pk.type });
+                }
             }
         }
         this.pickups = this.pickups.filter(pk => !pk.dead);
@@ -2260,8 +2278,10 @@ export class Game {
                 this.particles.pickupCollect(coin.x, coin.y, '#ffd700', '#ffe082');
                 coin.dead = true;
 
-                // ── Achievement event: coins gained ──
-                achEmit('coins_gained', { amount: coin.value });
+                // ── Achievement event: coins gained (blocked by cheats) ──
+                if (!this.cheatsUsedThisRun) {
+                    achEmit('coins_gained', { amount: coin.value });
+                }
             }
         }
         this.coinPickups = this.coinPickups.filter(c => !c.dead);
@@ -2300,8 +2320,8 @@ export class Game {
             if (this.door.checkCollision(this.player)) {
                 Audio.playDoorEnter();
 
-                // ── Achievement event: room cleared (non-boss) ──
-                if (!this._isBossStage(this.stage)) {
+                // ── Achievement event: room cleared (non-boss, blocked by cheats) ──
+                if (!this.cheatsUsedThisRun && !this._isBossStage(this.stage)) {
                     achEmit('room_cleared', { stage: this.stage });
                 }
 
@@ -2320,16 +2340,18 @@ export class Game {
                 this.particles.levelUp(this.player.x, this.player.y);
                 triggerShake(10, 0.92);
                 showBigToast('💀 REVIVED! 💀', '#ffd700', '💀');
-                achEmit('revive_used', {});
+                if (!this.cheatsUsedThisRun) achEmit('revive_used', {});
             } else {
                 this._saveHighscore();
                 this.player.clearBuffs();
                 this._comboReset();
                 Audio.playGameOver();
                 triggerShake(10, 0.9);
-                // Meta: finalize run
-                RewardSystem.onRunEnd(this.stage);
-                achEmit('run_end', { stage: this.stage });
+                // Meta: finalize run (blocked by cheats)
+                if (!this.cheatsUsedThisRun) {
+                    RewardSystem.onRunEnd(this.stage);
+                    achEmit('run_end', { stage: this.stage });
+                }
                 this.state = STATE_GAME_OVER;
             }
         }
@@ -2504,8 +2526,10 @@ export class Game {
             this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
         }
 
-        // ── Achievement event: player level changed ──
-        achEmit('player_level_changed', { level: this.player.level });
+        // ── Achievement event: player level changed (blocked by cheats) ──
+        if (!this.cheatsUsedThisRun) {
+            achEmit('player_level_changed', { level: this.player.level });
+        }
 
         this.upgradeIndex = 0;
         this._levelUpSpaceReady = false;
@@ -3290,6 +3314,8 @@ export class Game {
         if (this.cheats.godmode)    cheats.push({ label: 'GOD',     color: '#ffd700' });
         if (this.cheats.onehitkill) cheats.push({ label: '1HIT',    color: '#ff4444' });
         if (this.cheats.xpboost)    cheats.push({ label: 'XP×10',   color: '#bb86fc' });
+        // Always show "NO PROGRESS" badge when cheats have been used this run
+        if (this.cheatsUsedThisRun) cheats.push({ label: '⛔ NO PROGRESS', color: '#ff6666' });
         if (cheats.length === 0) return;
 
         ctx.save();
