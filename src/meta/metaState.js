@@ -21,6 +21,7 @@ export function createDefaultMetaState() {
         unlockedAbilities: { shockwave: true },      // Record<abilityId, true>
         unlockedProcs:     { explosive_strikes: true }, // Record<procId, true>
         unlockedNodes:     {},                          // Record<nodeId, true>
+        unlockedBoosters:  {},                          // Record<boosterId, true>
         biomeMastery: {},                               // Record<biomeId, { bossesDefeated, bestStage }>
         stats: {
             bossesKilledTotal: 0,
@@ -56,6 +57,7 @@ export function validateMetaState(raw) {
         unlockedAbilities:   _objCopyDefault(raw.unlockedAbilities, { shockwave: true }),
         unlockedProcs:       _objCopyDefault(raw.unlockedProcs, { explosive_strikes: true }),
         unlockedNodes:       _objCopy(raw.unlockedNodes),
+        unlockedBoosters:    _objCopy(raw.unlockedBoosters),
         biomeMastery:        _validateBiomeMastery(raw.biomeMastery),
         stats: {
             bossesKilledTotal: _int(raw.stats?.bossesKilledTotal, 0),

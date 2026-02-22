@@ -414,7 +414,8 @@ export const META_BOOSTERS = {
         desc:  'Start with 3 shield charges (absorb 3 hits)',
         icon:  '🛡️',
         color: '#00bcd4',
-        cost:  20,
+        cost:  12,
+        unlock: null,  // always available
     },
     meta_booster_weapon_core: {
         id:    'meta_booster_weapon_core',
@@ -423,6 +424,7 @@ export const META_BOOSTERS = {
         icon:  '⚔️',
         color: '#f44336',
         cost:  25,
+        unlock: null,  // always available
     },
     meta_booster_training_manual: {
         id:    'meta_booster_training_manual',
@@ -430,7 +432,8 @@ export const META_BOOSTERS = {
         desc:  '+20% XP gain until Level 5',
         icon:  '📖',
         color: '#9c27b0',
-        cost:  18,
+        cost:  10,
+        unlock: null,  // always available
     },
     meta_booster_panic_button: {
         id:    'meta_booster_panic_button',
@@ -439,6 +442,43 @@ export const META_BOOSTERS = {
         icon:  '💀',
         color: '#ffd700',
         cost:  30,
+        unlock: null,  // always available
+    },
+    meta_booster_lucky_start: {
+        id:    'meta_booster_lucky_start',
+        name:  'Lucky Start',
+        desc:  'Start the run with 15 bonus coins',
+        icon:  '🍀',
+        color: '#4caf50',
+        cost:  8,
+        unlock: { stat: 'runsPlayed', value: 3, label: 'Complete 3 runs' },
+    },
+    meta_booster_thick_skin: {
+        id:    'meta_booster_thick_skin',
+        name:  'Thick Skin',
+        desc:  '-10% all damage taken (entire run)',
+        icon:  '🪨',
+        color: '#795548',
+        cost:  20,
+        unlock: { stat: 'bossesKilledTotal', value: 3, label: 'Kill 3 bosses total' },
+    },
+    meta_booster_swift_feet: {
+        id:    'meta_booster_swift_feet',
+        name:  'Swift Feet',
+        desc:  '+10% move speed (entire run)',
+        icon:  '💨',
+        color: '#2196f3',
+        cost:  15,
+        unlock: { stat: 'highestStage', value: 10, label: 'Reach stage 10' },
+    },
+    meta_booster_scavenger: {
+        id:    'meta_booster_scavenger',
+        name:  'Scavenger',
+        desc:  '+30% coin drops from all enemies',
+        icon:  '🪙',
+        color: '#ffab00',
+        cost:  22,
+        unlock: { stat: 'highestStage', value: 15, label: 'Reach stage 15' },
     },
 };
 export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);

@@ -234,6 +234,9 @@ export class Game {
         this.metaBoosterWeaponCoreActive = false;  // +12% dmg until boss 3
         this.metaBoosterTrainingActive = false;     // +20% XP until level 5
         this.metaBoosterPanicAvailable = false;     // 1x revive
+        this.metaBoosterThickSkinActive = false;   // -10% damage taken
+        this.metaBoosterSwiftFeetActive = false;   // +10% move speed
+        this.metaBoosterScavengerActive = false;   // +30% coin drops
         this.runShopDamageMult = 1;            // cumulative from sharpen_blade
         this.runShopSpeedMult = 1;             // cumulative from light_boots
         this.runShopTrapResistMult = 1;        // from trap_resist
@@ -475,6 +478,7 @@ export class Game {
                 this._openMetaMenu(false);
             } else if (this.menuIndex === 2) {
                 this.metaShopCursor = 0;
+                this._checkBoosterUnlocks();
                 this.state = STATE_META_SHOP;
             } else if (this.menuIndex === 3) {
                 this.achievementCursor = 0;
@@ -538,9 +542,13 @@ export class Game {
         this.metaBoosterWeaponCoreActive = false;
         this.metaBoosterTrainingActive = false;
         this.metaBoosterPanicAvailable = false;
+        this.metaBoosterThickSkinActive = false;
+        this.metaBoosterSwiftFeetActive = false;
+        this.metaBoosterScavengerActive = false;
         this.activeMetaBoosterId = this.purchasedMetaBoosterId;
         this.purchasedMetaBoosterId = null;  // consumed
         this._applyMetaBooster();
+        this._checkBoosterUnlocks();  // update unlocks based on current stats
 
         // ── Combat System: equip from saved loadout ──
         this._equipSavedLoadout();
@@ -1028,6 +1036,9 @@ export class Game {
         this.metaBoosterWeaponCoreActive = false;
         this.metaBoosterTrainingActive = false;
         this.metaBoosterPanicAvailable = false;
+        this.metaBoosterThickSkinActive = false;
+        this.metaBoosterSwiftFeetActive = false;
+        this.metaBoosterScavengerActive = false;
         this.runShopDamageMult = 1;
         this.runShopSpeedMult = 1;
         this.runShopTrapResistMult = 1;
@@ -1265,7 +1276,52 @@ export class Game {
                 this.metaBoosterPanicAvailable = true;
                 showToast('Panic Button: 1× Revive ready!', '#ffd700', '💀');
                 break;
+            case 'meta_booster_lucky_start':
+                this.runCoins += 15;
+                showToast('Lucky Start: +15 bonus coins!', '#4caf50', '🍀');
+                break;
+            case 'meta_booster_thick_skin':
+                this.metaBoosterThickSkinActive = true;
+                if (this.player) this.player.metaDamageTakenMultiplier *= 0.90;
+                showToast('Thick Skin: -10% damage taken!', '#795548', '🪨');
+                break;
+            case 'meta_booster_swift_feet':
+                this.metaBoosterSwiftFeetActive = true;
+                if (this.player) this.player.speed = Math.floor(this.player.speed * 1.10);
+                showToast('Swift Feet: +10% move speed!', '#2196f3', '💨');
+                break;
+            case 'meta_booster_scavenger':
+                this.metaBoosterScavengerActive = true;
+                showToast('Scavenger: +30% coin drops!', '#ffab00', '🪙');
+                break;
         }
+    }
+
+    /**
+     * Check meta stats and unlock any boosters whose conditions are now met.
+     * Called at run start, boss kill, and when opening the shop.
+     */
+    _checkBoosterUnlocks() {
+        const meta = MetaStore.getState();
+        let anyNew = false;
+        for (const id of META_BOOSTER_IDS) {
+            if (meta.unlockedBoosters[id]) continue;
+            const booster = META_BOOSTERS[id];
+            if (!booster.unlock) {
+                // No condition — always unlocked
+                meta.unlockedBoosters[id] = true;
+                anyNew = true;
+                continue;
+            }
+            const { stat, value } = booster.unlock;
+            const current = meta.stats[stat] || 0;
+            if (current >= value) {
+                meta.unlockedBoosters[id] = true;
+                anyNew = true;
+                showToast(`Shop unlocked: ${booster.name}!`, booster.color, booster.icon);
+            }
+        }
+        if (anyNew) MetaStore.save();
     }
 
     /** Get effective damage multiplier including all shop boosts. */
@@ -1371,6 +1427,7 @@ export class Game {
         // ── Speed multiplier ──
         let speed = (m.speedMultiplier || 1);
         speed *= this.runShopSpeedMult;
+        if (this.metaBoosterSwiftFeetActive) speed *= 1.10;
         if (p.hasBuff(PICKUP_SWIFT_BOOTS)) speed *= BUFF_SWIFT_SPEED_MULT;
         if (p.biomeSpeedMult !== 1.0) speed *= p.biomeSpeedMult;
         if (p.onLava) speed *= HAZARD_LAVA_SLOW;
@@ -1385,6 +1442,7 @@ export class Game {
 
         // ── Defense (damage-taken multiplier, < 1 is a buff) ──
         let defense = (m.damageTakenMultiplier || 1);
+        if (this.metaBoosterThickSkinActive) defense *= 0.90;
         if (p.hasBuff(PICKUP_IRON_SKIN)) defense *= BUFF_IRON_SKIN_REDUCE;
 
         // ── Trap resist (spike + lava damage multiplier, < 1 is a buff) ──
@@ -1563,12 +1621,15 @@ export class Game {
             // Buy booster
             if (this.metaShopCursor < META_BOOSTER_IDS.length) {
                 const id = META_BOOSTER_IDS[this.metaShopCursor];
+                const meta = MetaStore.getState();
+                // Can't buy locked boosters
+                if (!meta.unlockedBoosters[id]) return;
                 if (this.purchasedMetaBoosterId) {
                     // Already have one
                     return;
                 }
                 const booster = META_BOOSTERS[id];
-                const state = MetaStore.getState();
+                const state = meta;
                 const shards = getAvailableShards(state);
                 if (shards >= booster.cost) {
                     state.spentCoreShards += booster.cost;
@@ -2604,7 +2665,8 @@ export class Game {
                 // Coin drop (real game only) — physical coin the player must collect
                 if (!this.trainingMode) {
                     const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
-                    const coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
+                    let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
+                    if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
                     this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
                 }
 
@@ -2798,7 +2860,9 @@ export class Game {
             // ── Meta Progression: boss kill rewards (blocked by cheats) ──
             this.bossesKilledThisRun++;
             // Coin reward for boss kill
-            this.runCoins += COIN_REWARD_BOSS;
+            let bossCoins = COIN_REWARD_BOSS;
+            if (this.metaBoosterScavengerActive) bossCoins = Math.ceil(bossCoins * 1.3);
+            this.runCoins += bossCoins;
             if (!this.cheatsUsedThisRun) {
                 const reward = RewardSystem.processBossKill(this.stage, this.bossesKilledThisRun);
                 this.lastBossReward = reward;
@@ -2827,6 +2891,7 @@ export class Game {
 
             // ── Combat unlock: check boss milestone (blocked by cheats) ──
             if (!this.cheatsUsedThisRun) {
+                this._checkBoosterUnlocks();
                 const combatUnlock = checkBossUnlocks(MetaStore.getState().stats.bossesKilledTotal);
                 if (combatUnlock) {
                     const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
@@ -3747,8 +3812,9 @@ export class Game {
         }
 
         if (this.state === STATE_META_SHOP) {
-            const shards = getAvailableShards(MetaStore.getState());
-            renderMetaShop(ctx, this.metaShopCursor, shards, this.purchasedMetaBoosterId);
+            const meta = MetaStore.getState();
+            const shards = getAvailableShards(meta);
+            renderMetaShop(ctx, this.metaShopCursor, shards, this.purchasedMetaBoosterId, meta.unlockedBoosters, meta.stats);
             renderToasts(ctx);
             this._renderCheatNotifications(ctx);
             return;
