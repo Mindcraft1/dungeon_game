@@ -29,6 +29,8 @@ import {
     BUFF_SWIFT_SPEED_MULT, BUFF_SPEED_SURGE_CD_MULT, BUFF_IRON_SKIN_REDUCE,
     HAZARD_LAVA_SLOW,
     CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
+    ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
+    DARKNESS_CONFIG,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
@@ -95,6 +97,10 @@ import * as EventSystem from './events/eventSystem.js';
 
 // ── Boss Scroll UI ──
 import { renderBossScrollOverlay } from './ui/bossScrollUI.js';
+
+// ── Room Type System ──
+import { getRoomType, callHook } from './rooms/init.js';
+import { isDarknessActive, isInsideLight } from './rooms/roomTypes/darkness.js';
 
 // ── Enemy type → color mapping for particles ──
 const ENEMY_COLORS = {
@@ -261,6 +267,12 @@ export class Game {
         this.rerollTokenCount = 0;          // reroll tokens held (from trader)
         this.hasForgeTokenInShop = false;   // whether forge token appears in current shop visit
         this._pendingBossScroll = null;     // scroll choices deferred until after boss rewards
+
+        // ── Room Type System ──
+        this.currentRoomType = ROOM_TYPE_NORMAL;   // active room type id
+        this._lastDarknessStage = -10;             // stage of last darkness room (prevent consecutive)
+        this.darknessXpMult = 1;                   // XP multiplier for darkness rooms (reset per room)
+        this._darknessRewardPending = false;        // true if darkness reward should be applied on clear
 
         // ── Loadout Screen state ──
         this.loadoutCursor = 0;
@@ -505,6 +517,10 @@ export class Game {
     _startGame() {
         this.trainingMode = false;
         this.stage = 1;
+        this.currentRoomType = ROOM_TYPE_NORMAL;
+        this._lastDarknessStage = -10;
+        this.darknessXpMult = 1;
+        this._darknessRewardPending = false;
         this.player = null;
         this.pickups = [];
         this.coinPickups = [];
@@ -659,6 +675,10 @@ export class Game {
             this.player.invulnTimer = Math.max(this.player.invulnTimer, 1500);
             this.shieldCharges--;
         }
+
+        // ── Room type lifecycle: onEnter ──
+        const roomDef = getRoomType(this.currentRoomType);
+        callHook(roomDef, 'onEnter', { player: this.player, stage: this.stage });
     }
 
     _loadTrainingRoom() {
@@ -949,17 +969,43 @@ export class Game {
             this.biomeAnnounceTimer = 3000;
         }
 
+        // ── Room type lifecycle: exit previous room ──
+        const prevDef = getRoomType(this.currentRoomType);
+        callHook(prevDef, 'onExit');
+
         if (this._isBossStage(this.stage)) {
+            this.currentRoomType = ROOM_TYPE_BOSS;
             this._loadBossRoom();
         } else {
             this.boss = null;
             this.bossVictoryDelay = 0;
+
+            // ── Determine room type for this stage ──
+            this.currentRoomType = ROOM_TYPE_NORMAL;
+            this.darknessXpMult = 1;
+            this._darknessRewardPending = false;
+
+            if (!this.trainingMode) {
+                // Roll for Darkness room
+                if (this.stage >= DARKNESS_CONFIG.minStage
+                    && this.stage > this._lastDarknessStage + 1     // not consecutive
+                    && !this._isBossStage(this.stage + 1)           // not directly before a boss
+                    && Math.random() < DARKNESS_CONFIG.spawnChance) {
+                    this.currentRoomType = ROOM_TYPE_DARKNESS;
+                    this._lastDarknessStage = this.stage;
+                    this.darknessXpMult = DARKNESS_CONFIG.rewardXPMultiplier;
+                    this._darknessRewardPending = true;
+                }
+            }
+
             this.loadRoom(this.stage - 1);
 
-            // ── Check for random event ──
-            if (!this.trainingMode && !this.cheatsUsedThisRun) {
+            // ── Check for random event (only non-darkness normal rooms) ──
+            if (!this.trainingMode && !this.cheatsUsedThisRun
+                && this.currentRoomType === ROOM_TYPE_NORMAL) {
                 const eventType = EventSystem.rollForEvent(this.stage);
                 if (eventType) {
+                    this.currentRoomType = ROOM_TYPE_EVENT;
                     this.eventState = EventSystem.createEventState(eventType, this._getUpgradeContext());
                     this.state = STATE_EVENT;
                 }
@@ -1032,6 +1078,13 @@ export class Game {
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
+        // ── Room type cleanup ──
+        const restartDef = getRoomType(this.currentRoomType);
+        callHook(restartDef, 'onExit');
+        this.currentRoomType = ROOM_TYPE_NORMAL;
+        this._lastDarknessStage = -10;
+        this.darknessXpMult = 1;
+        this._darknessRewardPending = false;
         // Reset cheat state for new run
         this.cheatsUsedThisRun = false;
         this.cheats.godmode = false;
@@ -2403,6 +2456,10 @@ export class Game {
             this.particles.biomeAmbient(this.currentBiome);
         }
 
+        // ── Room type lifecycle: per-frame update ──
+        const _roomDef = getRoomType(this.currentRoomType);
+        callHook(_roomDef, 'onUpdate', { player: this.player, enemies: this.enemies, dt }, dt);
+
         // ── Get current combat mods from upgrade nodes ──
         const _cmods = UpgradeEngine.getCombatMods();
         const _meleeMods  = _cmods.melee  || {};
@@ -2673,7 +2730,9 @@ export class Game {
         const noDamage = this.trainingMode && !this.trainingDamage;
         const dropsEnabled = !this.trainingMode || this.trainingDrops;
         for (const e of this.enemies) {
-            e.update(dt, this.player, this.grid, this.enemies, this.projectiles, noDamage);
+            // Darkness fairness: enemies outside light can't deal contact damage
+            const darkNoDmg = isDarknessActive() && !isInsideLight(e.x, e.y);
+            e.update(dt, this.player, this.grid, this.enemies, this.projectiles, noDamage || darkNoDmg);
 
             if (e.dead && !e.xpGiven) {
                 e.xpGiven = true;
@@ -2719,7 +2778,8 @@ export class Game {
                     const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
                     const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
                     const shopXpMult = this._getShopXpMultiplier();
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult);
+                    const darkXpMult = this.darknessXpMult;
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
@@ -3247,6 +3307,15 @@ export class Game {
                 // ── Achievement event: room cleared (non-boss, blocked by cheats) ──
                 if (!this.cheatsUsedThisRun && !this._isBossStage(this.stage)) {
                     achEmit('room_cleared', { stage: this.stage });
+                }
+
+                // ── Darkness room clear reward ──
+                if (this._darknessRewardPending) {
+                    this._darknessRewardPending = false;
+                    const healAmt = Math.floor(this.player.maxHp * DARKNESS_CONFIG.rewardHealPercent);
+                    this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                    this.particles.levelUp(this.player.x, this.player.y);
+                    showToast(`+${healAmt} HP (Darkness Bonus)`, '#8866cc', '🌑');
                 }
 
                 this.nextRoom();
@@ -3919,10 +3988,17 @@ export class Game {
         }
 
         this.door.render(ctx);
-        for (const e of this.enemies) e.render(ctx);
+        // Enemies: hidden if outside light in darkness rooms
+        for (const e of this.enemies) {
+            if (!e.dead && isDarknessActive() && !isInsideLight(e.x, e.y)) continue;
+            e.render(ctx);
+        }
         if (this.boss && !this.boss.dead) this.boss.render(ctx);
         for (const cb of this.cheatBosses) { if (!cb.dead) cb.render(ctx); }
-        for (const p of this.projectiles) p.render(ctx);
+        for (const p of this.projectiles) {
+            if (isDarknessActive() && !isInsideLight(p.x, p.y)) continue;
+            p.render(ctx);
+        }
         for (const d of this.playerProjectiles) d.render(ctx);
         for (const pk of this.pickups) pk.render(ctx);
         for (const coin of this.coinPickups) coin.render(ctx);
@@ -3931,6 +4007,10 @@ export class Game {
 
         // Biome atmospheric overlay (tint + vignette) — after entities, before HUD
         renderAtmosphere(ctx, this.currentBiome);
+
+        // ── Room type lifecycle: render overlay ──
+        const _renderRoomDef = getRoomType(this.currentRoomType);
+        callHook(_renderRoomDef, 'onRender', ctx);
 
         // Locked-door hint (real game only)
         if (!this.trainingMode && this.door.locked && this.door.isPlayerNear(this.player)) {

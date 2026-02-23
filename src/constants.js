@@ -547,3 +547,27 @@ export const RUN_SHOP_ITEMS = {
     },
 };
 export const RUN_SHOP_ITEM_IDS = Object.keys(RUN_SHOP_ITEMS);
+
+// ── Room Types ──
+export const ROOM_TYPE_NORMAL   = 'normal';
+export const ROOM_TYPE_BOSS     = 'boss';
+export const ROOM_TYPE_EVENT    = 'event';
+export const ROOM_TYPE_TRAINING = 'training';
+export const ROOM_TYPE_DARKNESS = 'darkness';
+
+// ── Darkness Room ──
+export const DARKNESS_CONFIG = {
+    lightRadius: 130,           // px around player that is visible
+    lightEdgeSoftness: 30,      // px feather on the edge of the light
+    flickerStrength: 0.015,     // subtle flicker amplitude (0 = none)
+    introMessageDuration: 2000, // ms to show "The darkness surrounds you…"
+    // Spawn rules
+    minStage: 4,                // earliest stage darkness rooms can appear
+    spawnChance: 0.08,          // 8% of eligible rooms
+    // Reward: bonus XP multiplier for the room
+    rewardXPMultiplier: 1.5,    // 1.5× XP for enemies killed in darkness
+    rewardHealPercent: 0.10,    // 10% max HP heal on room clear
+    // Future scaling hooks (not active yet)
+    stageRadiusScale: 0,        // decrease per stage (0 = disabled)
+    stageFlickerScale: 0,       // increase per stage (0 = disabled)
+};
