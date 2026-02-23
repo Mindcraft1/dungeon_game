@@ -62,6 +62,49 @@ export function getMousePos() { return { x: _mouseX, y: _mouseY }; }
 /** True if the user has moved/clicked the mouse at least once */
 export function isMouseActive() { return _mouseActive; }
 
+/**
+ * Returns which vertical menu item the mouse is hovering over, or -1 if none.
+ * Works for any centered vertical list.
+ * @param {number} startY - Y centre of first item
+ * @param {number} count  - number of items
+ * @param {number} spacing - Y distance between items
+ * @param {number} [itemH] - clickable height per item (defaults to spacing)
+ * @param {number} [boxW]  - clickable width (defaults to 400, centred on canvas)
+ * @param {number} [centerX] - horizontal center (defaults to CANVAS_WIDTH/2)
+ */
+export function getMenuHover(startY, count, spacing, itemH, boxW, centerX) {
+    if (!_mouseActive) return -1;
+    itemH  = itemH  || spacing;
+    boxW   = boxW   || 400;
+    centerX = centerX || (CANVAS_WIDTH / 2);
+    const halfW = boxW / 2;
+    if (_mouseX < centerX - halfW || _mouseX > centerX + halfW) return -1;
+    for (let i = 0; i < count; i++) {
+        const cy = startY + i * spacing;
+        if (_mouseY >= cy - itemH / 2 && _mouseY <= cy + itemH / 2) return i;
+    }
+    return -1;
+}
+
+/**
+ * Returns which item in a list of custom Y-positions the mouse hovers, or -1.
+ * @param {number[]} ys - array of Y centres for each item
+ * @param {number} itemH - clickable height per item
+ * @param {number} [boxW] - clickable width (centred)
+ * @param {number} [centerX]
+ */
+export function getMenuHoverCustom(ys, itemH, boxW, centerX) {
+    if (!_mouseActive) return -1;
+    boxW    = boxW    || 400;
+    centerX = centerX || (CANVAS_WIDTH / 2);
+    const halfW = boxW / 2;
+    if (_mouseX < centerX - halfW || _mouseX > centerX + halfW) return -1;
+    for (let i = 0; i < ys.length; i++) {
+        if (_mouseY >= ys[i] - itemH / 2 && _mouseY <= ys[i] + itemH / 2) return i;
+    }
+    return -1;
+}
+
 // ── Cheat Code Buffer ──
 const CHEAT_BUFFER_MAX = 20;       // max chars remembered
 const CHEAT_BUFFER_TIMEOUT = 3000; // ms before buffer resets

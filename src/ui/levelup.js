@@ -102,7 +102,7 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
         ctx.fillStyle = '#ffd700';
         ctx.fillText('Press SPACE again to confirm', CANVAS_WIDTH / 2, by + bh - 16);
     } else {
-        ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+        ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
     }
     ctx.textAlign = 'left';
 }
@@ -266,7 +266,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
     ctx.textAlign = 'center';
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER for menu', cx, CANVAS_HEIGHT - 28);
+    ctx.fillText('Press ENTER or Click for menu', cx, CANVAS_HEIGHT - 28);
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
@@ -386,6 +386,6 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S to select  ·  SPACE / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 18);
+    ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 18);
     ctx.textAlign = 'left';
 }

@@ -32,7 +32,7 @@ import {
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
 } from './constants.js';
-import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive } from './input.js';
+import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
@@ -487,7 +487,10 @@ export class Game {
             this.menuIndex = (this.menuIndex + 1) % count;
             Audio.playMenuNav();
         }
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        // Mouse hover
+        const mh = getMenuHover(270, count, 43, 43, 340);
+        if (mh >= 0 && mh !== this.menuIndex) { this.menuIndex = mh; Audio.playMenuNav(); }
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             Audio.playMenuSelect();
             if (this.menuIndex === 0) {
                 this._openLoadout();
@@ -1138,6 +1141,11 @@ export class Game {
             this.loadoutCursor = (this.loadoutCursor + 1) % totalItems;
             Audio.playMenuNav();
         }
+        // Mouse hover (loadout: abilities at 155, procs follow, spacing=40, START at end)
+        const _loAbStartY = 155;
+        const _loSpacing = 40;
+        const _lomh = getMenuHover(_loAbStartY, totalItems, _loSpacing, 34, 400);
+        if (_lomh >= 0 && _lomh !== this.loadoutCursor) { this.loadoutCursor = _lomh; Audio.playMenuNav(); }
 
         // Escape → back to menu
         if (wasPressed('Escape')) {
@@ -1146,14 +1154,14 @@ export class Game {
             return;
         }
 
-        // Toggle selection (Space or Enter on a non-start item)
-        const togglePressed = (wasPressed('Space') && this.loadoutCursor !== startIdx) || (wasPressed('Enter') && this.loadoutCursor !== startIdx);
+        // Toggle selection (Space, Enter, or Click on a non-start item)
+        const togglePressed = (wasPressed('Space') && this.loadoutCursor !== startIdx) || (wasPressed('Enter') && this.loadoutCursor !== startIdx) || (wasMousePressed(0) && this.loadoutCursor !== startIdx);
         if (togglePressed && this.loadoutCursor < startIdx) {
             this._loadoutToggle(this.loadoutCursor);
         }
 
-        // Confirm (Enter or Space on START)
-        if ((wasPressed('Enter') || wasPressed('Space')) && this.loadoutCursor === startIdx) {
+        // Confirm (Enter, Space, or Click on START)
+        if (((wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) && this.loadoutCursor === startIdx)) {
             if (this.loadoutAbilities.length >= 1) {
                 // Save loadout to meta
                 const meta = MetaStore.getState();
@@ -1287,7 +1295,7 @@ export class Game {
             }
 
             // Buy perk
-            if (wasPressed('Enter') || wasPressed('Space')) {
+            if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
                 if (this.cheatsUsedThisRun) {
                     showToast('⛔ Cheats active — no progression', '#ff6666', '✗');
                 } else {
@@ -1644,6 +1652,8 @@ export class Game {
             this.metaShopCursor = (this.metaShopCursor + 1) % (maxIdx + 1);
             Audio.playMenuNav();
         }
+        // Mouse: left-click treated as confirm (hover is tricky for 2-column grid)
+        // Meta shop will use click-to-confirm only
         // Left/Right to navigate 2-column grid
         if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
             if (this.metaShopCursor < META_BOOSTER_IDS.length && this.metaShopCursor % 2 === 1) {
@@ -1659,7 +1669,7 @@ export class Game {
             }
         }
 
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             if (this.cheatsUsedThisRun) {
                 showToast('⛔ Cheats active — no progression', '#ff6666', '✗');
                 return;
@@ -1727,6 +1737,9 @@ export class Game {
             this.runShopCursor = (this.runShopCursor + 1) % (maxIdx + 1);
             Audio.playMenuNav();
         }
+        // Mouse hover (run shop: approximate layout, startY ~ 190, rowH ~ 44)
+        const _rsmh = getMenuHover(190, maxIdx + 1, 44, 40, 400);
+        if (_rsmh >= 0 && _rsmh !== this.runShopCursor) { this.runShopCursor = _rsmh; Audio.playMenuNav(); }
 
         // Number keys 1-6 quick-buy
         let buyIdx = null;
@@ -1737,7 +1750,7 @@ export class Game {
         else if (wasPressed('Digit5')) buyIdx = 4;
         else if (wasPressed('Digit6')) buyIdx = 5;
 
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             if (this.runShopCursor === contIdx) {
                 // Continue
                 Audio.playMenuSelect();
@@ -1846,9 +1859,9 @@ export class Game {
             return;
         }
 
-        // Result phase → ENTER continues
+        // Result phase → ENTER/Click continues
         if (es.phase === 'result' || es.phase === 'done' || es.phase === 'empty') {
-            if (wasPressed('Enter') || wasPressed('Space')) {
+            if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
                 Audio.playMenuSelect();
                 this.eventState = null;
                 this.state = STATE_PLAYING;
@@ -1882,9 +1895,16 @@ export class Game {
             es.cursor = (es.cursor + 1) % count;
             Audio.playMenuNav();
         }
+        // Mouse hover (event panel: panelW=560, centred, startY varies by phase ~py+90 or py+110, rowH ~36-42)
+        const _evPanelH = 380;
+        const _evPy = (CANVAS_HEIGHT - _evPanelH) / 2;
+        const _evStartY = _evPy + (es.phase === 'choosing' ? 90 : 110);
+        const _evRowH = es.phase === 'choosing' ? 42 : 36;
+        const _evmh = getMenuHover(_evStartY, count, _evRowH, _evRowH - 4, 560);
+        if (_evmh >= 0 && _evmh !== es.cursor) { es.cursor = _evmh; Audio.playMenuNav(); }
 
         // Confirm
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             this._confirmEventChoice(es);
         }
     }
@@ -2039,8 +2059,12 @@ export class Game {
             this.scrollCursor = (this.scrollCursor + 1) % count;
             Audio.playMenuNav();
         }
+        // Mouse hover (boss scroll: panelH=300, centred, startY=py+90, rowH=50)
+        const _bsPy = (CANVAS_HEIGHT - 300) / 2;
+        const _bsmh = getMenuHover(_bsPy + 90, count, 50, 44, 420);
+        if (_bsmh >= 0 && _bsmh !== this.scrollCursor) { this.scrollCursor = _bsmh; Audio.playMenuNav(); }
 
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             const chosen = this.scrollChoices[this.scrollCursor];
             if (chosen) {
                 const result = applyBossScrollChoice(chosen);
@@ -2230,7 +2254,7 @@ export class Game {
 
         // Delete confirmation
         if (this.profileDeleting) {
-            if (wasPressed('Enter')) {
+            if (wasPressed('Enter') || wasMousePressed(0)) {
                 this._deleteProfile(this.profileCursor);
                 this.profileDeleting = false;
             } else if (wasPressed('Escape')) {
@@ -2249,9 +2273,12 @@ export class Game {
             this.profileCursor = (this.profileCursor + 1) % (maxIdx + 1);
             Audio.playMenuNav();
         }
+        // Mouse hover (profiles: startY=140, rowH=52, item center = 140 + 26 = 166 first)
+        const _pmh2 = getMenuHover(140 + 23, maxIdx + 1, 52, 46, 380);
+        if (_pmh2 >= 0 && _pmh2 !== this.profileCursor) { this.profileCursor = _pmh2; Audio.playMenuNav(); }
 
         // Select / Create
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             Audio.playMenuSelect();
             if (this.profileCursor < this.profiles.length) {
                 // Select this profile
@@ -3416,9 +3443,17 @@ export class Game {
             this.pauseIndex = (this.pauseIndex + 1) % 2;
             Audio.playMenuNav();
         }
+        // Mouse hover (pause panel: panelH=440, by=(600-440)/2=80, leftW=280, leftCx depends on effects)
+        const _pauseEffects = this._getAllActiveEffects();
+        const _pauseTotalW = _pauseEffects.length > 0 ? 620 : 300;
+        const _pauseBx = (CANVAS_WIDTH - _pauseTotalW) / 2;
+        const _pauseLeftCx = _pauseBx + 280 / 2;
+        const _pauseBy = (CANVAS_HEIGHT - 440) / 2;
+        const _pmh = getMenuHover(_pauseBy + 105, 2, 44, 34, 220, _pauseLeftCx);
+        if (_pmh >= 0 && _pmh !== this.pauseIndex) { this.pauseIndex = _pmh; Audio.playMenuNav(); }
 
         // Confirm
-        if (wasPressed('Enter') || wasPressed('Space') || wasPressed('Escape')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasPressed('Escape') || wasMousePressed(0)) {
             Audio.playMenuSelect();
             if (this.pauseIndex === 0) {
                 this.state = STATE_PLAYING;
@@ -3440,6 +3475,9 @@ export class Game {
             this.settingsCursor = (this.settingsCursor + 1) % count;
             Audio.playMenuNav();
         }
+        // Mouse hover
+        const _smh = getMenuHover(190, count, 52, 52, 400);
+        if (_smh >= 0 && _smh !== this.settingsCursor) { this.settingsCursor = _smh; Audio.playMenuNav(); }
 
         if (wasPressed('Escape')) {
             Audio.playMenuSelect();
@@ -3447,8 +3485,8 @@ export class Game {
             return;
         }
 
-        // Toggle with Enter/Space or Left/Right arrows on toggleable rows
-        const toggle = wasPressed('Enter') || wasPressed('Space');
+        // Toggle with Enter/Space/Click or Left/Right arrows on toggleable rows
+        const toggle = wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0);
         const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
                        || wasPressed('KeyA') || wasPressed('KeyD');
 
@@ -3538,10 +3576,20 @@ export class Game {
             this._levelUpSpaceReady = false;
             Audio.playMenuNav();
         }
+        // Mouse hover (level-up: dynamic box centred, headerH=100, rowH=38)
+        const _luBh = Math.min(100 + count * 38 + 46, CANVAS_HEIGHT - 40);
+        const _luBy = (CANVAS_HEIGHT - _luBh) / 2;
+        const _luStartY = _luBy + 100;
+        const _lumh = getMenuHover(_luStartY, count, 38, 34, 500);
+        if (_lumh >= 0 && _lumh !== this.upgradeIndex) {
+            this.upgradeIndex = _lumh;
+            this._levelUpSpaceReady = false;
+            Audio.playMenuNav();
+        }
 
-        // Confirm with Enter or number keys
+        // Confirm with Enter, click, or number keys
         let choiceIdx = null;
-        if (wasPressed('Enter')) {
+        if (wasPressed('Enter') || wasMousePressed(0)) {
             choiceIdx = this.upgradeIndex;
         } else if (wasPressed('Space')) {
             // Double-press Space: first press readies, second confirms
@@ -3688,6 +3736,11 @@ export class Game {
             this.trainingConfigCursor = (this.trainingConfigCursor + 1) % ROWS;
             Audio.playMenuNav();
         }
+        // Mouse hover (training config: custom Y positions + start button)
+        const _tcStartY = 140;
+        const _tcRowYs = [_tcStartY + 20, _tcStartY + 82, _tcStartY + 178, _tcStartY + 240, _tcStartY + 302, _tcStartY + 282 + 48 + 16 + 22];
+        const _tcmh = getMenuHoverCustom(_tcRowYs, 44, 460);
+        if (_tcmh >= 0 && _tcmh !== this.trainingConfigCursor) { this.trainingConfigCursor = _tcmh; Audio.playMenuNav(); }
 
         // Change values (A/D or Left/Right)
         const left  = wasPressed('KeyA') || wasPressed('ArrowLeft');
@@ -3716,8 +3769,8 @@ export class Game {
         // Play nav sound for A/D value changes
         if (left || right) Audio.playMenuNav();
 
-        // Confirm (Enter / Space) — start training from any row
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        // Confirm (Enter / Space / Click) — start training from any row
+        if (wasPressed('Enter') || wasPressed('Space') || (wasMousePressed(0) && this.trainingConfigCursor === 5)) {
             Audio.playMenuSelect();
             this._startTraining();
             return;
@@ -3731,7 +3784,7 @@ export class Game {
     }
 
     _updateGameOver() {
-        if (wasPressed('Enter')) {
+        if (wasPressed('Enter') || wasMousePressed(0)) {
             Audio.playMenuSelect();
             this.restart();
         }
@@ -3791,9 +3844,16 @@ export class Game {
             this.bossRewardIndex = (this.bossRewardIndex + 1) % 3;
             Audio.playMenuNav();
         }
+        // Mouse hover (boss victory: bh=320+extraH, centred, startY=by+132+extraH, rowH=46)
+        // Approximate: assume no extra unlocks for hover region
+        const _bvBh = 320;
+        const _bvBy = (CANVAS_HEIGHT - _bvBh) / 2;
+        const _bvStartY = _bvBy + 132;
+        const _bvmh = getMenuHover(_bvStartY, 3, 46, 40, 380);
+        if (_bvmh >= 0 && _bvmh !== this.bossRewardIndex) { this.bossRewardIndex = _bvmh; Audio.playMenuNav(); }
 
         let choice = null;
-        if (wasPressed('Enter') || wasPressed('Space')) {
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             choice = choices[this.bossRewardIndex];
         } else if (wasPressed('Digit1')) { choice = 'hp'; }
         else if (wasPressed('Digit2')) { choice = 'damage'; }

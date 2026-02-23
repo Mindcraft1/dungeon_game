@@ -104,7 +104,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
-    ctx.fillText('W/S or ↑/↓ to select  ·  ENTER to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
+    ctx.fillText('W/S or ↑/↓ to select  ·  ENTER or Click to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
 
     ctx.textAlign = 'left';
 }

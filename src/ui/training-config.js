@@ -129,7 +129,7 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate   A/D = Change   ENTER = Start   ESC = Back', cx, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S = Navigate   A/D = Change   ENTER/Click = Start   ESC = Back', cx, CANVAS_HEIGHT - 30);
     ctx.textAlign = 'left';
 }
 

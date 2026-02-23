@@ -130,7 +130,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // ── Controls hint ──
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  ENTER = Select  ·  X = Delete  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  X = Delete  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }

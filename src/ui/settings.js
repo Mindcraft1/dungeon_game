@@ -183,7 +183,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
-    ctx.fillText('W/S to navigate  ·  ENTER to toggle/confirm  ·  ESC to go back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 14);
+    ctx.fillText('W/S to navigate  ·  ENTER or Click to toggle  ·  ESC to go back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 14);
 
     ctx.textAlign = 'left';
 }
