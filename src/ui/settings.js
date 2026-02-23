@@ -7,8 +7,9 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {boolean} sfxMuted – whether SFX are muted
  * @param {boolean} musicEnabled – whether music is enabled
  * @param {boolean} proceduralRooms – whether procedural room generation is enabled
+ * @param {boolean} showDamageNumbers – whether floating damage numbers are shown
  */
-export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms) {
+export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms, showDamageNumbers = true) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -65,6 +66,13 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
             desc: proceduralRooms
                 ? 'Rooms are randomly generated each run'
                 : 'Rooms use handcrafted layouts',
+        },
+        {
+            label: 'DAMAGE NUMBERS',
+            value: showDamageNumbers ? 'ON' : 'OFF',
+            valueColor: showDamageNumbers ? '#4caf50' : '#e74c3c',
+            color: '#f06292',
+            desc: 'Show floating damage numbers on hit',
         },
         {
             label: 'BACK',

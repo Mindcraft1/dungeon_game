@@ -173,11 +173,15 @@ export class Game {
         this.muted = Audio.isMuted();
 
         // ── Settings screen ──
-        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=Back
+        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=Back
         this.proceduralRooms = this._loadRoomModeSetting();
+        this.showDamageNumbers = this._loadDamageNumbersSetting();
 
         // ── Particles ──
         this.particles = new ParticleSystem();
+
+        // ── Damage Numbers ──
+        this.damageNumbers = [];  // [{x, y, amount, timer, maxTimer}]
 
         // ── Combo / Kill-Chain ──
         this.comboCount = 0;          // current kill streak
@@ -515,6 +519,9 @@ export class Game {
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
+        this.damageNumbers = [];
+        Enemy.damageEvents.length = 0;
+        Boss.damageEvents.length = 0;
         this.boss = null;
         this.cheatBosses = [];
         this.bossVictoryDelay = 0;
@@ -1019,6 +1026,7 @@ export class Game {
         this._comboReset();
         this.comboPopups = [];
         this.comboFlash = 0;
+        this.damageNumbers = [];
         this.boss = null;
         this.cheatBosses = [];
         this.bossVictoryDelay = 0;
@@ -2355,6 +2363,41 @@ export class Game {
         }
         this.comboPopups = this.comboPopups.filter(p => p.timer > 0);
 
+        // ── Floating damage numbers ──
+        // Consume damage events from Enemy & Boss
+        if (this.showDamageNumbers) {
+            for (const evt of Enemy.damageEvents) {
+                // slight random x offset so stacked hits don't overlap
+                this.damageNumbers.push({
+                    x: evt.x + (Math.random() - 0.5) * 16,
+                    y: evt.y,
+                    amount: Math.round(evt.amount),
+                    isCrit: evt.isCrit || false,
+                    timer: evt.isCrit ? 800 : 600,
+                    maxTimer: evt.isCrit ? 800 : 600,
+                });
+            }
+            for (const evt of Boss.damageEvents) {
+                this.damageNumbers.push({
+                    x: evt.x + (Math.random() - 0.5) * 20,
+                    y: evt.y,
+                    amount: Math.round(evt.amount),
+                    isCrit: evt.isCrit || false,
+                    timer: evt.isCrit ? 1000 : 800,
+                    maxTimer: evt.isCrit ? 1000 : 800,
+                });
+            }
+        }
+        Enemy.damageEvents.length = 0;
+        Boss.damageEvents.length = 0;
+
+        // Update damage numbers
+        for (const d of this.damageNumbers) {
+            d.timer -= dt * 1000;
+            d.y -= 40 * dt;  // float upward
+        }
+        this.damageNumbers = this.damageNumbers.filter(d => d.timer > 0);
+
         // Biome ambient particles (leaves, embers, bubbles, etc.)
         if (this.currentBiome) {
             this.particles.biomeAmbient(this.currentBiome);
@@ -3303,7 +3346,7 @@ export class Game {
     }
 
     _updateSettings() {
-        const count = 4; // 0=SFX, 1=Music, 2=Rooms, 3=Back
+        const count = 5; // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=Back
 
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.settingsCursor = (this.settingsCursor - 1 + count) % count;
@@ -3325,7 +3368,7 @@ export class Game {
         const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
                        || wasPressed('KeyA') || wasPressed('KeyD');
 
-        if (toggle || (leftRight && this.settingsCursor < 3)) {
+        if (toggle || (leftRight && this.settingsCursor < 4)) {
             Audio.playMenuSelect();
             if (this.settingsCursor === 0) {
                 // Toggle SFX mute
@@ -3339,6 +3382,10 @@ export class Game {
                 this.proceduralRooms = !this.proceduralRooms;
                 this._saveRoomModeSetting();
             } else if (this.settingsCursor === 3) {
+                // Toggle damage numbers
+                this.showDamageNumbers = !this.showDamageNumbers;
+                this._saveDamageNumbersSetting();
+            } else if (this.settingsCursor === 4) {
                 // Back to menu
                 this.state = STATE_MENU;
             }
@@ -3356,6 +3403,20 @@ export class Game {
     _saveRoomModeSetting() {
         try {
             localStorage.setItem('dungeon_procedural_rooms', this.proceduralRooms ? 'true' : 'false');
+        } catch (e) {}
+    }
+
+    _loadDamageNumbersSetting() {
+        try {
+            const val = localStorage.getItem('dungeon_damage_numbers');
+            if (val === null) return true; // default: on
+            return val === 'true';
+        } catch (e) { return true; }
+    }
+
+    _saveDamageNumbersSetting() {
+        try {
+            localStorage.setItem('dungeon_damage_numbers', this.showDamageNumbers ? 'true' : 'false');
         } catch (e) {}
     }
 
@@ -3806,7 +3867,7 @@ export class Game {
         }
 
         if (this.state === STATE_SETTINGS) {
-            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms);
+            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms, this.showDamageNumbers);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -3935,6 +3996,41 @@ export class Game {
             ctx.shadowBlur = 8;
             ctx.fillText(p.text, p.x, p.y);
             ctx.restore();
+        }
+
+        // ── Floating damage numbers ──
+        for (const d of this.damageNumbers) {
+            const progress = 1 - d.timer / d.maxTimer; // 0→1
+            const alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3); // fade out last 30%
+            const scale = progress < 0.1 ? 0.5 + (progress / 0.1) * 0.5 : 1; // pop-in
+            if (d.isCrit) {
+                // Crit: larger, golden text with orange glow
+                const fontSize = Math.round(20 * scale);
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, alpha);
+                ctx.font = `bold ${fontSize}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ffd740';
+                ctx.strokeStyle = '#ff6d00';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#ff6d00';
+                ctx.shadowBlur = 12;
+                ctx.strokeText(`${d.amount}!`, d.x, d.y);
+                ctx.fillText(`${d.amount}!`, d.x, d.y);
+                ctx.restore();
+            } else {
+                // Normal: white text with red glow
+                const fontSize = Math.round(14 * scale);
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, alpha);
+                ctx.font = `bold ${fontSize}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = '#ff4444';
+                ctx.shadowBlur = 6;
+                ctx.fillText(`${d.amount}`, d.x, d.y);
+                ctx.restore();
+            }
         }
 
         // ── Biome announcement banner ──

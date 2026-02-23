@@ -134,7 +134,7 @@ export const PROC_DEFINITIONS = {
             // Extra damage (node can increase crit damage multiplier)
             const extraDmgMult = PROC_HEAVY_CRIT_EXTRA_DMG * (procMods.extraDmgMult || 1);
             const extraDmg = Math.floor(damage * extraDmgMult);
-            target.takeDamage(extraDmg, 0, 0);
+            target.takeDamage(extraDmg, 0, 0, true);
 
             // Big impact
             Impact.hitStop(120);

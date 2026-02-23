@@ -383,10 +383,13 @@ export class Enemy {
         }
     }
 
-    takeDamage(amount, kbX = 0, kbY = 0) {
+    takeDamage(amount, kbX = 0, kbY = 0, isCrit = false) {
         if (this.dead) return;
         this.hp -= amount;
         this.damageFlashTimer = 120;
+
+        // Push damage event for floating damage numbers
+        Enemy.damageEvents.push({ x: this.x, y: this.y - this.radius - 4, amount, isCrit });
 
         // Tank resists knockback while charging
         const kbMult = (this.type === ENEMY_TYPE_TANK && this.charging) ? 0.2 : 1;
@@ -626,6 +629,9 @@ export class Enemy {
         ctx.fillRect(bx, by, bw * ratio, bh);
     }
 }
+
+/** Shared damage events buffer — read & cleared by game.js each frame */
+Enemy.damageEvents = [];
 
 // ── Helper: linear interpolate two hex colors ──
 function _lerpColor(a, b, t) {

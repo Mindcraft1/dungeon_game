@@ -756,10 +756,14 @@ export class Boss {
 
     // ── Damage ─────────────────────────────────────────────
 
-    takeDamage(amount, kbX = 0, kbY = 0) {
+    takeDamage(amount, kbX = 0, kbY = 0, isCrit = false) {
         if (this.dead) return;
         this.hp -= amount;
         this.damageFlashTimer = 120;
+
+        // Push damage event for floating damage numbers
+        Boss.damageEvents.push({ x: this.x, y: this.y - this.radius - 4, amount, isCrit });
+
         // Boss resists knockback heavily
         this.x += kbX * 0.15;
         this.y += kbY * 0.15;
@@ -1302,3 +1306,6 @@ export class Boss {
         }
     }
 }
+
+/** Shared damage events buffer — read & cleared by game.js each frame */
+Boss.damageEvents = [];
