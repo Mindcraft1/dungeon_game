@@ -396,7 +396,7 @@ export function renderEvent(ctx, eventState) {
     // Controls hint at bottom
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S Navigate · ENTER/SPACE Select · ESC Skip', CANVAS_WIDTH / 2, py + panelH - 14);
+    ctx.fillText('W/S Navigate · ENTER/Click Select · ESC/RMB Skip', CANVAS_WIDTH / 2, py + panelH - 14);
 
     ctx.textAlign = 'left';
 }

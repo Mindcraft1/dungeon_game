@@ -89,7 +89,7 @@ export function renderMetaMenu(ctx, activeTab, perkCursor, fromGameOver = false,
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('A/D = Tab  ·  W/S = Select  ·  ENTER = Buy  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
+    ctx.fillText('A/D = Tab  ·  W/S = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
 
     ctx.textAlign = 'left';
 }

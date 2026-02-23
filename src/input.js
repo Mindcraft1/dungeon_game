@@ -105,6 +105,47 @@ export function getMenuHoverCustom(ys, itemH, boxW, centerX) {
     return -1;
 }
 
+/**
+ * Returns which cell in a 2D grid layout the mouse is hovering over, or -1.
+ * @param {number} startX   - left edge of grid
+ * @param {number} startY   - top edge of grid
+ * @param {number} cols     - number of columns
+ * @param {number} count    - total number of items
+ * @param {number} cardW    - width of each card
+ * @param {number} cardH    - height of each card
+ * @param {number} gapX     - horizontal gap between columns
+ * @param {number} gapY     - vertical gap between rows
+ */
+export function getMenuHoverGrid(startX, startY, cols, count, cardW, cardH, gapX, gapY) {
+    if (!_mouseActive) return -1;
+    for (let i = 0; i < count; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const cx = startX + col * (cardW + gapX);
+        const cy = startY + row * (cardH + gapY);
+        if (_mouseX >= cx && _mouseX <= cx + cardW && _mouseY >= cy && _mouseY <= cy + cardH) return i;
+    }
+    return -1;
+}
+
+/**
+ * Returns which horizontal tab the mouse is hovering over, or -1.
+ * @param {number[]} tabCenters - array of X centres for each tab
+ * @param {number} tabY         - Y centre of the tab row
+ * @param {number} [tabW]       - clickable width per tab (default 80)
+ * @param {number} [tabH]       - clickable height per tab (default 24)
+ */
+export function getTabHover(tabCenters, tabY, tabW, tabH) {
+    if (!_mouseActive) return -1;
+    tabW = tabW || 80;
+    tabH = tabH || 24;
+    if (_mouseY < tabY - tabH / 2 || _mouseY > tabY + tabH / 2) return -1;
+    for (let i = 0; i < tabCenters.length; i++) {
+        if (_mouseX >= tabCenters[i] - tabW / 2 && _mouseX <= tabCenters[i] + tabW / 2) return i;
+    }
+    return -1;
+}
+
 // ── Cheat Code Buffer ──
 const CHEAT_BUFFER_MAX = 20;       // max chars remembered
 const CHEAT_BUFFER_TIMEOUT = 3000; // ms before buffer resets

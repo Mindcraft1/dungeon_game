@@ -130,7 +130,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // ── Controls hint ──
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  X = Delete  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
@@ -186,7 +186,7 @@ function _renderCreateOverlay(ctx, name) {
     // Hints
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('ENTER = Confirm  ·  ESC = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+    ctx.fillText('ENTER = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
 
     ctx.textAlign = 'left';
 }
@@ -222,7 +222,7 @@ function _renderDeleteOverlay(ctx, name) {
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText('ENTER = Delete  ·  ESC = Cancel', CANVAS_WIDTH / 2, by + bh - 18);
+    ctx.fillText('ENTER/Click = Delete  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 18);
 
     ctx.textAlign = 'left';
 }

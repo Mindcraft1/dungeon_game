@@ -201,5 +201,5 @@ function _renderHints(ctx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  A/D = Filter  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
+    ctx.fillText('W/S = Navigate  ·  A/D/Click = Filter  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
 }

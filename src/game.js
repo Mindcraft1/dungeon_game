@@ -32,7 +32,7 @@ import {
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
 } from './constants.js';
-import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom } from './input.js';
+import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom, getMenuHoverGrid, getTabHover } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
@@ -1147,8 +1147,8 @@ export class Game {
         const _lomh = getMenuHover(_loAbStartY, totalItems, _loSpacing, 34, 400);
         if (_lomh >= 0 && _lomh !== this.loadoutCursor) { this.loadoutCursor = _lomh; Audio.playMenuNav(); }
 
-        // Escape → back to menu
-        if (wasPressed('Escape')) {
+        // Escape or RMB → back to menu
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuNav();
             this.state = STATE_MENU;
             return;
@@ -1282,6 +1282,15 @@ export class Game {
             this.metaTab = (this.metaTab + 1) % META_TAB_COUNT;
             Audio.playMenuNav();
         }
+        // Mouse tab click (tabs: 3 tabs, tabW=100, centred)
+        const _mmTabY = this.metaFromGameOver ? 130 : 78;
+        const _mmTabW = 100;
+        const _mmTabStartX = CANVAS_WIDTH / 2 - (_mmTabW * META_TAB_COUNT) / 2;
+        const _mmTabCenters = [0, 1, 2].map(i => _mmTabStartX + i * _mmTabW + _mmTabW / 2);
+        const _mmTabH = getTabHover(_mmTabCenters, _mmTabY, _mmTabW, 24);
+        if (_mmTabH >= 0 && wasMousePressed(0)) {
+            if (_mmTabH !== this.metaTab) { this.metaTab = _mmTabH; Audio.playMenuNav(); }
+        }
 
         // Perk selection (W/S) — only on perks tab
         if (this.metaTab === META_TAB_PERKS) {
@@ -1293,6 +1302,10 @@ export class Game {
                 this.metaPerkCursor = (this.metaPerkCursor + 1) % PERK_IDS.length;
                 Audio.playMenuNav();
             }
+            // Mouse hover on perk rows (startY = tabY+20, rowH=70, panelW=460)
+            const _mmPerkStartY = _mmTabY + 20;
+            const _mmph = getMenuHover(_mmPerkStartY + 32, PERK_IDS.length, 70, 64, 460);
+            if (_mmph >= 0 && _mmph !== this.metaPerkCursor) { this.metaPerkCursor = _mmph; Audio.playMenuNav(); }
 
             // Buy perk
             if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
@@ -1315,8 +1328,8 @@ export class Game {
             }
         }
 
-        // Back
-        if (wasPressed('Escape')) {
+        // Back (ESC or RMB)
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             if (this.metaFromGameOver) {
                 this.state = STATE_GAME_OVER;
             } else {
@@ -1652,8 +1665,27 @@ export class Game {
             this.metaShopCursor = (this.metaShopCursor + 1) % (maxIdx + 1);
             Audio.playMenuNav();
         }
-        // Mouse: left-click treated as confirm (hover is tricky for 2-column grid)
-        // Meta shop will use click-to-confirm only
+        // Mouse hover for 2-column grid
+        const _msCount = META_BOOSTER_IDS.length;
+        const _msCols = 2;
+        const _msRows = Math.ceil(_msCount / _msCols);
+        const _msCardW = 230;
+        const _msCardH = _msRows > 2 ? 104 : 130;
+        const _msGapX = 20;
+        const _msGapY = _msRows > 2 ? 10 : 16;
+        const _msBannerH = this.purchasedMetaBoosterId ? 28 : 0;
+        const _msGridStartX = CANVAS_WIDTH / 2 - (_msCardW * _msCols + _msGapX) / 2;
+        const _msGridStartY = 82 + _msBannerH;
+        const _msmh = getMenuHoverGrid(_msGridStartX, _msGridStartY, _msCols, _msCount, _msCardW, _msCardH, _msGapX, _msGapY);
+        if (_msmh >= 0 && _msmh !== this.metaShopCursor) { this.metaShopCursor = _msmh; Audio.playMenuNav(); }
+        // Also detect hover on "clear" button below grid
+        if (this.purchasedMetaBoosterId) {
+            const _msClearY = _msGridStartY + _msRows * (_msCardH + _msGapY) + 4;
+            if (getMousePos().y >= _msClearY && getMousePos().y <= _msClearY + 30
+                && getMousePos().x >= CANVAS_WIDTH / 2 - 120 && getMousePos().x <= CANVAS_WIDTH / 2 + 120) {
+                if (this.metaShopCursor !== META_BOOSTER_IDS.length) { this.metaShopCursor = META_BOOSTER_IDS.length; Audio.playMenuNav(); }
+            }
+        }
         // Left/Right to navigate 2-column grid
         if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
             if (this.metaShopCursor < META_BOOSTER_IDS.length && this.metaShopCursor % 2 === 1) {
@@ -1716,7 +1748,7 @@ export class Game {
             }
         }
 
-        if (wasPressed('Escape')) {
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             this.state = STATE_MENU;
             this.menuIndex = 0;
         }
@@ -1760,7 +1792,7 @@ export class Game {
             buyIdx = this.runShopCursor;
         }
 
-        if (wasPressed('Escape')) {
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuSelect();
             this._closeRunShop();
             return;
@@ -1851,8 +1883,8 @@ export class Game {
 
         const es = this.eventState;
 
-        // Skip/exit on ESC at any phase
-        if (wasPressed('Escape')) {
+        // Skip/exit on ESC or RMB at any phase
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuNav();
             this.eventState = null;
             this.state = STATE_PLAYING;
@@ -2257,7 +2289,7 @@ export class Game {
             if (wasPressed('Enter') || wasMousePressed(0)) {
                 this._deleteProfile(this.profileCursor);
                 this.profileDeleting = false;
-            } else if (wasPressed('Escape')) {
+            } else if (wasPressed('Escape') || wasMousePressed(2)) {
                 this.profileDeleting = false;
             }
             return;
@@ -2300,15 +2332,15 @@ export class Game {
             this.profileDeleting = true;
         }
 
-        // Back (only if a profile is selected)
-        if (wasPressed('Escape') && this.profiles.length > 0) {
+        // Back (only if a profile is selected) — ESC or RMB
+        if ((wasPressed('Escape') || wasMousePressed(2)) && this.profiles.length > 0) {
             this.state = STATE_MENU;
             this.menuIndex = 0;
         }
     }
 
     _updateProfileCreate() {
-        if (wasPressed('Escape')) {
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             this.profileCreating = false;
             return;
         }
@@ -3428,8 +3460,8 @@ export class Game {
     }
 
     _updatePaused() {
-        // Resume with P or Escape
-        if (wasPressed('KeyP')) {
+        // Resume with P, Escape, or RMB
+        if (wasPressed('KeyP') || wasMousePressed(2)) {
             this.state = STATE_PLAYING;
             return;
         }
@@ -3479,7 +3511,7 @@ export class Game {
         const _smh = getMenuHover(190, count, 52, 52, 400);
         if (_smh >= 0 && _smh !== this.settingsCursor) { this.settingsCursor = _smh; Audio.playMenuNav(); }
 
-        if (wasPressed('Escape')) {
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuSelect();
             this.state = STATE_MENU;
             return;
@@ -3776,8 +3808,8 @@ export class Game {
             return;
         }
 
-        // Back
-        if (wasPressed('Escape')) {
+        // Back (ESC or RMB)
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             this.state = STATE_MENU;
             this.menuIndex = 0;
         }
@@ -3810,6 +3842,20 @@ export class Game {
             this.achievementCursor = 0;
             Audio.playMenuNav();
         }
+        // Mouse tab click (tabs at tabY=84, tabSpacing=120, centred)
+        const _achTabY = 84;
+        const _achTabSpacing = 120;
+        const _achTabStartX = CANVAS_WIDTH / 2 - (filterCount - 1) * _achTabSpacing / 2;
+        const _achTabCenters = [];
+        for (let i = 0; i < filterCount; i++) _achTabCenters.push(_achTabStartX + i * _achTabSpacing);
+        const _achTabH = getTabHover(_achTabCenters, _achTabY, 100, 24);
+        if (_achTabH >= 0 && wasMousePressed(0)) {
+            if (_achTabH !== this.achievementFilter) {
+                this.achievementFilter = _achTabH;
+                this.achievementCursor = 0;
+                Audio.playMenuNav();
+            }
+        }
 
         // Row navigation
         const filtered = this.achievementFilter === 0
@@ -3825,9 +3871,21 @@ export class Game {
                 this.achievementCursor = (this.achievementCursor + 1) % filtered.length;
                 Audio.playMenuNav();
             }
+            // Mouse hover on achievement rows (startY=110, rowH=64, PAGE_SIZE=7, with scroll)
+            const _achPageSize = 7;
+            const _achStartY = 110;
+            const _achRowH = 64;
+            const _achMaxScroll = Math.max(0, filtered.length - _achPageSize);
+            const _achScrollOffset = Math.max(0, Math.min(this.achievementCursor - Math.floor(_achPageSize / 2), _achMaxScroll));
+            const _achmh = getMenuHover(_achStartY + _achRowH / 2, Math.min(_achPageSize, filtered.length - _achScrollOffset), _achRowH, _achRowH - 4, 700);
+            if (_achmh >= 0) {
+                const realIdx = _achScrollOffset + _achmh;
+                if (realIdx !== this.achievementCursor) { this.achievementCursor = realIdx; Audio.playMenuNav(); }
+            }
         }
 
-        if (wasPressed('Escape')) {
+        // Back (ESC or RMB)
+        if (wasPressed('Escape') || wasMousePressed(2)) {
             this.state = STATE_MENU;
             this.menuIndex = 0;
         }

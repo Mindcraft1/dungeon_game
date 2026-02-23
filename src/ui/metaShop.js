@@ -222,7 +222,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('W/A/S/D = Select  ·  ENTER = Buy  ·  ESC = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
+    ctx.fillText('W/A/S/D = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
 
     ctx.textAlign = 'left';
 }

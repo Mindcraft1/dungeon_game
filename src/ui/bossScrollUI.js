@@ -76,7 +76,7 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
     // Controls
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S Navigate · ENTER/SPACE Confirm', CANVAS_WIDTH / 2, py + panelH - 16);
+    ctx.fillText('W/S Navigate · ENTER/Click Confirm', CANVAS_WIDTH / 2, py + panelH - 16);
 
     ctx.textAlign = 'left';
 }

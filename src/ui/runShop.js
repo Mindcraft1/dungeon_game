@@ -193,7 +193,7 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Select  ·  ENTER/1-6 = Buy  ·  ESC = Continue', CANVAS_WIDTH / 2, py + panelH - 12);
+    ctx.fillText('W/S = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Continue', CANVAS_WIDTH / 2, py + panelH - 12);
 
     ctx.textAlign = 'left';
 }
