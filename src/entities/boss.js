@@ -18,6 +18,8 @@ import {
     BOSS_BARRAGE_WINDUP, BOSS_BARRAGE_INTERVAL,
     BOSS_BOMBARDMENT_WINDUP, BOSS_BOMBARDMENT_RADIUS, BOSS_BOMBARDMENT_COUNT, BOSS_BOMBARDMENT_LINGER,
     BOSS_STOMP_WINDUP, BOSS_STOMP_RADIUS,
+    BOSS_LEAP_WINDUP, BOSS_LEAP_RADIUS,
+    BOSS_SHOCKWAVE_WINDUP, BOSS_SHOCKWAVE_COUNT, BOSS_SHOCKWAVE_SPEED,
     BOSS_HIT_COOLDOWN,
     BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR, BOSS_JUGGERNAUT_COLOR,
     BOSS_BRUTE_NAME, BOSS_WARLOCK_NAME, BOSS_PHANTOM_NAME, BOSS_JUGGERNAUT_NAME,
@@ -138,6 +140,15 @@ export class Boss {
         // AoE slam indicator
         this.slamIndicatorRadius = 0;
 
+        // Leap state (brute)
+        this.leapTargetX = 0;
+        this.leapTargetY = 0;
+        this.leapIndicatorRadius = 0;
+        this.leapAirborne = false;
+
+        // Shockwave state (brute)
+        this.shockwaveIndicatorRadius = 0;
+
         // ── Events (consumed by game.js each frame) ──
         this._events = [];
 
@@ -236,6 +247,8 @@ export class Boss {
 
                 if (atk.name === 'slam') this.slamIndicatorRadius = 0;
                 if (atk.name === 'bombardment') this.bombardTargets = [];
+                if (atk.name === 'leap') { this.leapIndicatorRadius = 0; this.leapAirborne = false; }
+                if (atk.name === 'shockwave') this.shockwaveIndicatorRadius = 0;
                 return;
             }
         }
@@ -245,9 +258,11 @@ export class Boss {
         switch (this.type) {
             case BOSS_TYPE_BRUTE:
                 return [
-                    { name: 'slam',   weight: 3,   windup: BOSS_SLAM_WINDUP },
-                    { name: 'charge', weight: 2,   windup: BOSS_CHARGE_WINDUP },
-                    { name: 'summon', weight: 1.5, windup: BOSS_SUMMON_WINDUP },
+                    { name: 'slam',      weight: 2.5, windup: BOSS_SLAM_WINDUP },
+                    { name: 'charge',    weight: 2,   windup: BOSS_CHARGE_WINDUP },
+                    { name: 'leap',      weight: 2.5, windup: BOSS_LEAP_WINDUP },
+                    { name: 'shockwave', weight: 2,   windup: BOSS_SHOCKWAVE_WINDUP },
+                    { name: 'summon',    weight: 1,   windup: BOSS_SUMMON_WINDUP },
                 ];
             case BOSS_TYPE_WARLOCK:
                 return [
@@ -331,6 +346,24 @@ export class Boss {
                 if (this.bombardTargets.length === 0) {
                     this._pickBombardTargets(player);
                 }
+                break;
+            }
+            case 'leap': {
+                // Track player position during windup (target locked at activation)
+                this.leapTargetX = player.x;
+                this.leapTargetY = player.y;
+                // Growing target indicator
+                const windupTotal = BOSS_LEAP_WINDUP * this.phaseMultiplier;
+                const progress = 1 - this.attackTimer / windupTotal;
+                const targetR = this.phase === 2 ? BOSS_LEAP_RADIUS * 1.2 : BOSS_LEAP_RADIUS;
+                this.leapIndicatorRadius = targetR * progress;
+                break;
+            }
+            case 'shockwave': {
+                // Growing charge indicator
+                const windupTotal = BOSS_SHOCKWAVE_WINDUP * this.phaseMultiplier;
+                const progress = 1 - this.attackTimer / windupTotal;
+                this.shockwaveIndicatorRadius = this.radius * 1.5 * progress;
                 break;
             }
         }
@@ -442,6 +475,37 @@ export class Boss {
                 this.attackTimer = 700; // recovery
                 break;
             }
+            case 'leap': {
+                // Teleport to target position
+                this.x = this.leapTargetX;
+                this.y = this.leapTargetY;
+                this.leapAirborne = false;
+
+                // AoE damage on landing
+                const leapR = this.phase === 2 ? BOSS_LEAP_RADIUS * 1.2 : BOSS_LEAP_RADIUS;
+                const ldx = player.x - this.x;
+                const ldy = player.y - this.y;
+                const ldist = Math.sqrt(ldx * ldx + ldy * ldy);
+                if (ldist < leapR + player.radius) {
+                    player.takeDamage(Math.floor(this.damage * 1.3));
+                    if (ldist > 0) {
+                        player.x += (ldx / ldist) * 35;
+                        player.y += (ldy / ldist) * 35;
+                    }
+                }
+                this.leapIndicatorRadius = leapR;
+                this._events.push({ type: 'leap', x: this.x, y: this.y, radius: leapR });
+                this.attackTimer = 500; // recovery
+                break;
+            }
+            case 'shockwave': {
+                // Fire ring of slow, fat projectiles outward
+                this._fireShockwaveRing(projectiles);
+                this.shockwaveIndicatorRadius = 0;
+                this._events.push({ type: 'shockwave', x: this.x, y: this.y });
+                this.attackTimer = 500; // recovery
+                break;
+            }
         }
     }
 
@@ -522,6 +586,15 @@ export class Boss {
             case 'bombardment':
                 // Targets fade out during recovery
                 break;
+
+            case 'leap':
+                // Indicator fading during recovery
+                this.leapIndicatorRadius *= 0.91;
+                break;
+
+            case 'shockwave':
+                // Nothing to update during recovery
+                break;
         }
     }
 
@@ -531,6 +604,9 @@ export class Boss {
         this.attackCooldown = BOSS_ATTACK_COOLDOWN * this.phaseMultiplier;
         this.slamIndicatorRadius = 0;
         this.stompIndicatorRadius = 0;
+        this.leapIndicatorRadius = 0;
+        this.leapAirborne = false;
+        this.shockwaveIndicatorRadius = 0;
         this.bombardTargets = [];
     }
 
@@ -600,6 +676,26 @@ export class Boss {
                 PROJECTILE_SPEED * 0.7,
                 Math.floor(this.damage * 0.5),
                 PROJECTILE_RADIUS + 1,
+                this.color,
+            ));
+        }
+    }
+
+    // ── Shockwave ring (brute) ─────────────────────────────
+
+    _fireShockwaveRing(projectiles) {
+        const count = this.phase === 2 ? BOSS_SHOCKWAVE_COUNT + 4 : BOSS_SHOCKWAVE_COUNT;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const dirX = Math.cos(angle);
+            const dirY = Math.sin(angle);
+            projectiles.push(new Projectile(
+                this.x + dirX * (this.radius + PROJECTILE_RADIUS + 6),
+                this.y + dirY * (this.radius + PROJECTILE_RADIUS + 6),
+                dirX, dirY,
+                BOSS_SHOCKWAVE_SPEED,
+                Math.floor(this.damage * 0.5),
+                PROJECTILE_RADIUS + 3,     // fat, visible projectiles
                 this.color,
             ));
         }
@@ -1020,6 +1116,93 @@ export class Boss {
                     }
                 }
             }
+        }
+
+        // Leap target indicator (orange-red crosshair on ground during windup, fades during recovery)
+        if (this.currentAttack === 'leap') {
+            const leapR = this.phase === 2 ? BOSS_LEAP_RADIUS * 1.2 : BOSS_LEAP_RADIUS;
+            if (this.attackPhase === 1 && this.leapIndicatorRadius > 5) {
+                const windupTotal = BOSS_LEAP_WINDUP * this.phaseMultiplier;
+                const progress = 1 - this.attackTimer / windupTotal;
+                const pulse = Math.sin(Date.now() * 0.02) * 0.1;
+
+                // Danger zone circle at target
+                ctx.save();
+                ctx.globalAlpha = (0.12 + pulse) * progress;
+                ctx.fillStyle = '#ff3300';
+                ctx.beginPath();
+                ctx.arc(this.leapTargetX, this.leapTargetY, this.leapIndicatorRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // Outer ring
+                ctx.save();
+                ctx.globalAlpha = (0.35 + pulse) * progress;
+                ctx.strokeStyle = '#ff4400';
+                ctx.lineWidth = 2.5;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.arc(this.leapTargetX, this.leapTargetY, this.leapIndicatorRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+
+                // Crosshair
+                ctx.save();
+                ctx.globalAlpha = (0.3 + pulse) * progress;
+                ctx.strokeStyle = '#ff6600';
+                ctx.lineWidth = 1.5;
+                const cross = this.leapIndicatorRadius * 0.7;
+                ctx.beginPath();
+                ctx.moveTo(this.leapTargetX - cross, this.leapTargetY);
+                ctx.lineTo(this.leapTargetX + cross, this.leapTargetY);
+                ctx.moveTo(this.leapTargetX, this.leapTargetY - cross);
+                ctx.lineTo(this.leapTargetX, this.leapTargetY + cross);
+                ctx.stroke();
+                ctx.restore();
+
+                // Center dot (blinks faster as impact approaches)
+                const blinkRate = 0.005 + progress * 0.03;
+                const blink = Math.sin(Date.now() * blinkRate) > 0 ? 1 : 0.3;
+                ctx.save();
+                ctx.globalAlpha = blink * progress;
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(this.leapTargetX, this.leapTargetY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else if (this.attackPhase === 2 && this.leapIndicatorRadius > 3) {
+                // Impact flash & fade
+                ctx.save();
+                ctx.globalAlpha = this.leapIndicatorRadius / leapR * 0.25;
+                ctx.fillStyle = '#ff4400';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.leapIndicatorRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Shockwave windup indicator (pulsing ring around boss)
+        if (this.currentAttack === 'shockwave' && this.attackPhase === 1 && this.shockwaveIndicatorRadius > 3) {
+            const pulse = Math.sin(Date.now() * 0.025) * 0.1;
+            ctx.save();
+            ctx.globalAlpha = 0.3 + pulse;
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.shockwaveIndicatorRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Inner glow
+            ctx.save();
+            ctx.globalAlpha = 0.15 + pulse;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.shockwaveIndicatorRadius * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
     }
 

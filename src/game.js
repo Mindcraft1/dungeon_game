@@ -2985,6 +2985,16 @@ export class Game {
                         this.particles.bossSlam(evt.x, evt.y, evt.radius, this.boss.color);
                         triggerShake(10, 0.9);
                         break;
+                    case 'leap':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, this.boss.color);
+                        triggerShake(9, 0.88);
+                        break;
+                    case 'shockwave':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, this.boss.radius * 1.5, this.boss.color);
+                        triggerShake(6, 0.85);
+                        break;
                     case 'bombardment': {
                         // Spawn explosion zones at each marked target
                         for (const t of evt.targets) {
@@ -3039,6 +3049,16 @@ export class Game {
                         Audio.playBossSlam();
                         this.particles.bossSlam(evt.x, evt.y, evt.radius, cb.color);
                         triggerShake(10, 0.9);
+                        break;
+                    case 'leap':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, evt.radius, cb.color);
+                        triggerShake(9, 0.88);
+                        break;
+                    case 'shockwave':
+                        Audio.playBossSlam();
+                        this.particles.bossSlam(evt.x, evt.y, cb.radius * 1.5, cb.color);
+                        triggerShake(6, 0.85);
                         break;
                     case 'bombardment': {
                         for (const t of evt.targets) {

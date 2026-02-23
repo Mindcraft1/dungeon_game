@@ -344,7 +344,7 @@ export const BOSS_JUGGERNAUT_DMG_MULT = 1.2;
 export const BOSS_JUGGERNAUT_RADIUS   = 30;
 
 // Boss attack timings (ms)
-export const BOSS_ATTACK_COOLDOWN   = 2500;
+export const BOSS_ATTACK_COOLDOWN   = 2000;
 export const BOSS_SLAM_WINDUP       = 900;
 export const BOSS_SLAM_RADIUS       = 90;
 export const BOSS_CHARGE_WINDUP     = 500;
@@ -372,6 +372,11 @@ export const BOSS_BOMBARDMENT_COUNT   = 5;
 export const BOSS_BOMBARDMENT_LINGER  = 700;
 export const BOSS_STOMP_WINDUP      = 800;
 export const BOSS_STOMP_RADIUS      = 100;
+export const BOSS_LEAP_WINDUP       = 950;
+export const BOSS_LEAP_RADIUS       = 75;
+export const BOSS_SHOCKWAVE_WINDUP  = 600;
+export const BOSS_SHOCKWAVE_COUNT   = 10;    // projectiles in the ring
+export const BOSS_SHOCKWAVE_SPEED   = 100;   // px/s — slow, dodgeable
 export const BOSS_HIT_COOLDOWN      = 1000;
 
 // Boss rewards
