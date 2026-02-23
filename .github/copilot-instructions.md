@@ -129,7 +129,7 @@ STATE_PROFILES ──select──► STATE_MENU ──Start──► STATE_PLAYI
 
 - **AI:** Simple seek toward player with separation push from other enemies
 - **Damage:** Contact damage to player on collision (skipped if `trainingMode`)
-- **Scaling per stage:** Count `min(2 + floor((stage-1)*0.75), 10)`, HP `×(1 + (stage-1)*0.15)`, Speed `×(1 + (stage-1)*0.05)` (max ×2), Damage `+(stage-1)*0.5`
+- **Scaling per stage (phase-based):** Count stepped per phase (P1 rooms 1-9: 2→6, P2 rooms 11-19: 6→8, P3 rooms 21-29: 8→10, cap 10). HP scales +5%/room (P1), +7%/room (P2), +8%/room (P3+). Damage flat per phase (+0/+2/+4/+6). Speed +2%/room capped ×1.6. See `_getEnemyCount()` and `_getEnemyScaling()` in game.js
 - **Rendering:** Red circle, white flash on hit, HP bar when damaged (green → orange → red)
 
 ### Door (src/entities/door.js)

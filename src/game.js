@@ -242,7 +242,7 @@ export class Game {
         this.purchasedMetaBoosterId = null;    // selected meta booster for next run
         this.activeMetaBoosterId = null;       // applied meta booster for current run
         this.metaBoosterShieldCharges = 0;     // from shield_pack
-        this.metaBoosterWeaponCoreActive = false;  // +12% dmg until boss 3
+        this.metaBoosterWeaponCoreActive = false;  // +12% dmg until boss 2
         this.metaBoosterTrainingActive = false;     // +20% XP until level 5
         this.metaBoosterPanicAvailable = false;     // 1x revive
         this.metaBoosterThickSkinActive = false;   // -10% damage taken
@@ -773,14 +773,89 @@ export class Game {
             : 1.0;
     }
 
+    /**
+     * Compute enemy count using stepped density (increases every 2-3 rooms, not every room).
+     * Density is the strongest difficulty lever — treat it carefully.
+     *
+     * Phase 1 (Rooms 1-9):  2 → 3 → 4 → 5 → 6  (stepped every 2 rooms, cap 6)
+     * Phase 2 (Rooms 11-19): 6 → 7 → 8           (stepped every 3 rooms)
+     * Phase 3 (Rooms 21-29): 8 → 9 → 10          (stepped every 3 rooms)
+     * Phase 4+ (Rooms 31+):  10 (max cap)
+     */
+    _getEnemyCount(stage) {
+        if (stage <= 0) return 2;
+        // Determine which act and room-within-act we're in
+        const act = Math.floor((stage - 1) / 10);       // 0-based act index
+        const roomInAct = ((stage - 1) % 10);            // 0-9 within act
+
+        if (act === 0) {
+            // Phase 1 (rooms 1-9): stepped increases every 2 rooms
+            // Room 1-2: 2, Room 3-4: 3, Room 5-6: 4, Room 7-8: 5, Room 9: 6
+            const step = Math.floor(roomInAct / 2);
+            return Math.min(2 + step, 6);
+        } else if (act === 1) {
+            // Phase 2 (rooms 11-19): start at 6, increase once or twice
+            // Room 11-13: 6, Room 14-16: 7, Room 17-19: 8
+            const step = Math.floor(roomInAct / 3);
+            return Math.min(6 + step, 8);
+        } else if (act === 2) {
+            // Phase 3 (rooms 21-29): start at 8, increase gently
+            // Room 21-23: 8, Room 24-26: 9, Room 27-29: 10
+            const step = Math.floor(roomInAct / 3);
+            return Math.min(8 + step, 10);
+        }
+        // Phase 4+ (rooms 31+): max density
+        return 10;
+    }
+
+    /**
+     * Compute phase-based enemy scaling. Never scales all three axes at once.
+     * HP: gentle per-room slope.
+     * Damage: flat per phase, not per room.
+     * Speed: slow per-room slope, capped.
+     */
+    _getEnemyScaling(stage) {
+        const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
+        const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
+        const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
+        const act = Math.floor((stage - 1) / 10);
+
+        // ── HP: gentle per-room increase, slightly steeper each act ──
+        // Phase 1: +5% per room (rooms 1-9)   → max ~1.45× at room 9
+        // Phase 2: +7% per room (rooms 11-19) → ~1.63× at room 19
+        // Phase 3+: +8% per room              → continues climbing
+        let hpMult;
+        if (act === 0) {
+            hpMult = 1 + (stage - 1) * 0.05;
+        } else if (act === 1) {
+            const phase1Max = 1 + 9 * 0.05;  // 1.45
+            hpMult = phase1Max + (stage - 10) * 0.07;
+        } else {
+            const phase1Max = 1 + 9 * 0.05;  // 1.45
+            const phase2Max = phase1Max + 9 * 0.07;  // 2.08
+            hpMult = phase2Max + (stage - 20) * 0.08;
+        }
+
+        // ── Damage: flat per-phase, NOT per room ──
+        // Phase 1: base damage (no increase)
+        // Phase 2: +2 damage
+        // Phase 3: +4 damage
+        // Phase 4+: +6 damage
+        const dmgBonus = act === 0 ? 0 : act === 1 ? 2 : act === 2 ? 4 : 6;
+
+        // ── Speed: slow per-room slope, capped at ×1.6 ──
+        const spdMult = Math.min(1 + (stage - 1) * 0.02, 1.6);
+
+        return {
+            hp:    Math.floor(eHp * hpMult),
+            speed: eSpd * spdMult,
+            damage: eDmg + dmgBonus,
+        };
+    }
+
     _spawnEnemies(grid, spawnPos, doorPos) {
-        const count = Math.min(2 + Math.floor((this.stage - 1) * 0.75), 10);
-        const eHp  = DevTools.getVal('enemyHp',     ENEMY_HP);
-        const eSpd = DevTools.getVal('enemySpeed',   ENEMY_SPEED);
-        const eDmg = DevTools.getVal('enemyDamage',  ENEMY_DAMAGE);
-        const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15));
-        const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2);
-        const dmgBase = eDmg + Math.floor((this.stage - 1) * 0.5);
+        const count = this._getEnemyCount(this.stage);
+        const { hp: hpBase, speed: spdBase, damage: dmgBase } = this._getEnemyScaling(this.stage);
 
         const types = this._getEnemyTypes(this.stage, count, this.currentBiome);
         const spawns = getEnemySpawns(grid, spawnPos, doorPos, count);
@@ -795,9 +870,9 @@ export class Game {
     /**
      * Determine enemy type composition for a given stage.
      * New types are introduced gradually:
-     *   Stage 1-3:  100% basic
-     *   Stage 4+:   shooters mixed in
-     *   Stage 6+:   dashers mixed in
+     *   Stage 1-4:  100% basic
+     *   Stage 5+:   shooters mixed in
+     *   Stage 7+:   dashers mixed in
      *   Stage 8+:   tanks mixed in
      * At least one basic enemy is always guaranteed.
      */
@@ -1410,8 +1485,8 @@ export class Game {
     /** Get effective damage multiplier including all shop boosts. */
     _getShopDamageMultiplier() {
         let mult = this.runShopDamageMult;
-        // Weapon Core: +12% until boss 3
-        if (this.metaBoosterWeaponCoreActive && this.bossesKilledThisRun < 3) {
+        // Weapon Core: +12% until boss 2
+        if (this.metaBoosterWeaponCoreActive && this.bossesKilledThisRun < 2) {
             mult *= 1.12;
         }
         return mult;
@@ -2928,12 +3003,10 @@ export class Game {
 
             // Process boss spawned adds
             if (this.boss.pendingSpawns.length > 0) {
-                const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
-                const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
-                const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
-                const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15) * 0.7);
-                const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2) * 0.8;
-                const dmgBase = Math.floor((eDmg + (this.stage - 1) * 0.5) * 0.7);
+                const { hp, speed, damage } = this._getEnemyScaling(this.stage);
+                const hpBase = Math.floor(hp * 0.7);
+                const spdBase = speed * 0.8;
+                const dmgBase = Math.floor(damage * 0.7);
                 for (const spawn of this.boss.pendingSpawns) {
                     this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
                 }
@@ -2983,12 +3056,10 @@ export class Game {
             cb._events = [];
 
             if (cb.pendingSpawns.length > 0) {
-                const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
-                const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
-                const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
-                const hpBase = Math.floor(eHp * (1 + (this.stage - 1) * 0.15) * 0.7);
-                const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2) * 0.8;
-                const dmgBase = Math.floor((eDmg + (this.stage - 1) * 0.5) * 0.7);
+                const { hp, speed, damage } = this._getEnemyScaling(this.stage);
+                const hpBase = Math.floor(hp * 0.7);
+                const spdBase = speed * 0.8;
+                const dmgBase = Math.floor(damage * 0.7);
                 for (const spawn of cb.pendingSpawns) {
                     this.enemies.push(new Enemy(spawn.x, spawn.y, hpBase, spdBase, dmgBase, spawn.type, this.stage));
                 }
@@ -3320,7 +3391,7 @@ export class Game {
         this.door.update(dt, allFoes, this.trainingMode);
 
         // ── Second Wave check ──
-        // When all enemies die, roll for a second wave (stage 5+, non-boss, non-training, once per room)
+        // When all enemies die, roll for a second wave (stage 8+, non-boss, non-training, once per room)
         if (doorWasLocked && !this.door.locked
             && !this.trainingMode
             && !this.secondWaveTriggered
@@ -3331,18 +3402,13 @@ export class Game {
             this.secondWaveActive = true;
             this.secondWaveAnnounceTimer = SECOND_WAVE_ANNOUNCE_TIME;
 
-            // Spawn a smaller wave of enemies
-            const baseCount = Math.min(2 + Math.floor((this.stage - 1) * 0.75), 10);
+            // Spawn a smaller wave of enemies using new stepped density + phase scaling
+            const baseCount = this._getEnemyCount(this.stage);
             const waveCount = Math.max(2, Math.round(baseCount * SECOND_WAVE_ENEMY_MULT));
             const spawns = getEnemySpawns(
                 this.grid, this._currentSpawnPos, { col: this.door.col, row: this.door.row }, waveCount,
             );
-            const eHp  = DevTools.getVal('enemyHp',    ENEMY_HP);
-            const eSpd = DevTools.getVal('enemySpeed',  ENEMY_SPEED);
-            const eDmg = DevTools.getVal('enemyDamage', ENEMY_DAMAGE);
-            const hpBase  = Math.floor(eHp * (1 + (this.stage - 1) * 0.15));
-            const spdBase = Math.min(eSpd * (1 + (this.stage - 1) * 0.05), eSpd * 2);
-            const dmgBase = eDmg + Math.floor((this.stage - 1) * 0.5);
+            const { hp: hpBase, speed: spdBase, damage: dmgBase } = this._getEnemyScaling(this.stage);
             const types = this._getEnemyTypes(this.stage, waveCount, this.currentBiome);
 
             this.enemies = spawns.map((p, i) => new Enemy(

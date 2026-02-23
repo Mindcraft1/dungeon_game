@@ -4,7 +4,7 @@ import {
     HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW,
     HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE,
     CANYON_INTRO_STAGE,
-    CANYON_COUNT_STAGE_7_10, CANYON_COUNT_STAGE_11_15, CANYON_COUNT_STAGE_16,
+    CANYON_COUNT_STAGE_11_20, CANYON_COUNT_STAGE_21_30, CANYON_COUNT_STAGE_31,
 } from './constants.js';
 import { Hazard } from './entities/hazard.js';
 import { isWall } from './collision.js';
@@ -705,12 +705,12 @@ function _fillUnreachable(template, sc, sr) {
 function _placeCanyons(template, sc, sr, dc, dr, stage, _rng, _rngInt) {
     // Determine how many canyon tiles to place based on stage bracket
     let minC, maxC;
-    if (stage <= 10) {
-        [minC, maxC] = CANYON_COUNT_STAGE_7_10;
-    } else if (stage <= 15) {
-        [minC, maxC] = CANYON_COUNT_STAGE_11_15;
+    if (stage <= 20) {
+        [minC, maxC] = CANYON_COUNT_STAGE_11_20;
+    } else if (stage <= 30) {
+        [minC, maxC] = CANYON_COUNT_STAGE_21_30;
     } else {
-        [minC, maxC] = CANYON_COUNT_STAGE_16;
+        [minC, maxC] = CANYON_COUNT_STAGE_31;
     }
     const targetCount = _rngInt(minC, maxC);
 

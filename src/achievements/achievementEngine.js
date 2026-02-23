@@ -136,28 +136,28 @@ function _onStageEntered(payload) {
     _currentRun.stagesReachedThisRun = Math.max(_currentRun.stagesReachedThisRun, stage);
 
     // Stage milestones
-    if (stage >= 3)  _tryUnlock('reach_stage_3');
     if (stage >= 5)  _tryUnlock('reach_stage_5');
-    if (stage >= 10) _tryUnlock('reach_stage_10');
+    if (stage >= 8)  _tryUnlock('reach_stage_8');
     if (stage >= 15) _tryUnlock('reach_stage_15');
     if (stage >= 20) _tryUnlock('reach_stage_20');
+    if (stage >= 30) _tryUnlock('reach_stage_30');
 
-    // Speed runner: stage 10 within 6 minutes
+    // Speed runner: stage 10 within 10 minutes
     if (stage >= 10) {
         const elapsed = Date.now() - _currentRun.runStartTime;
-        if (elapsed <= 6 * 60 * 1000) {
+        if (elapsed <= 10 * 60 * 1000) {
             _tryUnlock('reach_stage_10_fast');
         }
     }
 
-    // No revive to stage 15
-    if (stage >= 15 && !_currentRun.reviveUsedThisRun) {
-        _tryUnlock('no_revive_to_stage_15');
+    // No revive to stage 20
+    if (stage >= 20 && !_currentRun.reviveUsedThisRun) {
+        _tryUnlock('no_revive_to_stage_20');
     }
 
-    // Minimalist: stage 15 without meta booster
-    if (stage >= 15 && !_currentRun.metaBoosterUsedThisRun) {
-        _tryUnlock('minimalist_stage_10');
+    // Minimalist: stage 20 without meta booster
+    if (stage >= 20 && !_currentRun.metaBoosterUsedThisRun) {
+        _tryUnlock('minimalist_stage_20');
     }
 
     // Perfect Run I: stage 10 without any damage
@@ -258,8 +258,8 @@ function _onBossKilled(payload) {
     // Double Boss Slayer
     if (_currentRun.bossKillsThisRun >= 2) _tryUnlock('boss_kills_2_run');
 
-    // Boss Hunter (5 in a run)
-    if (_currentRun.bossKillsThisRun >= 5) _tryUnlock('boss_kills_5_run');
+    // Boss Hunter (3 in a run)
+    if (_currentRun.bossKillsThisRun >= 3) _tryUnlock('boss_kills_3_run');
 
     // Boss no-hit tracking
     if (!_currentRun.tookDamageDuringBoss) {
@@ -366,7 +366,7 @@ function _onMetaPerkMaxed(payload) {
 
 function _checkTrueDungeonGod() {
     if (!_currentRun) return;
-    if (_currentRun.stagesReachedThisRun < 25) return;
+    if (_currentRun.stagesReachedThisRun < 30) return;
     if (_currentRun.metaBoosterUsedThisRun) return;
     if (_currentRun.reviveUsedThisRun) return;
     if (_currentRun.bossesNoHitThisRun < 3) return;

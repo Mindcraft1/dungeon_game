@@ -30,19 +30,19 @@ export const ACHIEVEMENTS = [
         type: 'milestone',
     },
     {
-        id: 'reach_stage_3',
+        id: 'reach_stage_5',
         name: 'Getting Started',
         icon: '🚪',
         tier: 'easy',
-        description: 'Reach Stage 3.',
+        description: 'Reach Stage 5.',
         type: 'milestone',
     },
     {
-        id: 'reach_stage_5',
+        id: 'reach_stage_8',
         name: 'Dungeon Apprentice',
         icon: '🏰',
         tier: 'easy',
-        description: 'Reach Stage 5.',
+        description: 'Reach Stage 8.',
         type: 'milestone',
     },
     {
@@ -131,11 +131,11 @@ export const ACHIEVEMENTS = [
         type: 'milestone',
     },
     {
-        id: 'reach_stage_10',
+        id: 'reach_stage_15',
         name: 'Dungeon Adept',
         icon: '🏰',
         tier: 'medium',
-        description: 'Reach Stage 10.',
+        description: 'Reach Stage 15.',
         type: 'milestone',
     },
     {
@@ -186,9 +186,9 @@ export const ACHIEVEMENTS = [
         name: 'Speed Runner I',
         icon: '⏱️',
         tier: 'medium',
-        description: 'Reach Stage 10 within 6 minutes.',
+        description: 'Reach Stage 10 within 10 minutes.',
         type: 'challenge',
-        target: 6 * 60 * 1000,  // 6 min in ms
+        target: 10 * 60 * 1000,  // 10 min in ms
     },
 
     // ═══════════════════════════════════════════════
@@ -212,19 +212,19 @@ export const ACHIEVEMENTS = [
         type: 'challenge',
     },
     {
-        id: 'boss_kills_5_run',
+        id: 'boss_kills_3_run',
         name: 'Boss Hunter',
         icon: '💀',
         tier: 'hard',
-        description: 'Defeat 5 bosses in a single run.',
+        description: 'Defeat 3 bosses in a single run.',
         type: 'milestone',
     },
     {
-        id: 'reach_stage_15',
+        id: 'reach_stage_20',
         name: 'Dungeon Master',
         icon: '👑',
         tier: 'hard',
-        description: 'Reach Stage 15.',
+        description: 'Reach Stage 20.',
         type: 'milestone',
     },
     {
@@ -244,11 +244,11 @@ export const ACHIEVEMENTS = [
         type: 'milestone',
     },
     {
-        id: 'no_revive_to_stage_15',
+        id: 'no_revive_to_stage_20',
         name: 'No Panic',
         icon: '😤',
         tier: 'hard',
-        description: 'Reach Stage 15 without using a revive.',
+        description: 'Reach Stage 20 without using a revive.',
         type: 'challenge',
     },
     {
@@ -270,11 +270,11 @@ export const ACHIEVEMENTS = [
         target: 5,
     },
     {
-        id: 'minimalist_stage_10',
+        id: 'minimalist_stage_20',
         name: 'Minimalist',
         icon: '🧘',
         tier: 'hard',
-        description: 'Reach Stage 15 without using a meta booster.',
+        description: 'Reach Stage 20 without using a meta booster.',
         type: 'challenge',
     },
 
@@ -307,11 +307,11 @@ export const ACHIEVEMENTS = [
         type: 'challenge',
     },
     {
-        id: 'reach_stage_20',
+        id: 'reach_stage_30',
         name: 'Dungeon Overlord',
         icon: '👑',
         tier: 'very_hard',
-        description: 'Reach Stage 20.',
+        description: 'Reach Stage 30.',
         type: 'milestone',
     },
     {
@@ -365,7 +365,7 @@ export const ACHIEVEMENTS = [
         name: 'True Dungeon God',
         icon: '🌟',
         tier: 'legendary',
-        description: 'Stage ≥25, no booster, no revive, 3+ bosses no-hit, ≤3 damage events.',
+        description: 'Stage ≥30, no booster, no revive, 3+ bosses no-hit, ≤3 damage events.',
         type: 'challenge',
     },
 ];

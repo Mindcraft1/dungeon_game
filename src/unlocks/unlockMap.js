@@ -26,9 +26,9 @@ export const ACHIEVEMENT_UNLOCK_MAP = {
     visit_all_biomes:    [{ type: 'proc',    id: 'chain_lightning' }],
     boss_kills_3_run:    [{ type: 'proc',    id: 'heavy_crit' }],
 
-    // Node unlocks from harder achievements
-    reach_stage_15:      [{ type: 'node', id: 'melee_kill_nova' }],
-    reach_stage_20:      [{ type: 'node', id: 'dagger_spread' }],
+    // Node unlocks from harder achievements (shifted for 10-room acts)
+    reach_stage_20:      [{ type: 'node', id: 'melee_kill_nova' }],
+    reach_stage_30:      [{ type: 'node', id: 'dagger_spread' }],
     untouchable_5:       [{ type: 'node', id: 'dash_end_shockwave' }],
     no_damage_to_stage_10: [{ type: 'node', id: 'dagger_returning' }],
 };

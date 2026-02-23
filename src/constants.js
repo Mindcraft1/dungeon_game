@@ -57,7 +57,7 @@ export const SHOOTER_SPEED_MULT = 0.55;
 export const SHOOTER_RANGE = 200;
 export const SHOOTER_FIRE_COOLDOWN = 2000;
 export const SHOOTER_XP_MULT = 1.3;
-export const SHOOTER_INTRO_STAGE = 4;
+export const SHOOTER_INTRO_STAGE = 5;
 
 // ── Tank enemy ──
 export const TANK_COLOR = '#e67e22';
@@ -69,7 +69,7 @@ export const TANK_CHARGE_COOLDOWN = 4000;
 export const TANK_CHARGE_DURATION = 800;
 export const TANK_CHARGE_RANGE = 250;
 export const TANK_XP_MULT = 2.0;
-export const TANK_INTRO_STAGE = 8;
+export const TANK_INTRO_STAGE = 9;
 
 // ── Dasher enemy ──
 export const DASHER_COLOR = '#2ecc71';
@@ -81,7 +81,7 @@ export const DASHER_DASH_COOLDOWN = 2500;
 export const DASHER_DASH_DURATION = 400;
 export const DASHER_DASH_RANGE = 300;
 export const DASHER_XP_MULT = 1.5;
-export const DASHER_INTRO_STAGE = 6;
+export const DASHER_INTRO_STAGE = 7;
 
 // ── Projectile (shooter) ──
 export const PROJECTILE_RADIUS = 4;
@@ -122,7 +122,7 @@ export const TRAINING_RESPAWN_DELAY = 2000; // ms before dead enemies respawn
 
 // ── Second Wave ──
 export const SECOND_WAVE_CHANCE = 0.15;       // 15% chance for a second wave after clearing
-export const SECOND_WAVE_MIN_STAGE = 5;       // no second waves before stage 5
+export const SECOND_WAVE_MIN_STAGE = 8;       // no second waves before stage 8
 export const SECOND_WAVE_ENEMY_MULT = 0.75;   // wave 2 spawns 75% of normal enemy count
 export const SECOND_WAVE_ANNOUNCE_TIME = 2000; // ms to show "WAVE 2" banner
 
@@ -156,15 +156,15 @@ export const TILE_WALL   = 1;
 export const TILE_CANYON = 2;
 
 // ── Canyon / Pit Trap ──
-export const CANYON_INTRO_STAGE       = 7;     // first stage canyons can appear
+export const CANYON_INTRO_STAGE       = 11;    // first stage canyons can appear (Act 2)
 export const CANYON_FALL_HP_PENALTY   = 0.35;  // 35% of maxHP lost on fall
 export const CANYON_FALL_COIN_PENALTY = 0.10;  // 10% of coins lost on fall
 export const MAX_DASH_CROSS_TILES    = 2;      // max canyon gap dashable
 
 // Canyon spawn rate by stage bracket (tiles per room)
-export const CANYON_COUNT_STAGE_7_10  = [1, 3];   // [min, max]
-export const CANYON_COUNT_STAGE_11_15 = [3, 8];
-export const CANYON_COUNT_STAGE_16    = [6, 14];
+export const CANYON_COUNT_STAGE_11_20 = [1, 3];   // [min, max]  Act 2
+export const CANYON_COUNT_STAGE_21_30 = [3, 8];   //             Act 3
+export const CANYON_COUNT_STAGE_31    = [6, 14];   //             Act 4+
 
 // Canyon colors
 export const CANYON_COLOR_DEEP   = '#0a0a12';   // deep void
@@ -177,9 +177,9 @@ export const HAZARD_TYPE_LAVA   = 'lava';
 export const HAZARD_TYPE_ARROW  = 'arrow';
 
 // Intro stages (progressive difficulty)
-export const HAZARD_SPIKE_INTRO_STAGE = 3;
-export const HAZARD_LAVA_INTRO_STAGE  = 5;
-export const HAZARD_ARROW_INTRO_STAGE = 7;
+export const HAZARD_SPIKE_INTRO_STAGE = 4;
+export const HAZARD_LAVA_INTRO_STAGE  = 6;
+export const HAZARD_ARROW_INTRO_STAGE = 8;
 
 // Spike hazard
 export const HAZARD_SPIKE_DAMAGE   = 8;
@@ -271,7 +271,7 @@ export const NODE_RARITY_UNCOMMON = 'uncommon';
 export const NODE_RARITY_RARE     = 'rare';
 
 // ── Event System ──
-export const EVENT_MIN_STAGE       = 6;      // events appear from stage 6+
+export const EVENT_MIN_STAGE       = 8;      // events appear from stage 8+
 export const EVENT_CHANCE           = 0.12;   // 12% per non-boss room
 export const STATE_EVENT            = 'EVENT'; // game state for event rooms
 
@@ -303,7 +303,7 @@ export const COMBO_XP_MULT_3 = 2.0;             // ×2.0 XP at tier 3
 export const COMBO_XP_MULT_4 = 2.5;             // ×2.5 XP at tier 4
 
 // ── Boss ──
-export const BOSS_STAGE_INTERVAL = 5;            // boss every N stages
+export const BOSS_STAGE_INTERVAL = 10;           // boss every N stages (10-room acts)
 export const BOSS_TYPE_BRUTE      = 'brute';
 export const BOSS_TYPE_WARLOCK    = 'warlock';
 export const BOSS_TYPE_PHANTOM    = 'phantom';
@@ -314,15 +314,15 @@ export const BOSS_BASE_HP     = 400;
 export const BOSS_BASE_SPEED   = 55;
 export const BOSS_BASE_DAMAGE  = 15;
 
-// Boss scaling per encounter (0, 1, 2, ...)
-export const BOSS_HP_SCALE  = 0.45;             // +45% HP per encounter
-export const BOSS_DMG_SCALE = 0.3;              // +30% damage per encounter
-export const BOSS_SPD_SCALE = 0.12;             // +12% speed per encounter
+// Boss scaling per encounter (0, 1, 2, ...) — tuned for 10-room acts
+export const BOSS_HP_SCALE  = 0.55;             // +55% HP per encounter (wider gaps)
+export const BOSS_DMG_SCALE = 0.35;             // +35% damage per encounter
+export const BOSS_SPD_SCALE = 0.14;             // +14% speed per encounter
 
-// Boss scaling per stage (stacks with encounter scaling)
-export const BOSS_STAGE_HP_SCALE  = 0.04;       // +4% HP per game stage
-export const BOSS_STAGE_DMG_SCALE = 0.025;      // +2.5% damage per game stage
-export const BOSS_STAGE_SPD_SCALE = 0.015;      // +1.5% speed per game stage
+// Boss scaling per stage (stacks with encounter scaling) — gentle slope
+export const BOSS_STAGE_HP_SCALE  = 0.02;       // +2% HP per game stage (halved)
+export const BOSS_STAGE_DMG_SCALE = 0.012;      // +1.2% damage per game stage
+export const BOSS_STAGE_SPD_SCALE = 0.008;      // +0.8% speed per game stage
 
 // Boss type-specific multipliers
 export const BOSS_BRUTE_HP_MULT   = 1.3;
@@ -420,11 +420,11 @@ export const META_BOOSTERS = {
     meta_booster_weapon_core: {
         id:    'meta_booster_weapon_core',
         name:  'Weapon Core',
-        desc:  '+12% Damage until Boss 3',
+        desc:  '+12% Damage until Boss 2',
         icon:  '⚔️',
         color: '#f44336',
         cost:  25,
-        unlock: { stat: 'bossesKilledTotal', value: 5, label: 'Kill 5 bosses total' },
+        unlock: { stat: 'bossesKilledTotal', value: 3, label: 'Kill 3 bosses total' },
     },
     meta_booster_training_manual: {
         id:    'meta_booster_training_manual',
@@ -442,7 +442,7 @@ export const META_BOOSTERS = {
         icon:  '💀',
         color: '#ffd700',
         cost:  30,
-        unlock: { stat: 'bossesKilledTotal', value: 15, label: 'Kill 15 bosses total' },
+        unlock: { stat: 'bossesKilledTotal', value: 8, label: 'Kill 8 bosses total' },
     },
     meta_booster_lucky_start: {
         id:    'meta_booster_lucky_start',
@@ -460,7 +460,7 @@ export const META_BOOSTERS = {
         icon:  '🪨',
         color: '#795548',
         cost:  20,
-        unlock: { stat: 'bossesKilledTotal', value: 10, label: 'Kill 10 bosses total' },
+        unlock: { stat: 'bossesKilledTotal', value: 5, label: 'Kill 5 bosses total' },
     },
     meta_booster_swift_feet: {
         id:    'meta_booster_swift_feet',
@@ -562,7 +562,7 @@ export const DARKNESS_CONFIG = {
     flickerStrength: 0.015,     // subtle flicker amplitude (0 = none)
     introMessageDuration: 2000, // ms to show "The darkness surrounds you…"
     // Spawn rules
-    minStage: 4,                // earliest stage darkness rooms can appear
+    minStage: 6,                // earliest stage darkness rooms can appear
     spawnChance: 0.08,          // 8% of eligible rooms
     // Reward: bonus XP multiplier for the room
     rewardXPMultiplier: 1.5,    // 1.5× XP for enemies killed in darkness

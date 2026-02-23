@@ -31,14 +31,14 @@
 
 ## 1. Biome System
 
-Biome wechseln alle **5 Stages** (= Boss-Intervall) und beeinflussen Visuals, Gegner-Gewichtung, Hazard-Häufigkeit und Atmosphäre.
+Biome wechseln alle **10 Stages** (= Boss-Intervall / Act-Grenze) und beeinflussen Visuals, Gegner-Gewichtung, Hazard-Häufigkeit und Atmosphäre.
 
 | Biome | Stages | Farbe | Gegner-Schwerpunkt | Hazard-Schwerpunkt | Besonderheit |
 |-------|--------|-------|--------------------|--------------------|--------------|
-| 🌿 **Jungle** | 1–5, 21–25, … | Grün | Dasher ×1.4 | Alles reduziert | Fallende Blätter, Glühwürmchen |
-| 🏜️ **Desert** | 6–10, 26–30, … | Orange | Tank ×1.5 | Spikes ×1.4, Arrow ×1.2 | Sandkörner, Hitze-Flimmern |
-| 🔥 **Wasteland** | 11–15, 31–35, … | Rot | Shooter ×1.2, Tank ×1.3 | Lava ×1.6, Arrow ×1.3 | Glut-Funken, Asche |
-| 🌊 **Depths** | 16–20, 36–40, … | Blau | Shooter ×1.5 | Arrow ×1.4 | Spieler -10% Speed, Blasen, Lichtpunkte |
+| 🌿 **Jungle** | 1–10, 41–50, … | Grün | Dasher ×1.4 | Alles reduziert | Fallende Blätter, Glühwürmchen |
+| 🏜️ **Desert** | 11–20, 51–60, … | Orange | Tank ×1.5 | Spikes ×1.4, Arrow ×1.2 | Sandkörner, Hitze-Flimmern |
+| 🔥 **Wasteland** | 21–30, 61–70, … | Rot | Shooter ×1.2, Tank ×1.3 | Lava ×1.6, Arrow ×1.3 | Glut-Funken, Asche |
+| 🌊 **Depths** | 31–40, 71–80, … | Blau | Shooter ×1.5 | Arrow ×1.4 | Spieler -10% Speed, Blasen, Lichtpunkte |
 
 Jedes Biome hat eigene:
 - **Boden- & Wand-Farben** (Floor/Wall Tiles)
@@ -55,15 +55,30 @@ Jedes Biome hat eigene:
 | Typ | Farbe | Einführung | HP-Mult | Speed-Mult | DMG-Mult | XP-Mult | Besonderheit |
 |-----|-------|------------|---------|------------|----------|---------|--------------|
 | **Basic** | 🔴 Rot | Stage 1 | ×1.0 | ×1.0 | ×1.0 | ×1.0 | Einfacher Seek-AI |
-| **Shooter** | 🟣 Lila | Stage 4 | ×0.7 | ×0.55 | – | ×1.3 | Schießt Projektile (Range 200, CD 2s) |
-| **Dasher** | 🟢 Grün | Stage 6 | ×0.6 | ×0.55 | ×1.2 | ×1.5 | Dash-Angriff (×3.5 Speed, Range 300) |
-| **Tank** | 🟠 Orange | Stage 8 | ×2.0 | ×0.45 | ×1.5 | ×2.0 | Charge-Attacke (×2.5 Speed, Range 250) |
+| **Shooter** | 🟣 Lila | Stage 5 | ×0.7 | ×0.55 | – | ×1.3 | Schießt Projektile (Range 200, CD 2s) |
+| **Dasher** | 🟢 Grün | Stage 7 | ×0.6 | ×0.55 | ×1.2 | ×1.5 | Dash-Angriff (×3.5 Speed, Range 300) |
+| **Tank** | 🟠 Orange | Stage 9 | ×2.0 | ×0.45 | ×1.5 | ×2.0 | Charge-Attacke (×2.5 Speed, Range 250) |
 
-**Skalierung pro Stage:**
-- Anzahl: `min(2 + floor((stage-1) × 0.75), 10)`
-- HP: `× (1 + (stage-1) × 0.15)`
-- Speed: `× (1 + (stage-1) × 0.05)` (max ×2)
-- DMG: `+ (stage-1) × 0.5`
+**Skalierung (Phasen-basiert, nie alle 3 Achsen gleichzeitig):**
+
+*Dichte (Gegner-Anzahl):* Gestufte Erhöhung alle 2–3 Räume, nicht pro Raum:
+- Phase 1 (Rooms 1–9): 2 → 3 → 4 → 5 → 6 (alle 2 Räume +1)
+- Phase 2 (Rooms 11–19): 6 → 7 → 8 (alle 3 Räume +1)
+- Phase 3 (Rooms 21–29): 8 → 9 → 10 (alle 3 Räume +1)
+- Phase 4+ (Rooms 31+): max 10
+
+*HP:* Sanft pro Raum, steiler pro Phase:
+- Phase 1: +5% pro Raum (max ×1.45 bei Room 9)
+- Phase 2: +7% pro Raum
+- Phase 3+: +8% pro Raum
+
+*Schaden:* Flach pro Phase, NICHT pro Raum:
+- Phase 1: Basis-Schaden (kein Anstieg)
+- Phase 2: +2 Schaden
+- Phase 3: +4 Schaden
+- Phase 4+: +6 Schaden
+
+*Speed:* Langsam pro Raum, max ×1.6
 
 ---
 
@@ -73,15 +88,15 @@ Hazards werden dynamisch pro Raum platziert. Schaden skaliert +10% pro Stage üb
 
 | Typ | Einführung | Basis-DMG | Mechanik |
 |-----|------------|-----------|----------|
-| ⬆️ **Spikes** | Stage 3 | 8 | Zyklisch (2.5s): inaktiv → 0.5s Warnung → 0.7s aktiv. Versetzter Timer. |
-| 🟧 **Lava** | Stage 5 | 4/Tick | Dauerschaden alle 400ms + Slow (×0.55 Speed) solange drauf. |
-| ➡️ **Arrow Trap** | Stage 7 | 8 | Schießt Projektile in eine Richtung (CD 3.5s, Speed 160). |
+| ⬆️ **Spikes** | Stage 4 | 8 | Zyklisch (2.5s): inaktiv → 0.5s Warnung → 0.7s aktiv. Versetzter Timer. |
+| 🟧 **Lava** | Stage 6 | 4/Tick | Dauerschaden alle 400ms + Slow (×0.55 Speed) solange drauf. |
+| ➡️ **Arrow Trap** | Stage 8 | 8 | Schießt Projektile in eine Richtung (CD 3.5s, Speed 160). |
 
 ---
 
 ## 4. Boss System
 
-**Alle 5 Stages** erscheint ein Boss. 4 verschiedene Typen, die rotieren.
+**Alle 10 Stages** erscheint ein Boss (= Act-Grenze). 4 verschiedene Typen, die rotieren.
 
 | Boss | Farbe | HP-Mult | Speed-Mult | DMG-Mult | Radius |
 |------|-------|---------|------------|----------|--------|
@@ -92,9 +107,9 @@ Hazards werden dynamisch pro Raum platziert. Schaden skaliert +10% pro Stage üb
 
 **Basis-Stats:** HP 400, Speed 55, DMG 15
 
-**Skalierung:**
-- Pro Encounter: HP +45%, DMG +30%, Speed +12%
-- Pro Stage: HP +4%, DMG +2.5%, Speed +1.5%
+**Skalierung (angepasst für 10-Room Acts):**
+- Pro Encounter: HP +55%, DMG +35%, Speed +14%
+- Pro Stage: HP +2%, DMG +1.2%, Speed +0.8%
 
 **Phase 2** ab 50% HP — Boss wird aggressiver, kürzere Cooldowns.
 
@@ -346,7 +361,7 @@ Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node h
 
 ## 11. Event System (Spezial-Räume)
 
-**Bedingungen:** Stage ≥ 6, kein Boss-Raum, nicht in Folge, **12% Chance** pro Raum.
+**Bedingungen:** Stage ≥ 8, kein Boss-Raum, nicht in Folge, **12% Chance** pro Raum.
 
 | Event | Icon | Beschreibung |
 |-------|------|--------------|
@@ -376,8 +391,8 @@ Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node h
 | 🎯 3 Bosse no-hit Streak | 🌑 Gravity Pull (Ability) |
 | 🌍 Alle Biome besucht | ⚡ Chain Lightning (Proc) |
 | 💀 3 Bosse in einem Run | 💎 Heavy Crit (Proc) |
-| 👑 Stage 15 erreicht | 💥 Kill Nova (Melee-Node) |
-| 👑 Stage 20 erreicht | 🌊 Fan of Knives (Dagger-Node) |
+| 👑 Stage 20 erreicht | 💥 Kill Nova (Melee-Node) |
+| 👑 Stage 30 erreicht | 🌊 Fan of Knives (Dagger-Node) |
 | 🛡️ Untouchable IV (5 Räume no-hit) | 💥 Impact Dash (Dash-Node) |
 | ✨ Perfect Run I (Stage 10 ohne DMG) | 🪃 Boomerang (Dagger-Node) |
 
@@ -493,13 +508,13 @@ Schnelle aufeinanderfolgende Kills innerhalb von **2.5 Sekunden** bauen eine Com
 
 ## 17. Canyon / Pit Traps
 
-Ab **Stage 7** erscheinen Abgründe im Raum.
+Ab **Stage 11** (Act 2) erscheinen Abgründe im Raum.
 
 | Stage-Bracket | Anzahl pro Raum |
 |--------------|----------------|
-| 7–10 | 1–3 |
-| 11–15 | 3–8 |
-| 16+ | 6–14 |
+| 11–20 | 1–3 |
+| 21–30 | 3–8 |
+| 31+ | 6–14 |
 
 **Sturz-Strafe:** -35% Max HP + -10% Coins.  
 **Dash-Überquerung:** Bis zu 2 Tiles breit überdashbar.
@@ -513,8 +528,8 @@ Ab **Stage 7** erscheinen Abgründe im Raum.
 | ID | Name | Beschreibung |
 |----|------|--------------|
 | first_blood | First Blood | Ersten Gegner töten |
-| reach_stage_3 | Getting Started | Stage 3 erreichen |
-| reach_stage_5 | Dungeon Apprentice | Stage 5 erreichen |
+| reach_stage_5 | Getting Started | Stage 5 erreichen |
+| reach_stage_8 | Dungeon Apprentice | Stage 8 erreichen |
 | untouchable_1 | Untouchable I | Raum (≥10 Gegner) ohne Schaden clearen |
 | coins_50_run | Coin Collector | 50 Coins in einem Run |
 | level_5_run | Level Up! | Level 5 in einem Run |
@@ -530,13 +545,13 @@ Ab **Stage 7** erscheinen Abgründe im Raum.
 | kills_100_total | Centurion | 100 Gegner insgesamt töten |
 | untouchable_2 | Untouchable II | 2 Räume (≥10 Gegner) in Folge ohne Schaden |
 | coins_100_run | Wealthy | 100 Coins in einem Run |
-| reach_stage_10 | Dungeon Adept | Stage 10 erreichen |
+| reach_stage_15 | Dungeon Adept | Stage 15 erreichen |
 | boss_kills_2_run | Double Boss Slayer | 2 Bosse in einem Run |
 | collector_pickups | Collector | Jeden Pickup-Typ mindestens 1× sammeln |
 | unlock_3_relics | Relic Seeker | 3 Relics freischalten |
 | meta_upgrades_10_total | Upgrade Addict | 10 Meta-Perk Upgrades insgesamt |
 | boss_no_hit_1 | Efficient | Boss ohne Schaden besiegen |
-| reach_stage_10_fast | Speed Runner I | Stage 10 in unter 6 Minuten |
+| reach_stage_10_fast | Speed Runner I | Stage 10 in unter 10 Minuten |
 
 ### Hard (10)
 
@@ -544,14 +559,14 @@ Ab **Stage 7** erscheinen Abgründe im Raum.
 |----|------|--------------|
 | kills_500_total | Monster Hunter | 500 Gegner insgesamt töten |
 | untouchable_3 | Untouchable III | 3 Räume in Folge ohne Schaden |
-| boss_kills_5_run | Boss Hunter | 5 Bosse in einem Run |
-| reach_stage_15 | Dungeon Master | Stage 15 erreichen |
+| boss_kills_3_run | Boss Hunter | 3 Bosse in einem Run |
+| reach_stage_20 | Dungeon Master | Stage 20 erreichen |
 | level_15_run | Full Build | Level 15 in einem Run |
 | coins_200_run | High Roller | 200 Coins in einem Run |
-| no_revive_to_stage_15 | No Panic | Stage 15 ohne Revive |
+| no_revive_to_stage_20 | No Panic | Stage 20 ohne Revive |
 | visit_all_biomes_run | Biome Traveler | Alle 4 Biome in einem Run besuchen |
 | trap_dancer_5 | Trap Dancer | 5 Trap-Räume (≥10 Gegner) ohne Schaden clearen |
-| minimalist_stage_10 | Minimalist | Stage 15 ohne Meta-Booster |
+| minimalist_stage_20 | Minimalist | Stage 20 ohne Meta-Booster |
 
 ### Very Hard (9)
 
@@ -560,7 +575,7 @@ Ab **Stage 7** erscheinen Abgründe im Raum.
 | kills_1000_total | Legend in the Making | 1000 Gegner insgesamt |
 | untouchable_5 | Untouchable IV | 5 Räume in Folge ohne Schaden |
 | boss_no_hit_3_streak | Boss Rush | 3 Bosse in Folge no-hit |
-| reach_stage_20 | Dungeon Overlord | Stage 20 erreichen |
+| reach_stage_30 | Dungeon Overlord | Stage 30 erreichen |
 | no_damage_to_stage_10 | Perfect Run I | Stage 10 ohne jeglichen Schaden |
 | unlock_all_relics | Relic Master | Alle 8 Relics freischalten |
 | max_one_meta_perk | Meta Maxer | Einen Meta-Perk auf Level 10 |
@@ -571,7 +586,7 @@ Ab **Stage 7** erscheinen Abgründe im Raum.
 
 | ID | Name | Beschreibung |
 |----|------|--------------|
-| true_dungeon_god | True Dungeon God | Stage ≥25, kein Booster, kein Revive, 3+ Bosse no-hit, ≤3 Schadens-Events |
+| true_dungeon_god | True Dungeon God | Stage ≥30, kein Booster, kein Revive, 3+ Bosse no-hit, ≤3 Schadens-Events |
 
 ---
 
@@ -589,18 +604,22 @@ Locked Items zeigen den nächsten Unlock-Hinweis (z.B. „Next Ability at 6 boss
 
 Vor dem Run im Meta-Shop kaufbar. Max **1 Booster pro Run**.
 
-| Booster | Icon | Kosten | Effekt |
-|---------|------|--------|--------|
-| 🛡️ **Shield Pack** | 🛡️ | 20 Shards | Start mit 3 Shield Charges (absorbieren 3 Hits) |
-| ⚔️ **Weapon Core** | ⚔️ | 25 Shards | +12% DMG bis Boss 3 |
-| 📖 **Training Manual** | 📖 | 18 Shards | +20% XP bis Level 5 |
-| 💀 **Panic Button** | 💀 | 30 Shards | 1× Revive mit 50% HP pro Run |
+| Booster | Icon | Kosten | Effekt | Unlock |
+|---------|------|--------|--------|--------|
+| 🛡️ **Shield Pack** | 🛡️ | 12 Shards | Start mit 3 Shield Charges (absorbieren 3 Hits) | 5 Runs gespielt |
+| ⚔️ **Weapon Core** | ⚔️ | 25 Shards | +12% DMG bis Boss 2 | 3 Bosse getötet (total) |
+| 📖 **Training Manual** | 📖 | 10 Shards | +20% XP bis Level 5 | 3 Runs gespielt |
+| 💀 **Panic Button** | 💀 | 30 Shards | 1× Revive mit 50% HP pro Run | 8 Bosse getötet (total) |
+| 🍀 **Lucky Start** | 🍀 | 8 Shards | Start mit 15 Bonus-Coins | 8 Runs gespielt |
+| 🪨 **Thick Skin** | 🪨 | 20 Shards | -10% Schaden genommen (gesamter Run) | 5 Bosse getötet (total) |
+| 💨 **Swift Feet** | 💨 | 15 Shards | +10% Bewegungsspeed (gesamter Run) | Stage 20 erreicht |
+| 🪙 **Scavenger** | 🪙 | 22 Shards | +30% Coin-Drops von allen Gegnern | Stage 30 erreicht |
 
 ---
 
 ## Second Wave System
 
-Ab **Stage 5** besteht eine **15% Chance**, dass nach dem Clearen eines Raumes eine zweite Welle spawnt.
+Ab **Stage 8** besteht eine **15% Chance**, dass nach dem Clearen eines Raumes eine zweite Welle spawnt.
 - **Gegner-Anzahl:** 75% der normalen Menge
 - **Ankündigung:** 2s „WAVE 2" Banner
 
@@ -611,16 +630,28 @@ Ab **Stage 5** besteht eine **15% Chance**, dass nach dem Clearen eines Raumes e
 | Stage | Neue Mechanik |
 |-------|---------------|
 | 1 | Basic Enemies, Melee + Dagger + Dash |
-| 3 | ⬆️ Spike Hazards |
-| 4 | 🟣 Shooter Enemies |
-| 5 | 🟧 Lava Hazards, 🏜️ Desert Biome, 💪 Erster Boss, Second Wave möglich |
-| 6 | 🟢 Dasher Enemies, 🎲 Events möglich (12% Chance) |
-| 7 | ➡️ Arrow Traps, 🕳️ Canyon Pits |
-| 8 | 🟠 Tank Enemies |
-| 10 | 🏪 Zweiter Boss + Shop, Pity-System prüft |
-| 11 | 🔥 Wasteland Biome |
-| 16 | 🌊 Depths Biome (-10% Player Speed) |
-| 20+ | Fortgeschrittene Skalierung, Boss Scroll Drops |
+| 4 | ⬆️ Spike Hazards |
+| 5 | 🟣 Shooter Enemies |
+| 6 | 🟧 Lava Hazards, 🌑 Darkness Rooms möglich |
+| 7 | 🟢 Dasher Enemies |
+| 8 | ➡️ Arrow Traps, 🎲 Events möglich (12% Chance), Second Wave möglich |
+| 9 | 🟠 Tank Enemies |
+| 10 | 💪 **Boss 1 (The Brute)** + Shop, Pity-System prüft |
+| 11 | 🏜️ Desert Biome, 🕳️ Canyon Pits |
+| 20 | 🧙 **Boss 2 (The Warlock)** + Shop |
+| 21 | 🔥 Wasteland Biome |
+| 30 | 👻 **Boss 3 (The Phantom)** + Shop |
+| 31 | 🌊 Depths Biome (-10% Player Speed) |
+| 40 | 🛡️ **Boss 4 (The Juggernaut)** + Shop |
+
+### Act-Struktur
+
+| Act | Rooms | Ziel | Feind-Dichte | Schaden |
+|-----|-------|------|--------------|---------|
+| **Act 1** (Formation) | 1–9 → Boss 10 | Build aufbauen | 2→6 (gestuft) | Basis |
+| **Act 2** (Identity) | 11–19 → Boss 20 | Build testen | 6→8 | +2 |
+| **Act 3** (Synergy) | 21–29 → Boss 30 | Synergie beweisen | 8→10 | +4 |
+| **Act 4** (Mastery) | 31–39 → Boss 40 | Meisterschaft | 10 (max) | +6 |
 
 ---
 

@@ -1,5 +1,5 @@
 // ── Biome System ─────────────────────────────────────────────
-// Biomes cycle every 5 stages (matching BOSS_STAGE_INTERVAL).
+// Biomes cycle every 10 stages (matching BOSS_STAGE_INTERVAL).
 // They apply modifier overlays on top of the existing global
 // difficulty progression — they NEVER override unlock gates,
 // only tweak spawn weights, hazard counts, visuals, and
