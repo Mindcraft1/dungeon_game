@@ -2269,14 +2269,11 @@ export class Game {
 
         // Delete (X key)
         if (wasPressed('KeyX') && this.profileCursor < this.profiles.length) {
-            // Can't delete if it's the only profile
-            if (this.profiles.length > 1) {
-                this.profileDeleting = true;
-            }
+            this.profileDeleting = true;
         }
 
-        // Back
-        if (wasPressed('Escape')) {
+        // Back (only if a profile is selected)
+        if (wasPressed('Escape') && this.profiles.length > 0) {
             this.state = STATE_MENU;
             this.menuIndex = 0;
         }
@@ -2324,6 +2321,16 @@ export class Game {
         MetaStore.deleteProfileMeta(index, this.profiles.length);
         AchievementStore.deleteProfileAchievements(index, this.profiles.length);
         this.profiles.splice(index, 1);
+
+        if (this.profiles.length === 0) {
+            // All profiles deleted — reset and stay on profiles screen
+            this.activeProfileIndex = 0;
+            this.profileCursor = 0;
+            this._saveProfiles();
+            this.state = STATE_PROFILES;
+            return;
+        }
+
         // Adjust active index
         if (this.activeProfileIndex >= this.profiles.length) {
             this.activeProfileIndex = Math.max(0, this.profiles.length - 1);

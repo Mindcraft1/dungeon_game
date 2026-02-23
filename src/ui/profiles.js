@@ -195,8 +195,8 @@ function _renderDeleteOverlay(ctx, name) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    const bw = 340;
-    const bh = 120;
+    const bw = 380;
+    const bh = 145;
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -214,7 +214,11 @@ function _renderDeleteOverlay(ctx, name) {
 
     ctx.fillStyle = '#fff';
     ctx.font = '16px monospace';
-    ctx.fillText(`"${name}"`, CANVAS_WIDTH / 2, by + 60);
+    ctx.fillText(`"${name}"`, CANVAS_WIDTH / 2, by + 58);
+
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = '11px monospace';
+    ctx.fillText('All progress will be permanently lost!', CANVAS_WIDTH / 2, by + 80);
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
