@@ -81,12 +81,33 @@ export class Player {
 
         // ── Shop modifiers (set by game.js) ──
         this.shopTrapResistMult = 1;   // from run_item_trap_resist
+
+        // ── Mouse aim state (set by game.js per frame) ──
+        this._mouseAiming = false;
+    }
+
+    /**
+     * Point the player's facing direction toward the given canvas coordinate.
+     * Call this from game.js when mouse aim is enabled and mouse is active.
+     */
+    setFacingFromMouse(mx, my) {
+        const dx = mx - this.x;
+        const dy = my - this.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 1) {
+            this.facingX = dx / len;
+            this.facingY = dy / len;
+            this._mouseAiming = true;
+        }
     }
 
     update(dt, movement, grid) {
         if (movement.x !== 0 || movement.y !== 0) {
-            this.facingX = movement.x;
-            this.facingY = movement.y;
+            // Only update facing from movement if mouse aim is not active
+            if (!this._mouseAiming) {
+                this.facingX = movement.x;
+                this.facingY = movement.y;
+            }
         }
 
         const ms = dt * 1000;

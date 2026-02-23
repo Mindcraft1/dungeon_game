@@ -1,5 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from './constants.js';
-import { clearFrameInput } from './input.js';
+import { clearFrameInput, initMouse } from './input.js';
 import { Game } from './game.js';
 import { updateShake } from './shake.js';
 import { renderFlash } from './combat/impactSystem.js';
@@ -14,6 +14,9 @@ canvas.height = CANVAS_HEIGHT * dpr;
 canvas.style.width  = CANVAS_WIDTH  + 'px';
 canvas.style.height = CANVAS_HEIGHT + 'px';
 ctx.scale(dpr, dpr);
+
+// ── Mouse input setup (tracks position + buttons on canvas) ──
+initMouse(canvas);
 
 // ── Game instance ──
 const game = new Game(ctx);

@@ -2,6 +2,66 @@ const keysDown = new Set();
 const keysJustPressed = new Set();
 let _lastKey = '';
 
+// ── Mouse State ──
+const mouseDown = new Set();          // currently held buttons (0=left, 1=middle, 2=right)
+const mouseJustPressed = new Set();   // buttons pressed this frame
+let _mouseX = 0;                      // canvas-local X (logical pixels)
+let _mouseY = 0;                      // canvas-local Y (logical pixels)
+let _mouseActive = false;             // true after first mouse move — used to auto-detect mouse users
+let _canvasRef = null;                // set once via initMouse()
+
+/** Call once from main.js after canvas is ready. Also blocks the context menu. */
+export function initMouse(canvas) {
+    _canvasRef = canvas;
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (!mouseDown.has(e.button)) mouseJustPressed.add(e.button);
+        mouseDown.add(e.button);
+        _mouseActive = true;
+        e.preventDefault();
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        mouseDown.delete(e.button);
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        _mouseActive = true;
+        _updateMousePos(e);
+    });
+
+    // Prevent right-click context menu on canvas so button 2 works for dash
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // If mouse leaves window, release all buttons
+    canvas.addEventListener('mouseleave', () => {
+        mouseDown.clear();
+    });
+}
+
+function _updateMousePos(e) {
+    if (!_canvasRef) return;
+    const rect = _canvasRef.getBoundingClientRect();
+    // Convert to logical (CSS) pixels — matches the 800×600 coordinate space
+    _mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+    _mouseY = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
+}
+
+// Canvas dimensions needed for coordinate conversion
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from './constants.js';
+
+/** True while the mouse button is held (0=left, 1=middle, 2=right) */
+export function isMouseDown(button) { return mouseDown.has(button); }
+
+/** True only in the frame the mouse button was first pressed */
+export function wasMousePressed(button) { return mouseJustPressed.has(button); }
+
+/** Current mouse position in canvas logical coordinates */
+export function getMousePos() { return { x: _mouseX, y: _mouseY }; }
+
+/** True if the user has moved/clicked the mouse at least once */
+export function isMouseActive() { return _mouseActive; }
+
 // ── Cheat Code Buffer ──
 const CHEAT_BUFFER_MAX = 20;       // max chars remembered
 const CHEAT_BUFFER_TIMEOUT = 3000; // ms before buffer resets
@@ -95,6 +155,7 @@ export function getActivatedCheat() {
 /** Must be called at the end of every frame */
 export function clearFrameInput() {
     keysJustPressed.clear();
+    mouseJustPressed.clear();
     _lastKey = '';
     _activatedCheat = '';
 

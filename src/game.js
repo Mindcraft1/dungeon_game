@@ -32,7 +32,7 @@ import {
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
 } from './constants.js';
-import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat } from './input.js';
+import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { Player } from './entities/player.js';
@@ -179,9 +179,10 @@ export class Game {
         this.muted = Audio.isMuted();
 
         // ── Settings screen ──
-        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=Back
+        this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=MouseAim, 5=Back
         this.proceduralRooms = this._loadRoomModeSetting();
         this.showDamageNumbers = this._loadDamageNumbersSetting();
+        this.mouseAimEnabled = this._loadMouseAimSetting();
 
         // ── Particles ──
         this.particles = new ParticleSystem();
@@ -2374,7 +2375,14 @@ export class Game {
         const movement = getMovement();
         // Reset lava slow flag each frame (hazards will set it if player is on lava)
         this.player.onLava = false;
+        this.player._mouseAiming = false; // reset per frame — setFacingFromMouse will re-enable
         this.player.update(dt, movement, this.grid);
+
+        // ── Mouse aim: point player toward cursor ──
+        if (this.mouseAimEnabled && isMouseActive()) {
+            const mpos = getMousePos();
+            this.player.setFacingFromMouse(mpos.x, mpos.y);
+        }
 
         // ── Canyon fall check ──
         if (this.player.fellInCanyon) {
@@ -2477,8 +2485,8 @@ export class Game {
         // Track dash state before update (for end-of-dash effects)
         const wasDashing = this.player.dashing;
 
-        // Dash / Dodge Roll (M key)
-        if (wasPressed('KeyM')) {
+        // Dash / Dodge Roll (M key or Right Click)
+        if (wasPressed('KeyM') || wasMousePressed(2)) {
             if (this.player.tryDash(movement, _dashMods, _globalMods)) {
                 Audio.playPlayerDash();
                 this.particles.dashBurst(this.player.x, this.player.y);
@@ -2573,8 +2581,8 @@ export class Game {
         // Update active persistent abilities (blade_storm, gravity_pull)
         this.abilitySystem.update(effectiveDt, combatContext);
 
-        // Attack
-        if (isDown('Space')) {
+        // Attack (Space or Left Click)
+        if (isDown('Space') || isMouseDown(0)) {
             const targets = allBosses.length > 0
                 ? [...this.enemies, ...allBosses]
                 : this.enemies;
@@ -2669,8 +2677,8 @@ export class Game {
         // ── Kill Nova cooldown tick ──
         if (this._killNovaCooldown > 0) this._killNovaCooldown -= dt * 1000;
 
-        // Ranged Attack (N key) — throw dagger
-        if (wasPressed('KeyN')) {
+        // Ranged Attack (N key or Middle Click) — throw dagger
+        if (wasPressed('KeyN') || wasMousePressed(1)) {
             // Apply shop damage multiplier for dagger
             const shopDmgMultDagger = this._getShopDamageMultiplier();
             let savedDmgDagger;
@@ -3422,7 +3430,7 @@ export class Game {
     }
 
     _updateSettings() {
-        const count = 5; // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=Back
+        const count = 6; // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=MouseAim, 5=Back
 
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.settingsCursor = (this.settingsCursor - 1 + count) % count;
@@ -3444,7 +3452,7 @@ export class Game {
         const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
                        || wasPressed('KeyA') || wasPressed('KeyD');
 
-        if (toggle || (leftRight && this.settingsCursor < 4)) {
+        if (toggle || (leftRight && this.settingsCursor < 5)) {
             Audio.playMenuSelect();
             if (this.settingsCursor === 0) {
                 // Toggle SFX mute
@@ -3462,6 +3470,10 @@ export class Game {
                 this.showDamageNumbers = !this.showDamageNumbers;
                 this._saveDamageNumbersSetting();
             } else if (this.settingsCursor === 4) {
+                // Toggle mouse aim
+                this.mouseAimEnabled = !this.mouseAimEnabled;
+                this._saveMouseAimSetting();
+            } else if (this.settingsCursor === 5) {
                 // Back to menu
                 this.state = STATE_MENU;
             }
@@ -3493,6 +3505,20 @@ export class Game {
     _saveDamageNumbersSetting() {
         try {
             localStorage.setItem('dungeon_damage_numbers', this.showDamageNumbers ? 'true' : 'false');
+        } catch (e) {}
+    }
+
+    _loadMouseAimSetting() {
+        try {
+            const val = localStorage.getItem('dungeon_mouse_aim');
+            if (val === null) return true; // default: on
+            return val === 'true';
+        } catch (e) { return true; }
+    }
+
+    _saveMouseAimSetting() {
+        try {
+            localStorage.setItem('dungeon_mouse_aim', this.mouseAimEnabled ? 'true' : 'false');
         } catch (e) {}
     }
 
@@ -3943,7 +3969,7 @@ export class Game {
         }
 
         if (this.state === STATE_SETTINGS) {
-            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms, this.showDamageNumbers);
+            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms, this.showDamageNumbers, this.mouseAimEnabled);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -4479,8 +4505,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   Q/E = Ability   ESC = Exit'
-            : 'WASD = Move   SPACE = Attack   N = Throw   M = Dash   Q/E = Ability   P = Pause';
+            ? 'WASD=Move  SPACE/LMB=Attack  N/MMB=Throw  M/RMB=Dash  Q/E=Ability  ESC=Exit'
+            : 'WASD=Move  SPACE/LMB=Attack  N/MMB=Throw  M/RMB=Dash  Q/E=Ability  P=Pause';
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();

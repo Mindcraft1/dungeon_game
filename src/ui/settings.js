@@ -8,8 +8,9 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {boolean} musicEnabled – whether music is enabled
  * @param {boolean} proceduralRooms – whether procedural room generation is enabled
  * @param {boolean} showDamageNumbers – whether floating damage numbers are shown
+ * @param {boolean} mouseAimEnabled – whether mouse controls aim direction
  */
-export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms, showDamageNumbers = true) {
+export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms, showDamageNumbers = true, mouseAimEnabled = true) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -73,6 +74,13 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
             valueColor: showDamageNumbers ? '#4caf50' : '#e74c3c',
             color: '#f06292',
             desc: 'Show floating damage numbers on hit',
+        },
+        {
+            label: 'MOUSE AIM',
+            value: mouseAimEnabled ? 'ON' : 'OFF',
+            valueColor: mouseAimEnabled ? '#4caf50' : '#e74c3c',
+            color: '#64ffda',
+            desc: 'Aim toward mouse cursor (LMB=Attack, RMB=Dash, MMB=Dagger)',
         },
         {
             label: 'BACK',
@@ -139,9 +147,9 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
 
     const bindings = [
         ['WASD / Arrows', 'Move'],
-        ['SPACE', 'Melee Attack'],
-        ['M', 'Dash / Dodge Roll'],
-        ['N', 'Ranged Attack (Dagger)'],
+        ['SPACE / LMB', 'Melee Attack'],
+        ['M / RMB', 'Dash / Dodge Roll'],
+        ['N / MMB', 'Ranged Attack (Dagger)'],
         ['Q', 'Ability Slot 1'],
         ['E', 'Ability Slot 2'],
         ['B', 'Use Bomb'],
