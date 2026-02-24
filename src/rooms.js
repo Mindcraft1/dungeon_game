@@ -1227,21 +1227,30 @@ function _findLaserPositions(grid, spawnPos, doorPos, usedTiles) {
 
 /**
  * Find positions for laser walls — horizontal or vertical barriers spanning 2-3 floor tiles.
- * Prefers chokepoints / doorway-like gaps between walls.
+ * Only places walls in doorway-like gaps — the span must bridge between
+ * wall tiles on both ends so it acts like a gate blocking a passage.
  */
 function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
     const candidates = [];
     const rows = grid.length;
     const cols = grid[0].length;
 
-    // Try horizontal walls (axis 'h')
+    const isWallAt = (r, c) => {
+        if (r < 0 || r >= rows || c < 0 || c >= cols) return true; // OOB = wall
+        return grid[r][c] !== 0;
+    };
+
+    // Try horizontal walls (axis 'h') — wall blocks a corridor running north/south
+    // Require: wall tile immediately LEFT of span start AND immediately RIGHT of span end
+    // Also require: wall above OR below every tile in the span (passage between walls)
     for (let row = 2; row < rows - 2; row++) {
         for (let col = 2; col < cols - 2; col++) {
             if (grid[row][col]) continue; // must start on floor
 
-            // Try spans of 2 and 3
             for (let span = 2; span <= 3; span++) {
                 if (col + span > cols - 1) continue;
+
+                // All tiles in span must be floor and unused
                 let valid = true;
                 for (let s = 0; s < span; s++) {
                     if (grid[row][col + s]) { valid = false; break; }
@@ -1250,10 +1259,17 @@ function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
                 }
                 if (!valid) continue;
 
-                // Check there's a wall on at least one side (so it feels like a barrier in a passage)
-                const hasWallAbove = grid[row - 1] && grid[row - 1][col];
-                const hasWallBelow = grid[row + 1] && grid[row + 1][col];
-                const wallScore = (hasWallAbove ? 1 : 0) + (hasWallBelow ? 1 : 0);
+                // REQUIRED: wall at both ends along the span axis (like a door frame)
+                const wallLeft  = isWallAt(row, col - 1);
+                const wallRight = isWallAt(row, col + span);
+                if (!wallLeft || !wallRight) continue;
+
+                // Score: prefer passages with walls above/below (tighter corridor feel)
+                let sideScore = 0;
+                for (let s = 0; s < span; s++) {
+                    if (isWallAt(row - 1, col + s)) sideScore++;
+                    if (isWallAt(row + 1, col + s)) sideScore++;
+                }
 
                 // Safety distance from spawn and door
                 const midCol = col + span / 2;
@@ -1262,18 +1278,20 @@ function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
                 const ddx = midCol - doorPos.col, ddy = row - doorPos.row;
                 if (Math.sqrt(ddx * ddx + ddy * ddy) < 3) continue;
 
-                candidates.push({ col, row, axis: 'h', span, wallScore });
+                candidates.push({ col, row, axis: 'h', span, wallScore: 2, sideScore });
             }
         }
     }
 
-    // Try vertical walls (axis 'v')
+    // Try vertical walls (axis 'v') — wall blocks a corridor running east/west
+    // Require: wall tile immediately ABOVE span start AND immediately BELOW span end
     for (let row = 2; row < rows - 2; row++) {
         for (let col = 2; col < cols - 2; col++) {
             if (grid[row][col]) continue;
 
             for (let span = 2; span <= 3; span++) {
                 if (row + span > rows - 1) continue;
+
                 let valid = true;
                 for (let s = 0; s < span; s++) {
                     if (grid[row + s][col]) { valid = false; break; }
@@ -1282,9 +1300,17 @@ function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
                 }
                 if (!valid) continue;
 
-                const hasWallLeft  = grid[row][col - 1];
-                const hasWallRight = grid[row][col + 1];
-                const wallScore = (hasWallLeft ? 1 : 0) + (hasWallRight ? 1 : 0);
+                // REQUIRED: wall at both ends along the span axis
+                const wallAbove = isWallAt(row - 1, col);
+                const wallBelow = isWallAt(row + span, col);
+                if (!wallAbove || !wallBelow) continue;
+
+                // Score: prefer passages with walls left/right (tighter corridor)
+                let sideScore = 0;
+                for (let s = 0; s < span; s++) {
+                    if (isWallAt(row + s, col - 1)) sideScore++;
+                    if (isWallAt(row + s, col + 1)) sideScore++;
+                }
 
                 const midRow = row + span / 2;
                 const sdx = col - spawnPos.col, sdy = midRow - spawnPos.row;
@@ -1292,15 +1318,15 @@ function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
                 const ddx = col - doorPos.col, ddy = midRow - doorPos.row;
                 if (Math.sqrt(ddx * ddx + ddy * ddy) < 3) continue;
 
-                candidates.push({ col, row, axis: 'v', span, wallScore });
+                candidates.push({ col, row, axis: 'v', span, wallScore: 2, sideScore });
             }
         }
     }
 
-    // Prefer positions near walls (chokepoints) and larger spans
-    candidates.sort((a, b) => (b.wallScore * 10 + b.span) - (a.wallScore * 10 + a.span));
+    // Sort by sideScore (tighter corridors first), then span size
+    candidates.sort((a, b) => (b.sideScore * 10 + b.span) - (a.sideScore * 10 + a.span));
 
-    // Shuffle top picks
+    // Shuffle top picks for variety
     const top = candidates.slice(0, Math.min(6, candidates.length));
     for (let i = top.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));

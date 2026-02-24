@@ -29,6 +29,7 @@ import {
     BUFF_SWIFT_SPEED_MULT, BUFF_SPEED_SURGE_CD_MULT, BUFF_IRON_SKIN_REDUCE,
     HAZARD_LAVA_SLOW,
     HAZARD_TAR_SLOW,
+    HAZARD_TYPE_LASER_WALL,
     CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
@@ -36,6 +37,7 @@ import {
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom, getMenuHoverGrid, getTabHover } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
+import { pushOutOfAABB } from './collision.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile, PlayerProjectile, RocketProjectile, Explosion } from './entities/projectile.js';
@@ -181,6 +183,7 @@ export class Game {
 
         // ── Settings screen ──
         this.settingsCursor = 0;  // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=MouseAim, 5=Back
+        this._settingsReturnState = STATE_MENU;  // tracks where to return from settings
         this.proceduralRooms = this._loadRoomModeSetting();
         this.showDamageNumbers = this._loadDamageNumbersSetting();
         this.mouseAimEnabled = this._loadMouseAimSetting();
@@ -527,6 +530,7 @@ export class Game {
                 this._openTrainingConfig();
             } else if (this.menuIndex === 6) {
                 this.settingsCursor = 0;
+                this._settingsReturnState = STATE_MENU;
                 this.state = STATE_SETTINGS;
             }
         }
@@ -2530,6 +2534,15 @@ export class Game {
         this.player._mouseAiming = false; // reset per frame — setFacingFromMouse will re-enable
         this.player.update(dt, movement, this.grid);
 
+        // ── Laser wall solid collision ──
+        // Push player out of active laser walls (blocks both walking and dashing)
+        for (const h of this.hazards) {
+            const aabb = h.getWallAABB();
+            if (aabb) {
+                pushOutOfAABB(this.player, this.player.radius, aabb.x, aabb.y, aabb.w, aabb.h);
+            }
+        }
+
         // ── Mouse aim: point player toward cursor ──
         if (this.mouseAimEnabled && isMouseActive()) {
             const mpos = getMousePos();
@@ -3570,13 +3583,15 @@ export class Game {
             return;
         }
 
+        const pauseOptionCount = 3; // Resume, Settings, Back to Menu
+
         // Navigate
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
-            this.pauseIndex = (this.pauseIndex - 1 + 2) % 2;
+            this.pauseIndex = (this.pauseIndex - 1 + pauseOptionCount) % pauseOptionCount;
             Audio.playMenuNav();
         }
         if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
-            this.pauseIndex = (this.pauseIndex + 1) % 2;
+            this.pauseIndex = (this.pauseIndex + 1) % pauseOptionCount;
             Audio.playMenuNav();
         }
         // Mouse hover (pause panel: panelH=440, by=(600-440)/2=80, leftW=280, leftCx depends on effects)
@@ -3585,7 +3600,7 @@ export class Game {
         const _pauseBx = (CANVAS_WIDTH - _pauseTotalW) / 2;
         const _pauseLeftCx = _pauseBx + 280 / 2;
         const _pauseBy = (CANVAS_HEIGHT - 440) / 2;
-        const _pmh = getMenuHover(_pauseBy + 105, 2, 44, 34, 220, _pauseLeftCx);
+        const _pmh = getMenuHover(_pauseBy + 105, pauseOptionCount, 44, 34, 220, _pauseLeftCx);
         if (_pmh >= 0 && _pmh !== this.pauseIndex) { this.pauseIndex = _pmh; Audio.playMenuNav(); }
 
         // Confirm
@@ -3593,6 +3608,10 @@ export class Game {
             Audio.playMenuSelect();
             if (this.pauseIndex === 0) {
                 this.state = STATE_PLAYING;
+            } else if (this.pauseIndex === 1) {
+                this.settingsCursor = 0;
+                this._settingsReturnState = STATE_PAUSED;
+                this.state = STATE_SETTINGS;
             } else {
                 this._saveHighscore();
                 this.restart();
@@ -3617,7 +3636,7 @@ export class Game {
 
         if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuSelect();
-            this.state = STATE_MENU;
+            this.state = this._settingsReturnState;
             return;
         }
 
@@ -3648,8 +3667,8 @@ export class Game {
                 this.mouseAimEnabled = !this.mouseAimEnabled;
                 this._saveMouseAimSetting();
             } else if (this.settingsCursor === 5) {
-                // Back to menu
-                this.state = STATE_MENU;
+                // Back to previous screen
+                this.state = this._settingsReturnState;
             }
         }
     }
@@ -4086,6 +4105,9 @@ export class Game {
                 Music.setDanger(0.18);
                 break;
             case STATE_SETTINGS:
+                // If opened from pause, keep low ambience; otherwise silent
+                Music.setDanger(this._settingsReturnState === STATE_PAUSED ? 0.15 : 0);
+                break;
             default:
                 // Menu/profiles/meta/settings/shops: silent
                 Music.setDanger(0);
@@ -4191,7 +4213,7 @@ export class Game {
         }
 
         if (this.state === STATE_SETTINGS) {
-            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms, this.showDamageNumbers, this.mouseAimEnabled);
+            renderSettings(ctx, this.settingsCursor, this.muted, Music.isMusicEnabled(), this.proceduralRooms, this.showDamageNumbers, this.mouseAimEnabled, this._settingsReturnState === STATE_PAUSED);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -4549,6 +4571,7 @@ export class Game {
         // Options
         const options = [
             { label: 'RESUME', color: '#4fc3f7' },
+            { label: 'SETTINGS', color: '#e0e0e0' },
             { label: 'BACK TO MENU', color: '#e74c3c' },
         ];
 

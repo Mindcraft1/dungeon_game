@@ -10,7 +10,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {boolean} showDamageNumbers – whether floating damage numbers are shown
  * @param {boolean} mouseAimEnabled – whether mouse controls aim direction
  */
-export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms, showDamageNumbers = true, mouseAimEnabled = true) {
+export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRooms, showDamageNumbers = true, mouseAimEnabled = true, fromPause = false) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -87,7 +87,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
             value: '',
             valueColor: '',
             color: '#888',
-            desc: 'Return to main menu',
+            desc: fromPause ? 'Return to game' : 'Return to main menu',
         },
     ];
 

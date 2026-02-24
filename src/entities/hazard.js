@@ -775,6 +775,20 @@ export class Hazard {
         }
     }
 
+    /**
+     * Returns the AABB of the laser wall barrier (or null if not active / not a laser wall).
+     * Used by game.js for solid collision resolution.
+     */
+    getWallAABB() {
+        if (this.type !== HAZARD_TYPE_LASER_WALL || !this.wallActive) return null;
+        const S = TILE_SIZE;
+        if (this.wallAxis === 'h') {
+            return { x: this.x, y: this.y + S * 0.35, w: S * this.wallSpan, h: S * 0.3 };
+        } else {
+            return { x: this.x + S * 0.35, y: this.y, w: S * 0.3, h: S * this.wallSpan };
+        }
+    }
+
     _isPlayerInWall(player) {
         // The wall covers `wallSpan` tiles starting from this tile
         const S = TILE_SIZE;

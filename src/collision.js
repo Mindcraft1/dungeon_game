@@ -114,3 +114,41 @@ export function circleVsRect(cx, cy, cr, rx, ry, rw, rh) {
     const dy = cy - closestY;
     return (dx * dx + dy * dy) < (cr * cr);
 }
+
+/**
+ * Push a circle entity out of an arbitrary axis-aligned rectangle.
+ * Same algorithm as _pushOut but works with pixel coordinates instead of grid tiles.
+ */
+export function pushOutOfAABB(entity, radius, rx, ry, rw, rh) {
+    const tileL = rx;
+    const tileT = ry;
+    const tileR = rx + rw;
+    const tileB = ry + rh;
+
+    const closestX = Math.max(tileL, Math.min(entity.x, tileR));
+    const closestY = Math.max(tileT, Math.min(entity.y, tileB));
+
+    const dx = entity.x - closestX;
+    const dy = entity.y - closestY;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq < radius * radius) {
+        if (distSq > 0) {
+            const dist = Math.sqrt(distSq);
+            const overlap = radius - dist;
+            entity.x += (dx / dist) * overlap;
+            entity.y += (dy / dist) * overlap;
+        } else {
+            // Centre is inside the rect → push out via shortest axis
+            const oL = entity.x - tileL + radius;
+            const oR = tileR - entity.x + radius;
+            const oT = entity.y - tileT + radius;
+            const oB = tileB - entity.y + radius;
+            const min = Math.min(oL, oR, oT, oB);
+            if (min === oL)      entity.x = tileL - radius;
+            else if (min === oR) entity.x = tileR + radius;
+            else if (min === oT) entity.y = tileT - radius;
+            else                 entity.y = tileB + radius;
+        }
+    }
+}
