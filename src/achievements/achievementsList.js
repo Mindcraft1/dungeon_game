@@ -277,6 +277,14 @@ export const ACHIEVEMENTS = [
         description: 'Reach Stage 20 without using a meta booster.',
         type: 'challenge',
     },
+    {
+        id: 'reach_stage_40',
+        name: 'Spacefarer',
+        icon: '🚀',
+        tier: 'hard',
+        description: 'Reach Stage 40.',
+        type: 'milestone',
+    },
 
     // ═══════════════════════════════════════════════
     // VERY HARD (31–39)
@@ -356,6 +364,31 @@ export const ACHIEVEMENTS = [
         type: 'progress',
         target: 10,
     },
+    {
+        id: 'boss_kills_5_run',
+        name: 'Pentakill',
+        icon: '💀',
+        tier: 'very_hard',
+        description: 'Defeat 5 bosses in a single run.',
+        type: 'milestone',
+    },
+    {
+        id: 'boss_kills_20_total',
+        name: 'Boss Exterminator',
+        icon: '☠️',
+        tier: 'very_hard',
+        description: 'Defeat 20 bosses in total.',
+        type: 'progress',
+        target: 20,
+    },
+    {
+        id: 'reach_stage_50',
+        name: 'Final Frontier',
+        icon: '🌟',
+        tier: 'very_hard',
+        description: 'Reach Stage 50.',
+        type: 'milestone',
+    },
 
     // ═══════════════════════════════════════════════
     // LEGENDARY (40)
@@ -365,7 +398,7 @@ export const ACHIEVEMENTS = [
         name: 'True Dungeon God',
         icon: '🌟',
         tier: 'legendary',
-        description: 'Stage ≥30, no booster, no revive, 3+ bosses no-hit, ≤3 damage events.',
+        description: 'Stage ≥50, no booster, no revive, 5+ bosses no-hit, ≤3 damage events.',
         type: 'challenge',
     },
 ];

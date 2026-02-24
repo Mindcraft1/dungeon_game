@@ -29,6 +29,7 @@ export const ACHIEVEMENT_UNLOCK_MAP = {
     // Node unlocks from harder achievements (shifted for 10-room acts)
     reach_stage_20:      [{ type: 'node', id: 'melee_kill_nova' }],
     reach_stage_30:      [{ type: 'node', id: 'dagger_spread' }],
+    reach_stage_40:      [{ type: 'node', id: 'global_damage_boost' }],
     untouchable_5:       [{ type: 'node', id: 'dash_end_shockwave' }],
     no_damage_to_stage_10: [{ type: 'node', id: 'dagger_returning' }],
 };
@@ -57,6 +58,10 @@ export const BIOME_MASTERY_UNLOCKS = {
     depths: [
         { milestone: 1, unlocks: [{ type: 'node', id: 'dash_stun' }] },
         { milestone: 3, unlocks: [{ type: 'node', id: 'melee_heavy_hit' }] },
+    ],
+    spaceship: [
+        { milestone: 1, unlocks: [{ type: 'node', id: 'dagger_extra_projectile' }] },
+        { milestone: 3, unlocks: [{ type: 'node', id: 'global_cooldown_reduction' }] },
     ],
 };
 

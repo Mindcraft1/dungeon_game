@@ -523,7 +523,7 @@ export const META_BOOSTERS = {
         icon:  '💨',
         color: '#2196f3',
         cost:  15,
-        unlock: { stat: 'highestStage', value: 20, label: 'Reach stage 20' },
+        unlock: { stat: 'highestStage', value: 25, label: 'Reach stage 25' },
     },
     meta_booster_scavenger: {
         id:    'meta_booster_scavenger',
@@ -532,7 +532,7 @@ export const META_BOOSTERS = {
         icon:  '🪙',
         color: '#ffab00',
         cost:  22,
-        unlock: { stat: 'highestStage', value: 30, label: 'Reach stage 30' },
+        unlock: { stat: 'highestStage', value: 40, label: 'Reach stage 40' },
     },
 };
 export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);

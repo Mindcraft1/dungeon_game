@@ -141,6 +141,8 @@ function _onStageEntered(payload) {
     if (stage >= 15) _tryUnlock('reach_stage_15');
     if (stage >= 20) _tryUnlock('reach_stage_20');
     if (stage >= 30) _tryUnlock('reach_stage_30');
+    if (stage >= 40) _tryUnlock('reach_stage_40');
+    if (stage >= 50) _tryUnlock('reach_stage_50');
 
     // Speed runner: stage 10 within 10 minutes
     if (stage >= 10) {
@@ -251,6 +253,7 @@ function _onBossKilled(payload) {
 
     const totalBossKills = Store.getStat('totalBossKills');
     _updateProgress('boss_kills_10_total', totalBossKills);
+    _updateProgress('boss_kills_20_total', totalBossKills);
 
     // First Boss Down
     _tryUnlock('first_boss_down');
@@ -260,6 +263,9 @@ function _onBossKilled(payload) {
 
     // Boss Hunter (3 in a run)
     if (_currentRun.bossKillsThisRun >= 3) _tryUnlock('boss_kills_3_run');
+
+    // Pentakill (5 in a run)
+    if (_currentRun.bossKillsThisRun >= 5) _tryUnlock('boss_kills_5_run');
 
     // Boss no-hit tracking
     if (!_currentRun.tookDamageDuringBoss) {
@@ -366,10 +372,10 @@ function _onMetaPerkMaxed(payload) {
 
 function _checkTrueDungeonGod() {
     if (!_currentRun) return;
-    if (_currentRun.stagesReachedThisRun < 30) return;
+    if (_currentRun.stagesReachedThisRun < 50) return;
     if (_currentRun.metaBoosterUsedThisRun) return;
     if (_currentRun.reviveUsedThisRun) return;
-    if (_currentRun.bossesNoHitThisRun < 3) return;
+    if (_currentRun.bossesNoHitThisRun < 5) return;
     if (_currentRun.damageEventsThisRun > 3) return;
     _tryUnlock('true_dungeon_god');
 }
@@ -399,6 +405,7 @@ export function getDisplayProgress(achievementId) {
         case 'meta_upgrades_10_total':
             return { current: Store.getStat('metaUpgradesBoughtTotal'), target: def.target };
         case 'boss_kills_10_total':
+        case 'boss_kills_20_total':
             return { current: Store.getStat('totalBossKills'), target: def.target };
         case 'trap_dancer_5':
             return { current: Store.getStat('trapRoomsClearedNoHit'), target: def.target };
