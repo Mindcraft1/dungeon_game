@@ -13,7 +13,7 @@ export const RELIC_DEFINITIONS = {
         name:  'XP Spark',
         icon:  '✧',
         color: '#bb86fc',
-        desc:  '+3% XP Gain',
+        desc:  '+8% XP Gain',
     },
     relic_boss_hunter: {
         id:    'relic_boss_hunter',
@@ -27,14 +27,14 @@ export const RELIC_DEFINITIONS = {
         name:  'Tough Skin',
         icon:  '🛡',
         color: '#78909c',
-        desc:  '-3% Damage Taken',
+        desc:  '-8% Damage Taken',
     },
     relic_quick_step: {
         id:    'relic_quick_step',
         name:  'Quick Step',
         icon:  '💨',
         color: '#4fc3f7',
-        desc:  '+2% Move Speed',
+        desc:  '+5% Move Speed',
     },
     relic_heal_on_level: {
         id:    'relic_heal_on_level',
@@ -48,21 +48,21 @@ export const RELIC_DEFINITIONS = {
         name:  'Starting Orb',
         icon:  '🔮',
         color: '#ce93d8',
-        desc:  'Start each run with +10 XP',
+        desc:  'Start each run with +30 XP',
     },
     relic_spike_sense: {
         id:    'relic_spike_sense',
         name:  'Spike Sense',
         icon:  '▲',
         color: '#8e8e8e',
-        desc:  'Spikes deal -10% damage',
+        desc:  'Spikes deal -25% damage',
     },
     relic_lava_boots: {
         id:    'relic_lava_boots',
         name:  'Lava Boots',
         icon:  '🔥',
         color: '#ff6b35',
-        desc:  'Lava deals -10% damage',
+        desc:  'Lava deals -25% damage',
     },
 };
 
@@ -126,14 +126,14 @@ export function computeRelicModifiers() {
         lavaDotMultiplier:      1,
     };
 
-    if (isRelicUnlocked('relic_xp_spark'))       mods.xpMultiplier          *= 1.03;
+    if (isRelicUnlocked('relic_xp_spark'))       mods.xpMultiplier          *= 1.08;
     if (isRelicUnlocked('relic_boss_hunter'))     mods.bossDamageMultiplier  *= 1.05;
-    if (isRelicUnlocked('relic_tough_skin'))      mods.damageTakenMultiplier *= 0.97;
-    if (isRelicUnlocked('relic_quick_step'))      mods.speedMultiplier       *= 1.02;
+    if (isRelicUnlocked('relic_tough_skin'))      mods.damageTakenMultiplier *= 0.92;
+    if (isRelicUnlocked('relic_quick_step'))      mods.speedMultiplier       *= 1.05;
     if (isRelicUnlocked('relic_heal_on_level'))   mods.healOnLevelUpPct       = 0.10;
-    if (isRelicUnlocked('relic_starting_orb'))    mods.startingXpBonus        = 10;
-    if (isRelicUnlocked('relic_spike_sense'))     mods.spikeDamageMultiplier *= 0.90;
-    if (isRelicUnlocked('relic_lava_boots'))      mods.lavaDotMultiplier     *= 0.90;
+    if (isRelicUnlocked('relic_starting_orb'))    mods.startingXpBonus        = 30;
+    if (isRelicUnlocked('relic_spike_sense'))     mods.spikeDamageMultiplier *= 0.75;
+    if (isRelicUnlocked('relic_lava_boots'))      mods.lavaDotMultiplier     *= 0.75;
 
     return mods;
 }
