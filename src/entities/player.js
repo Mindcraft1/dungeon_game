@@ -82,6 +82,9 @@ export class Player {
         // ── Crit Chance (base, can be upgraded) ──
         this.critChance = PLAYER_BASE_CRIT_CHANCE;
 
+        // ── Overheal (stacked HP beyond maxHp) ──
+        this.overHeal = 0;
+
         // ── Shop modifiers (set by game.js) ──
         this.shopTrapResistMult = 1;   // from run_item_trap_resist
 
@@ -510,6 +513,16 @@ export class Player {
             finalAmount = Math.max(1, Math.floor(finalAmount * this.metaDamageTakenMultiplier));
         }
 
+        // Consume overheal first, then real HP
+        if (this.overHeal > 0) {
+            if (finalAmount <= this.overHeal) {
+                this.overHeal -= finalAmount;
+                finalAmount = 0;
+            } else {
+                finalAmount -= this.overHeal;
+                this.overHeal = 0;
+            }
+        }
         this.hp = Math.max(0, this.hp - finalAmount);
         this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
         this.damageFlashTimer = 150;
@@ -547,7 +560,18 @@ export class Player {
     applyBuff(pickupType) {
         // Instant effects
         if (pickupType === PICKUP_HEART_FRAGMENT) {
-            this.hp = Math.min(this.hp + BUFF_HEAL_AMOUNT, this.maxHp);
+            const healAmount = BUFF_HEAL_AMOUNT;
+            const missing = this.maxHp - this.hp;
+            if (missing >= healAmount) {
+                // Normal heal — not at full HP
+                this.hp += healAmount;
+            } else {
+                // Fill HP to max, overflow becomes overheal
+                this.hp = this.maxHp;
+                const overflow = healAmount - missing;
+                const overhealCap = Math.floor(this.maxHp * 0.5);
+                this.overHeal = Math.min(this.overHeal + overflow, overhealCap);
+            }
             return; // no timed buff
         }
 

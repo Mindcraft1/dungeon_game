@@ -28,9 +28,24 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     // ── HP bar ──
     ctx.fillStyle = '#333';
     ctx.fillRect(pad, y, barW, barH);
-    const hpR = player.hp / player.maxHp;
+    const hpR = Math.min(player.hp / player.maxHp, 1);
     ctx.fillStyle = hpR > 0.5 ? '#4caf50' : hpR > 0.25 ? '#ff9800' : '#f44336';
     ctx.fillRect(pad, y, barW * hpR, barH);
+
+    // ── Overheal overlay ──
+    if (player.overHeal > 0) {
+        const ohR = Math.min(player.overHeal / player.maxHp, 1);
+        // Golden overlay bar drawn on top of green HP bar
+        const ohW = barW * ohR;
+        // Pulsing glow for the overheal portion
+        const pulse = 0.55 + 0.2 * Math.sin(Date.now() * 0.004);
+        ctx.fillStyle = `rgba(255, 215, 0, ${pulse})`;
+        ctx.fillRect(pad, y, ohW, barH);
+        // Bright top highlight stripe
+        ctx.fillStyle = `rgba(255, 255, 180, ${pulse * 0.6})`;
+        ctx.fillRect(pad, y, ohW, barH * 0.35);
+    }
+
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.lineWidth = 1;
     ctx.strokeRect(pad, y, barW, barH);
@@ -38,7 +53,10 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`HP ${player.hp}/${player.maxHp}`, pad + barW / 2, y + 12);
+    const hpText = player.overHeal > 0
+        ? `HP ${player.hp}+${player.overHeal}/${player.maxHp}`
+        : `HP ${player.hp}/${player.maxHp}`;
+    ctx.fillText(hpText, pad + barW / 2, y + 12);
 
     // ── XP bar ──
     const xpY = y + barH + 6;

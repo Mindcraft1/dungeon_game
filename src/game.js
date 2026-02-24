@@ -1337,6 +1337,7 @@ export class Game {
         // HP multiplier (perk)
         this.player.maxHp = Math.floor(this.player.maxHp * m.hpMultiplier);
         this.player.hp = this.player.maxHp;
+        this.player.overHeal = 0;
 
         // Damage multiplier (perk only, not relic general damage)
         this.player.damage = Math.floor(this.player.damage * m.damageMultiplier);
@@ -2570,6 +2571,7 @@ export class Game {
         if (this.cheats.godmode && this.player) {
             this.player.invulnTimer = 999;
             this.player.hp = this.player.maxHp;
+            this.player.overHeal = 0;
         }
 
         // ── Combo timer + popups ──
@@ -3545,6 +3547,7 @@ export class Game {
         // Death in training with damage on → full heal + respawn enemies
         if (this.trainingMode && this.trainingDamage && this.player.hp <= 0) {
             this.player.hp = this.player.maxHp;
+            this.player.overHeal = 0;
             this.player.invulnTimer = 0;
             // Re-place player at spawn
             let spawnPos;
@@ -4058,6 +4061,7 @@ export class Game {
 
         // Full heal
         this.player.hp = this.player.maxHp;
+        this.player.overHeal = 0;
 
         // Award boss XP (may trigger level-up chain)
         const bossXpMult = this.cheats.xpboost ? 10 : 1;
