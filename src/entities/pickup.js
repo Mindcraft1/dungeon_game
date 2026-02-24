@@ -77,7 +77,8 @@ export class Pickup {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        return dist < this.radius + player.radius;
+        const radiusMult = player.talentPickupRadiusMult || 1;
+        return dist < (this.radius + player.radius) * radiusMult;
     }
 
     render(ctx) {
@@ -304,7 +305,8 @@ export class CoinPickup {
             const dx = player.x - this.x;
             const dy = player.y - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < COIN_MAGNET_RANGE && dist > 1) {
+            const magnetRange = COIN_MAGNET_RANGE * (player.talentPickupRadiusMult || 1);
+            if (dist < magnetRange && dist > 1) {
                 const pull = 180 * dt; // px/s attraction
                 this.x += (dx / dist) * pull;
                 this.y += (dy / dist) * pull;
@@ -317,7 +319,8 @@ export class CoinPickup {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        return dist < this.radius + player.radius;
+        const radiusMult = player.talentPickupRadiusMult || 1;
+        return dist < (this.radius + player.radius) * radiusMult;
     }
 
     render(ctx) {

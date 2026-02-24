@@ -454,6 +454,7 @@ export const STATE_META_SHOP = 'META_SHOP';
 export const STATE_SHOP_RUN = 'SHOP_RUN';
 export const STATE_ACHIEVEMENTS = 'ACHIEVEMENTS';
 export const STATE_LOADOUT = 'LOADOUT';
+export const STATE_TALENTS = 'TALENTS';
 
 // ── Shop: Coin Economy ──
 export const COIN_REWARD_NORMAL_ENEMY = 1;

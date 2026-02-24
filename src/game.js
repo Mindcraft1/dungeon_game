@@ -10,7 +10,7 @@ import {
     UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     STATE_MENU, STATE_PROFILES, STATE_PLAYING, STATE_PAUSED, STATE_LEVEL_UP, STATE_GAME_OVER,
     STATE_TRAINING_CONFIG, STATE_BOSS_VICTORY, STATE_META_MENU, STATE_SETTINGS,
-    STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS, STATE_LOADOUT,
+    STATE_META_SHOP, STATE_SHOP_RUN, STATE_ACHIEVEMENTS, STATE_LOADOUT, STATE_TALENTS,
     STATE_EVENT, STATE_BOSS_SCROLL,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
@@ -97,6 +97,10 @@ import { getNode as getNodeDef, NODE_DEFINITIONS } from './upgrades/nodes.js';
 
 // ── Unlock Map (achievements/biome mastery/scrolls) ──
 import { processAchievementUnlock as processAchUnlock, processBiomeMasteryBossKill, generateBossScrollChoices, applyBossScrollChoice, checkPityUnlock } from './unlocks/unlockMap.js';
+
+// ── Talent Tree ──
+import { createTalentState, computeTalentMods, upgradeNode, canUpgradeNode, talentPointsForLevel, getNodesForBranch, BRANCH_ORDER, TALENT_NODES } from './talents.js';
+import { renderTalentTree } from './ui/talentTree.js';
 
 // ── Event System ──
 import * as EventSystem from './events/eventSystem.js';
@@ -421,6 +425,7 @@ export class Game {
                         this.player.hp = this.player.maxHp;
                         this.player.speed += 15;
                     }
+                    this._syncTalentPoints();
                     this._cheatNotify('+10 LEVELS', '#ffd700');
                 }
                 break;
@@ -641,6 +646,13 @@ export class Game {
         this.trialActive = false;
         this._pendingForge = false;
         this._pendingBossScroll = null;
+
+        // ── Talent Tree: reset for new run ──
+        this.talentState = createTalentState();
+        this.talentCursorBranch = 0;
+        this.talentCursorTier = 0;
+        this._talentReturnState = STATE_PLAYING;
+        this._applyTalentMods();
 
         // ── Achievement event: run start (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
@@ -1119,6 +1131,16 @@ export class Game {
                 this.particles.levelUp(this.player.x, this.player.y);
                 Audio.playHeal();
                 showToast(`+${healAmt} HP (Survivor's Instinct)`, '#ffd54f', '✦');
+            }
+        }
+
+        // ── Talent: Second Wind — heal on room clear ──
+        if (this.talentState) {
+            const tMods = computeTalentMods(this.talentState);
+            if (tMods.roomClearHealPct > 0 && this.player.hp < this.player.maxHp) {
+                const healAmt = Math.floor(this.player.maxHp * tMods.roomClearHealPct);
+                this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                showToast(`+${healAmt} HP (Second Wind)`, '#4caf50', '💚');
             }
         }
 
@@ -1800,6 +1822,7 @@ export class Game {
         if (this.metaBoosterWeaponCoreActive && this.bossesKilledThisRun < 3) damage *= 1.12;
         if (p.hasBuff(PICKUP_RAGE_SHARD))    damage *= BUFF_RAGE_DAMAGE_MULT;
         if (p.hasBuff(PICKUP_PIERCING_SHOT)) damage *= BUFF_PIERCING_DAMAGE_MULT;
+        if (p.talentMeleeDmgMult !== 1) damage *= p.talentMeleeDmgMult;
 
         // ── Speed multiplier ──
         let speed = (m.speedMultiplier || 1);
@@ -1809,6 +1832,7 @@ export class Game {
         if (p.biomeSpeedMult !== 1.0) speed *= p.biomeSpeedMult;
         if (p.onLava) speed *= HAZARD_LAVA_SLOW;
         if (p.onTar || p.tarLingerTimer > 0) speed *= HAZARD_TAR_SLOW;
+        if (p.talentSpeedMult !== 1) speed *= p.talentSpeedMult;
 
         // ── Max HP multiplier ──
         const maxHp = (m.hpMultiplier || 1);
@@ -1817,11 +1841,13 @@ export class Game {
         let xpGain = (m.xpMultiplier || 1);
         xpGain *= this._getShopXpMultiplier();
         if (this.runUpgradesActive.upgrade_xp_magnet) xpGain *= 1.15;
+        if (p.talentXpMult !== 1) xpGain *= p.talentXpMult;
 
         // ── Defense (damage-taken multiplier, < 1 is a buff) ──
         let defense = (m.damageTakenMultiplier || 1);
         if (this.metaBoosterThickSkinActive) defense *= 0.90;
         if (p.hasBuff(PICKUP_IRON_SKIN)) defense *= BUFF_IRON_SKIN_REDUCE;
+        if (p.talentDmgTakenMult < 1) defense *= p.talentDmgTakenMult;
 
         // ── Trap resist (spike + lava damage multiplier, < 1 is a buff) ──
         let trapResist = (m.spikeDamageMultiplier || 1);
@@ -1845,7 +1871,7 @@ export class Game {
         const _cmods = UpgradeEngine.getCombatMods();
         const _procMods = _cmods.procs || {};
         const globalCritBonus = (_procMods.heavy_crit && _procMods.heavy_crit.globalCritBonus) || 0;
-        const critChance = p.critChance + globalCritBonus;
+        const critChance = p.critChance + globalCritBonus + (p.talentCritBonus || 0);
 
         // ── Crit damage multiplier (only meaningful if heavy_crit proc is equipped) ──
         let critDamage = 1;
@@ -1957,6 +1983,24 @@ export class Game {
                     const remaining = Math.ceil(buff.remaining / 1000);
                     effects.push({ category: 'Pickups', icon: info.icon || '⬆', name: info.name || buff.type, desc: `${remaining}s remaining`, color: info.color || '#fff' });
                 }
+            }
+        }
+
+        // ── Talent Tree Nodes ──
+        if (this.talentState && this.talentState.ranks) {
+            const branchColors = { offense: '#f44336', defense: '#4caf50', utility: '#2196f3' };
+            for (const [nodeId, rank] of Object.entries(this.talentState.ranks)) {
+                if (rank <= 0) continue;
+                const nodeDef = TALENT_NODES.find(n => n.id === nodeId);
+                if (!nodeDef) continue;
+                const rankLabel = rank < nodeDef.maxRank ? ` (${rank}/${nodeDef.maxRank})` : ` (MAX)`;
+                effects.push({
+                    category: 'Talents',
+                    icon: nodeDef.icon || '🌟',
+                    name: `${nodeDef.name}${rankLabel}`,
+                    desc: nodeDef.desc,
+                    color: branchColors[nodeDef.branch] || '#ffd700',
+                });
             }
         }
 
@@ -2611,6 +2655,7 @@ export class Game {
             case STATE_LOADOUT:         this._updateLoadout();       break;
             case STATE_EVENT:           this._updateEvent();         break;
             case STATE_BOSS_SCROLL:     this._updateBossScroll();    break;
+            case STATE_TALENTS:         this._updateTalents();       break;
         }
 
         // Adaptive music — set danger level based on game state
@@ -3011,6 +3056,15 @@ export class Game {
             return;
         }
 
+        // Talent tree (Tab key)
+        if (wasPressed('Tab')) {
+            this.talentCursorBranch = 0;
+            this.talentCursorTier = 0;
+            this._talentReturnState = STATE_PLAYING;
+            this.state = STATE_TALENTS;
+            return;
+        }
+
         const movement = getMovement();
         // Reset lava slow flag each frame (hazards will set it if player is on lava)
         this.player.onLava = false;
@@ -3288,7 +3342,7 @@ export class Game {
                     }
 
                     // ── Proc dispatch on melee hits ──
-                    const isCrit = Math.random() < this.player.critChance;
+                    const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus);
 
                     // Rogue passive: crit bonus damage (applied before procs)
                     if (isCrit && this.player.rogueCritMult > 0) {
@@ -3447,7 +3501,8 @@ export class Game {
                 if (!this.trainingMode) {
                     const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
                     // Elites always drop; normal enemies only have a % chance
-                    if (isElite || Math.random() < COIN_DROP_CHANCE) {
+                    const talentCoinMult = this.talentState ? computeTalentMods(this.talentState).coinDropRateMult : 1;
+                    if (isElite || Math.random() < COIN_DROP_CHANCE * talentCoinMult) {
                         let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
                         if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
                         this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
@@ -3461,7 +3516,8 @@ export class Game {
                     const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
                     const shopXpMult = this._getShopXpMultiplier();
                     const darkXpMult = this.darknessXpMult;
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult);
+                    const talentXpMult = this.talentState ? computeTalentMods(this.talentState).xpGainMult : 1;
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult * talentXpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
                         // Level-up particles
@@ -3791,7 +3847,7 @@ export class Game {
                     d.hitTarget.dirX, d.hitTarget.dirY,
                 );
                 // Proc dispatch on dagger hit (include dagger crit bonus from nodes)
-                const daggerCritChance = this.player.critChance + (d.critBonus || 0);
+                const daggerCritChance = this.player.critChance + this.player.talentCritBonus + (d.critBonus || 0);
                 const daggerCrit = Math.random() < daggerCritChance;
                 const hitEntity = d.hitTarget.entity || d.hitTarget;
 
@@ -4247,7 +4303,112 @@ export class Game {
         } catch (e) {}
     }
 
+    // ── Talent Tree ────────────────────────────────────────
+
+    _updateTalents() {
+        const branchCount = BRANCH_ORDER.length;  // 3
+        const tierCount = 5;
+
+        // Close with Tab or Escape
+        if (wasPressed('Tab') || wasPressed('Escape')) {
+            Audio.playMenuSelect();
+            this.state = this._talentReturnState;
+            return;
+        }
+
+        // Navigate branches (A/D or Left/Right)
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.talentCursorBranch = (this.talentCursorBranch - 1 + branchCount) % branchCount;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.talentCursorBranch = (this.talentCursorBranch + 1) % branchCount;
+            Audio.playMenuNav();
+        }
+
+        // Navigate tiers (W/S or Up/Down)
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.talentCursorTier = (this.talentCursorTier - 1 + tierCount) % tierCount;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.talentCursorTier = (this.talentCursorTier + 1) % tierCount;
+            Audio.playMenuNav();
+        }
+
+        // Upgrade with Enter or Space
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
+            const nodes = getNodesForBranch(BRANCH_ORDER[this.talentCursorBranch]);
+            const node = nodes[this.talentCursorTier];
+            if (node && upgradeNode(this.talentState, node.id)) {
+                Audio.playMenuSelect();
+                this._applyTalentMods();
+            }
+        }
+    }
+
+    /**
+     * Compute and push talent multipliers to the player.
+     * Called after talent point spend and at run start.
+     */
+    _applyTalentMods() {
+        if (!this.player || !this.talentState) return;
+        const m = computeTalentMods(this.talentState);
+        this.player.talentMeleeDmgMult     = m.meleeDamageMult;
+        this.player.talentAtkCdMult        = m.attackCooldownMult;
+        this.player.talentArcMult          = m.attackArcMult;
+        this.player.talentCritBonus         = m.critChanceBonus;
+        this.player.talentExecutionerMult   = m.executionerMult;
+        this.player.talentInvulnCdMult      = m.invulnCooldownMult;
+        this.player.talentDmgTakenMult      = m.damageTakenMult;
+        this.player.talentRoomHealPct        = m.roomClearHealPct;
+        this.player.talentBuffDurMult        = m.buffDurationMult;
+        this.player.talentSpeedMult          = m.moveSpeedMult;
+        this.player.talentDashCdMult         = m.dashCooldownMult;
+        this.player.talentXpMult             = m.xpGainMult;
+        this.player.talentPickupRadiusMult   = m.pickupRadiusMult;
+        this.player.talentCoinDropMult       = m.coinDropRateMult;
+
+        // Max HP: apply as ratio (track last applied talent HP mult)
+        const oldMult = this.player.talentMaxHpMult || 1;
+        const newMult = m.maxHpMult;
+        if (newMult !== oldMult) {
+            // Remove old talent bonus, apply new one
+            const baseHp = Math.round(this.player.maxHp / oldMult);
+            this.player.maxHp = Math.floor(baseHp * newMult);
+            this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+            // Heal the amount of new HP gained
+            const hpGain = this.player.maxHp - Math.floor(baseHp * oldMult);
+            if (hpGain > 0) {
+                this.player.hp = Math.min(this.player.hp + hpGain, this.player.maxHp);
+            }
+        }
+        this.player.talentMaxHpMult = newMult;
+    }
+
+    /**
+     * Award talent points based on player level (1 point every 2 levels).
+     * Called after each level-up resolves.
+     */
+    _syncTalentPoints() {
+        if (!this.talentState || !this.player) return;
+        const earned = talentPointsForLevel(this.player.level);
+        let spent = 0;
+        for (const id in this.talentState.ranks) spent += this.talentState.ranks[id];
+        this.talentState.points = Math.max(0, earned - spent);
+    }
+
     _updateLevelUp() {
+        // Allow opening talent tree from level-up screen
+        if (wasPressed('Tab') && this.talentState && this.talentState.points > 0) {
+            this.talentCursorBranch = 0;
+            this.talentCursorTier = 0;
+            this._talentReturnState = STATE_LEVEL_UP;
+            this.state = STATE_TALENTS;
+            Audio.playMenuSelect();
+            return;
+        }
+
         // Use cached choices (computed at state transition to avoid random mismatch with render)
         const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
         const count = choices.length;
@@ -4330,6 +4491,9 @@ export class Game {
         if (!this.cheatsUsedThisRun) {
             achEmit('player_level_changed', { level: this.player.level });
         }
+
+        // ── Talent points: sync available points with new level ──
+        this._syncTalentPoints();
 
         this.upgradeIndex = 0;
         this._levelUpSpaceReady = false;
@@ -4608,7 +4772,8 @@ export class Game {
         const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
         const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
         const shopXpMult = this._getShopXpMultiplier();
-        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult);
+        const talentXpMult = this.talentState ? computeTalentMods(this.talentState).xpGainMult : 1;
+        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult * talentXpMult);
         if (this.player.addXp(xp)) {
             Audio.playLevelUp();
             this.particles.levelUp(this.player.x, this.player.y);
@@ -4644,6 +4809,7 @@ export class Game {
             case STATE_BOSS_VICTORY:
             case STATE_EVENT:
             case STATE_BOSS_SCROLL:
+            case STATE_TALENTS:
                 break;  // keep current danger
             case STATE_GAME_OVER:
                 Music.setDanger(0.18);
@@ -5045,6 +5211,17 @@ export class Game {
         } else if (this.state === STATE_LEVEL_UP) {
             const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
             renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady, this.rerollTokenCount);
+            // Talent point notification
+            if (this.talentState && this.talentState.points > 0) {
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 13px monospace';
+                const pulse = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
+                ctx.globalAlpha = pulse;
+                ctx.fillText(`🌟 ${this.talentState.points} Talent point${this.talentState.points > 1 ? 's' : ''} available! (Tab)`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 130);
+                ctx.restore();
+            }
         } else if (this.state === STATE_GAME_OVER) {
             const runRewards = RewardSystem.getRunRewards();
             renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards, this._gameOverEffects || null, this.runUnlocksLog.length > 0 ? this.runUnlocksLog : null);
@@ -5060,6 +5237,8 @@ export class Game {
             EventSystem.renderEvent(ctx, this.eventState);
         } else if (this.state === STATE_BOSS_SCROLL) {
             renderBossScrollOverlay(ctx, this.scrollChoices || [], this.scrollCursor);
+        } else if (this.state === STATE_TALENTS) {
+            renderTalentTree(ctx, this.talentState, this.talentCursorBranch, this.talentCursorTier, this.player ? this.player.level : 1);
         }
     }
 

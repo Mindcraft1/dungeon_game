@@ -129,6 +129,23 @@ export class Player {
         this.weaponDamageMult = 1;            // multiplier on melee damage
         this.weaponKnockbackMult = 1;         // multiplier on ATTACK_KNOCKBACK
         this.weaponColor = '#90caf9';         // theme color for attack arc
+
+        // ── Talent tree modifiers (set by game.js each frame/on change) ──
+        this.talentMeleeDmgMult = 1;
+        this.talentAtkCdMult = 1;
+        this.talentArcMult = 1;
+        this.talentCritBonus = 0;
+        this.talentExecutionerMult = 1;
+        this.talentMaxHpMult = 1;
+        this.talentInvulnCdMult = 1;
+        this.talentDmgTakenMult = 1;
+        this.talentRoomHealPct = 0;
+        this.talentBuffDurMult = 1;
+        this.talentSpeedMult = 1;
+        this.talentDashCdMult = 1;
+        this.talentXpMult = 1;
+        this.talentPickupRadiusMult = 1;
+        this.talentCoinDropMult = 1;
     }
 
     /**
@@ -311,9 +328,9 @@ export class Player {
         dirX /= len;
         dirY /= len;
 
-        // Duration + cooldown with node multipliers
+        // Duration + cooldown with node multipliers + talent
         const durationMult = (mods.durationMult || 1);
-        const cdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
+        const cdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1) * this.talentDashCdMult;
 
         this.dashing = true;
         this.dashTimer = getVal('dashDuration', DASH_DURATION) * durationMult;
@@ -334,18 +351,18 @@ export class Player {
     attack(enemies, mods = {}, globalMods = {}) {
         if (this.attackTimer > 0) return -1;
 
-        // Cooldown (may be reduced by Speed Surge buff, melee nodes, global nodes, weapon)
+        // Cooldown (may be reduced by Speed Surge buff, melee nodes, global nodes, weapon, talent)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
         const nodeCdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
-        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult * nodeCdMult * this.weaponCooldownMult;
+        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult * nodeCdMult * this.weaponCooldownMult * this.talentAtkCdMult;
         this.attackVisualTimer = getVal('attackDuration', ATTACK_DURATION);
 
         // Range (may be extended by Piercing Shot buff + weapon)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
         const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1) * this.weaponRangeMult;
 
-        // Attack arc (base + node widening + weapon)
-        this._currentArcMult = (mods.arcMult || 1) * this.weaponArcMult;
+        // Attack arc (base + node widening + weapon + talent)
+        this._currentArcMult = (mods.arcMult || 1) * this.weaponArcMult * this.talentArcMult;
         const effectiveArc = ATTACK_ARC * this._currentArcMult;
 
         // Damage calculation (includes Berserker rage bonus + weapon)
@@ -404,6 +421,10 @@ export class Player {
             let finalDmg = dmg;
             if (enemy.isBoss && this.metaBossDamageMultiplier > 1) {
                 finalDmg = Math.floor(finalDmg * this.metaBossDamageMultiplier);
+            }
+            // Talent: Executioner — extra damage to low-HP enemies
+            if (this.talentExecutionerMult > 1 && enemy.hp / enemy.maxHp < 0.30) {
+                finalDmg = Math.floor(finalDmg * this.talentExecutionerMult);
             }
 
             enemy.takeDamage(finalDmg, kbX, kbY);
@@ -575,6 +596,11 @@ export class Player {
             finalAmount = Math.max(1, Math.floor(finalAmount * this.metaDamageTakenMultiplier));
         }
 
+        // Talent: Iron Will — reduce damage taken
+        if (this.talentDmgTakenMult < 1) {
+            finalAmount = Math.max(1, Math.floor(finalAmount * this.talentDmgTakenMult));
+        }
+
         // Consume overheal first, then real HP
         if (this.overHeal > 0) {
             if (finalAmount <= this.overHeal) {
@@ -637,10 +663,11 @@ export class Player {
             return; // no timed buff
         }
 
-        // Determine duration
+        // Determine duration (with talent bonus)
         let duration = BUFF_DURATION_SHORT;
         if (pickupType === PICKUP_PHASE_SHIELD)  duration = BUFF_DURATION_LONG;
         if (pickupType === PICKUP_CRUSHING_BLOW) duration = BUFF_DURATION_LONG;
+        if (this.talentBuffDurMult !== 1) duration = Math.floor(duration * this.talentBuffDurMult);
 
         // If same buff exists, refresh it (no stacking)
         const existing = this.activeBuffs.find(b => b.type === pickupType);
@@ -693,6 +720,7 @@ export class Player {
     /** Effective move speed accounting for biome, Swift Boots buff, lava slow, and tar slow. */
     getEffectiveSpeed() {
         let spd = this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
+        if (this.talentSpeedMult !== 1) spd *= this.talentSpeedMult;
         if (this.biomeSpeedMult !== 1.0) spd *= this.biomeSpeedMult;
         if (this.onLava) spd *= HAZARD_LAVA_SLOW;
         if (this.onTar || this.tarLingerTimer > 0) spd *= HAZARD_TAR_SLOW;
@@ -702,6 +730,7 @@ export class Player {
     /** Effective damage accounting for Berserker rage passive. */
     getEffectiveDamage() {
         let dmg = this.damage;
+        if (this.talentMeleeDmgMult !== 1) dmg = Math.floor(dmg * this.talentMeleeDmgMult);
         if (this.berserkActive && this.berserkDamageBuff > 0) {
             dmg = Math.floor(dmg * (1 + this.berserkDamageBuff));
         }

@@ -29,6 +29,7 @@
 21. [Charakter-Klassen](#21-charakter-klassen)
 22. [Waffen-Typen](#22-waffen-typen)
 23. [Charakter-Anpassung (Kosmetik)](#23-charakter-anpassung-kosmetik)
+24. [Talent Tree (Per-Run)](#24-talent-tree-per-run)
 
 ---
 
@@ -759,6 +760,92 @@ Pro Profil gespeichert: `{ name, highscore, colorId, classId, hatId }`
 - `classId` — Default: `'adventurer'` (gewählt bei Erstellung)
 - `hatId` — Default: `'none'`
 - Alte Profile ohne diese Felder werden automatisch migriert
+
+---
+
+## 24. Talent Tree (Per-Run)
+
+Ein pro-Run Talent-Baum mit **3 Zweigen × 5 Knoten × 3 Ränge** (15 Talente, 45 Ränge total). Punkte werden durch Leveln verdient und verfallen am Ende des Runs.
+
+### Punkte-Vergabe
+
+- **1 Talentpunkt alle 2 Level** (berechnet als `Math.floor(playerLevel / 2)`)
+- Koexistiert mit dem bestehenden 3-Wahl Level-Up System (Option B)
+- Talentbaum öffnen: **Tab-Taste** (während Gameplay oder Level-Up Overlay)
+- Punkte werden beim Starten eines neuen Runs zurückgesetzt
+
+### Offense-Zweig (⚔ Rot)
+
+| Tier | Talent | Icon | Effekt pro Rang | Max Rang |
+|------|--------|------|-----------------|----------|
+| 1 | **Sharp Edge** | 🗡️ | +5% Nahkampfschaden | 3 |
+| 2 | **Quick Slash** | ⚡ | -5% Angriffs-Cooldown | 3 |
+| 3 | **Wide Swing** | 🌀 | +8% Angriffsbogen | 3 |
+| 4 | **Critical Eye** | 🎯 | +3% Krit-Chance | 3 |
+| 5 | **Executioner** | 💀 | +10% Schaden gegen Gegner unter 30% HP | 3 |
+
+### Defense-Zweig (🛡 Grün)
+
+| Tier | Talent | Icon | Effekt pro Rang | Max Rang |
+|------|--------|------|-----------------|----------|
+| 1 | **Tough Hide** | 🛡️ | +8% Max-HP | 3 |
+| 2 | **Quick Recovery** | 💎 | -8% Unverwundbarkeits-Cooldown | 3 |
+| 3 | **Iron Will** | 🏔️ | -3% erlittener Schaden | 3 |
+| 4 | **Second Wind** | 💚 | +2% Max-HP Heilung pro Raumabschluss | 3 |
+| 5 | **Endurance** | ⏳ | +10% Buff-Dauer | 3 |
+
+### Utility-Zweig (⚡ Blau)
+
+| Tier | Talent | Icon | Effekt pro Rang | Max Rang |
+|------|--------|------|-----------------|----------|
+| 1 | **Fleet Foot** | 👟 | +3% Bewegungsgeschwindigkeit | 3 |
+| 2 | **Dash Mastery** | 💨 | -8% Dash-Cooldown | 3 |
+| 3 | **XP Siphon** | ✨ | +5% XP-Gewinn | 3 |
+| 4 | **Pickup Magnet** | 🧲 | +15% Pickup-Sammelradius & Münz-Magnetreichweite | 3 |
+| 5 | **Fortune** | 🍀 | +5% Münz-Droprate | 3 |
+
+### Modifier-Integration
+
+Talent-Multiplikatoren werden auf den `Player` als Properties gesetzt und greifen in:
+
+| Modifier | Anwendung in |
+|----------|--------------|
+| `talentMeleeDmgMult` | `player.getEffectiveDamage()` |
+| `talentAtkCdMult` | `player.attack()` — Cooldown |
+| `talentArcMult` | `player.attack()` — Bogenwinkel |
+| `talentCritBonus` | Krit-Checks in `game.js` (Nahkampf + Dolch) |
+| `talentExecutionerMult` | `player.attack()` — Bonus unter 30% HP |
+| `talentMaxHpMult` | `game._applyTalentMods()` — Verhältnis-basiert |
+| `talentInvulnCdMult` | `player.takeDamage()` |
+| `talentDmgTakenMult` | `player.takeDamage()` — nach Meta-Mult |
+| `talentRoomHealPct` | `game.nextRoom()` — nach Adventurer-Heal |
+| `talentBuffDurMult` | `player.applyBuff()` |
+| `talentSpeedMult` | `player.getEffectiveSpeed()` |
+| `talentDashCdMult` | `player.tryDash()` |
+| `talentXpMult` | XP-Berechnung bei Gegner-Kill + Boss-Kill |
+| `talentPickupRadiusMult` | `Pickup.checkCollection()` + `CoinPickup` + Münz-Magnetreichweite |
+| `talentCoinDropMult` | Münz-Drop-Chance in `game.js` |
+
+### UI
+
+- **State:** `STATE_TALENTS` — eigener Zustand in der State-Machine
+- **Öffnen:** Tab-Taste (aus `STATE_PLAYING` oder `STATE_LEVEL_UP`)
+- **Schließen:** Tab oder Esc → zurück zum vorherigen State
+- **Layout:** 3 Spalten (Offense / Defense / Utility), 5 Reihen pro Spalte
+- **Navigation:** WASD/Pfeiltasten (W/S = Tier, A/D = Zweig), Enter/Space = Upgrade
+- **Level-Up Hinweis:** Pulsierender goldener Text „🌟 X Talent point(s) available! (Tab)" im Level-Up Overlay
+- **Pause-Menü:** Investierte Talente erscheinen in der „Active Effects" Liste
+
+### Dateien
+
+| Datei | Rolle |
+|-------|-------|
+| `src/talents.js` | Talent-Definitionen, State-Management, `computeTalentMods()` |
+| `src/ui/talentTree.js` | Render-Funktion für das Talent-Tree Overlay |
+| `src/constants.js` | `STATE_TALENTS` Konstante |
+| `src/entities/player.js` | 15 Talent-Modifier Properties + Integration |
+| `src/entities/pickup.js` | Pickup-Radius-Multiplikator |
+| `src/game.js` | State-Management, Punkt-Sync, Modifier-Anwendung |
 
 ---
 
