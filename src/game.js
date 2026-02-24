@@ -28,6 +28,7 @@ import {
     BUFF_RAGE_DAMAGE_MULT, BUFF_PIERCING_DAMAGE_MULT, BUFF_PIERCING_RANGE_MULT,
     BUFF_SWIFT_SPEED_MULT, BUFF_SPEED_SURGE_CD_MULT, BUFF_IRON_SKIN_REDUCE,
     HAZARD_LAVA_SLOW,
+    HAZARD_TAR_SLOW,
     CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
@@ -1589,6 +1590,7 @@ export class Game {
         if (p.hasBuff(PICKUP_SWIFT_BOOTS)) speed *= BUFF_SWIFT_SPEED_MULT;
         if (p.biomeSpeedMult !== 1.0) speed *= p.biomeSpeedMult;
         if (p.onLava) speed *= HAZARD_LAVA_SLOW;
+        if (p.onTar || p.tarLingerTimer > 0) speed *= HAZARD_TAR_SLOW;
 
         // ── Max HP multiplier ──
         const maxHp = (m.hpMultiplier || 1);
@@ -2509,6 +2511,9 @@ export class Game {
         const movement = getMovement();
         // Reset lava slow flag each frame (hazards will set it if player is on lava)
         this.player.onLava = false;
+        // Reset tar slow flag each frame (hazards will set it if player is on tar)
+        this.player.onTar = false;
+        if (this.player.tarLingerTimer > 0) this.player.tarLingerTimer -= dt * 1000;
         this.player._mouseAiming = false; // reset per frame — setFacingFromMouse will re-enable
         this.player.update(dt, movement, this.grid);
 

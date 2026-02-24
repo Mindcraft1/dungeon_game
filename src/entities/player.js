@@ -16,6 +16,7 @@ import {
     PICKUP_SPEED_SURGE, PICKUP_SWIFT_BOOTS,
     PICKUP_CRUSHING_BLOW, PICKUP_IRON_SKIN,
     HAZARD_LAVA_SLOW,
+    HAZARD_TAR_SLOW,
     PLAYER_BASE_CRIT_CHANCE,
     TILE_SIZE, TILE_CANYON, MAX_DASH_CROSS_TILES,
 } from '../constants.js';
@@ -61,6 +62,8 @@ export class Player {
         this.phaseShieldActive = false;   // blocks next hit
         this.crushingBlowReady = false;   // next attack = 3× damage
         this.onLava = false;              // set per frame by hazard system
+        this.onTar = false;               // set per frame by tar hazard
+        this.tarLingerTimer = 0;          // ms of lingering tar slow
         this.biomeSpeedMult = 1.0;        // set per room by biome system
         this.attackRangeMultiplier = 1.0;  // set by run upgrades (aoe_swing)
 
@@ -601,11 +604,12 @@ export class Player {
         return this.activeBuffs.some(b => b.type === type);
     }
 
-    /** Effective move speed accounting for biome, Swift Boots buff, and lava slow. */
+    /** Effective move speed accounting for biome, Swift Boots buff, lava slow, and tar slow. */
     getEffectiveSpeed() {
         let spd = this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
         if (this.biomeSpeedMult !== 1.0) spd *= this.biomeSpeedMult;
         if (this.onLava) spd *= HAZARD_LAVA_SLOW;
+        if (this.onTar || this.tarLingerTimer > 0) spd *= HAZARD_TAR_SLOW;
         return spd;
     }
 

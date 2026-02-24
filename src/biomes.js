@@ -35,7 +35,7 @@ const BIOMES = [
         },
         // Hazard count multipliers
         hazardWeights: {
-            spikes: 0.6, lava: 0.5, arrow: 0.7,
+            spikes: 0.6, lava: 0.5, arrow: 0.7, tar: 1.2,
         },
         playerSpeedMult: 1.0,
 
@@ -123,7 +123,7 @@ const BIOMES = [
             basic: 1.0, shooter: 0.8, dasher: 0.7, tank: 1.5,
         },
         hazardWeights: {
-            spikes: 1.4, lava: 0.8, arrow: 1.2,
+            spikes: 1.4, lava: 0.8, arrow: 1.2, tar: 0.6,
         },
         playerSpeedMult: 1.0,
 
@@ -207,7 +207,7 @@ const BIOMES = [
             basic: 0.8, shooter: 1.2, dasher: 1.1, tank: 1.3,
         },
         hazardWeights: {
-            spikes: 1.0, lava: 1.6, arrow: 1.3,
+            spikes: 1.0, lava: 1.6, arrow: 1.3, tar: 1.4,
         },
         playerSpeedMult: 1.0,
 
@@ -291,7 +291,7 @@ const BIOMES = [
             basic: 0.8, shooter: 1.5, dasher: 0.9, tank: 1.0,
         },
         hazardWeights: {
-            spikes: 0.8, lava: 0.8, arrow: 1.4,
+            spikes: 0.8, lava: 0.8, arrow: 1.4, tar: 1.0,
         },
         playerSpeedMult: 0.9,
 

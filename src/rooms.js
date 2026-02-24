@@ -1,8 +1,8 @@
 import {
     TILE_SIZE, COLS, ROWS,
     TILE_FLOOR, TILE_WALL, TILE_CANYON,
-    HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW,
-    HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE,
+    HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW, HAZARD_TYPE_TAR,
+    HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE, HAZARD_TAR_INTRO_STAGE,
     CANYON_INTRO_STAGE,
     CANYON_COUNT_STAGE_11_20, CANYON_COUNT_STAGE_21_30, CANYON_COUNT_STAGE_31,
 } from './constants.js';
@@ -890,11 +890,16 @@ export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = 
         ? Math.min(1 + Math.floor((stage - HAZARD_ARROW_INTRO_STAGE) * 0.35), 3)
         : 0;
 
+    let tarCount = stage >= HAZARD_TAR_INTRO_STAGE
+        ? Math.min(1 + Math.floor((stage - HAZARD_TAR_INTRO_STAGE) * 0.45), 4)
+        : 0;
+
     // ── Apply biome hazard weight modifiers ──
     if (hazardWeights) {
         spikeCount = Math.max(0, Math.round(spikeCount * (hazardWeights.spikes || 1)));
         lavaCount  = Math.max(0, Math.round(lavaCount  * (hazardWeights.lava   || 1)));
         arrowCount = Math.max(0, Math.round(arrowCount * (hazardWeights.arrow  || 1)));
+        tarCount   = Math.max(0, Math.round(tarCount   * (hazardWeights.tar    || 1)));
     }
 
     // ── Collect valid floor tiles ──
@@ -993,6 +998,47 @@ export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = 
                 dirX: ac.dirX,
                 dirY: ac.dirY,
             }));
+        }
+    }
+
+    // ── Place tar / oil pools (in small clusters of 2–3 adjacent tiles) ──
+    let tarPlaced = 0;
+    while (tarPlaced < tarCount && tileIdx < floorTiles.length) {
+        const seed = floorTiles[tileIdx++];
+        const seedKey = `${seed.col},${seed.row}`;
+        if (usedTiles.has(seedKey)) continue;
+
+        usedTiles.add(seedKey);
+        hazards.push(new Hazard(HAZARD_TYPE_TAR, seed.col, seed.row, stage));
+        tarPlaced++;
+
+        // Expand to 1–2 adjacent tiles for a sticky puddle feel
+        const clusterSize = 1 + Math.floor(Math.random() * 2); // 1–2 extra
+        const neighbors = [
+            { col: seed.col + 1, row: seed.row },
+            { col: seed.col - 1, row: seed.row },
+            { col: seed.col, row: seed.row + 1 },
+            { col: seed.col, row: seed.row - 1 },
+        ];
+        for (let i = neighbors.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+        }
+        let added = 0;
+        for (const n of neighbors) {
+            if (added >= clusterSize) break;
+            const nk = `${n.col},${n.row}`;
+            if (usedTiles.has(nk)) continue;
+            if (n.row < 1 || n.row >= grid.length - 1 || n.col < 1 || n.col >= grid[0].length - 1) continue;
+            if (grid[n.row][n.col]) continue; // wall
+            const sdx = n.col - spawnPos.col, sdy = n.row - spawnPos.row;
+            if (Math.sqrt(sdx * sdx + sdy * sdy) < 3) continue;
+            const ddx2 = n.col - doorPos.col, ddy2 = n.row - doorPos.row;
+            if (Math.sqrt(ddx2 * ddx2 + ddy2 * ddy2) < 2) continue;
+
+            usedTiles.add(nk);
+            hazards.push(new Hazard(HAZARD_TYPE_TAR, n.col, n.row, stage));
+            added++;
         }
     }
 

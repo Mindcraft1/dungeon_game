@@ -349,9 +349,11 @@ export class Boss {
                 break;
             }
             case 'leap': {
-                // Track player position during windup (target locked at activation)
-                this.leapTargetX = player.x;
-                this.leapTargetY = player.y;
+                // Lock target position once at start of windup
+                if (this.leapTargetX === 0 && this.leapTargetY === 0) {
+                    this.leapTargetX = player.x;
+                    this.leapTargetY = player.y;
+                }
                 // Growing target indicator
                 const windupTotal = BOSS_LEAP_WINDUP * this.phaseMultiplier;
                 const progress = 1 - this.attackTimer / windupTotal;
@@ -606,6 +608,8 @@ export class Boss {
         this.stompIndicatorRadius = 0;
         this.leapIndicatorRadius = 0;
         this.leapAirborne = false;
+        this.leapTargetX = 0;
+        this.leapTargetY = 0;
         this.shockwaveIndicatorRadius = 0;
         this.bombardTargets = [];
     }

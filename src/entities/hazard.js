@@ -1,11 +1,13 @@
 import {
     TILE_SIZE,
-    HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW,
+    HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW, HAZARD_TYPE_TAR,
     HAZARD_SPIKE_DAMAGE, HAZARD_SPIKE_CYCLE, HAZARD_SPIKE_ACTIVE, HAZARD_SPIKE_WARN,
     HAZARD_LAVA_DAMAGE, HAZARD_LAVA_TICK, HAZARD_LAVA_SLOW,
     HAZARD_ARROW_DAMAGE, HAZARD_ARROW_COOLDOWN, HAZARD_ARROW_SPEED, HAZARD_ARROW_RADIUS,
-    HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE,
+    HAZARD_TAR_SLOW, HAZARD_TAR_LINGER,
+    HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE, HAZARD_TAR_INTRO_STAGE,
     HAZARD_SPIKE_COLOR, HAZARD_LAVA_COLOR, HAZARD_LAVA_COLOR2, HAZARD_ARROW_COLOR,
+    HAZARD_TAR_COLOR, HAZARD_TAR_COLOR2, HAZARD_TAR_BUBBLE,
     PROJECTILE_COLOR,
 } from '../constants.js';
 import { Projectile } from './projectile.js';
@@ -36,7 +38,8 @@ export class Hazard {
         // Damage scaling: +10% per stage past intro, capped at 2×
         const introStage = type === HAZARD_TYPE_SPIKES ? HAZARD_SPIKE_INTRO_STAGE
             : type === HAZARD_TYPE_LAVA ? HAZARD_LAVA_INTRO_STAGE
-            : HAZARD_ARROW_INTRO_STAGE;
+            : type === HAZARD_TYPE_ARROW ? HAZARD_ARROW_INTRO_STAGE
+            : HAZARD_TAR_INTRO_STAGE;
         this.damageScale = Math.min(1 + (Math.max(0, stage - introStage)) * 0.1, 2.0);
 
         // ── Spike state ──
@@ -64,6 +67,15 @@ export class Hazard {
             this.chargeProgress = 0; // 0–1 visual charge indicator
             this.justFired = false;  // flag for audio in game.js
         }
+
+        // ── Tar / oil state ──
+        if (type === HAZARD_TYPE_TAR) {
+            this.animTime = Math.random() * 10000;
+            // Bubble pool — each bubble has its own lifecycle
+            this.bubbles = [];
+            this._tarBubbleTimer = 0;
+            this._tarBubbleInterval = 600 + Math.random() * 400; // ms between new bubbles
+        }
     }
 
     // ── Update ──────────────────────────────────────────────
@@ -76,6 +88,7 @@ export class Hazard {
             case HAZARD_TYPE_SPIKES: this._updateSpikes(ms, player, noDamage); break;
             case HAZARD_TYPE_LAVA:   this._updateLava(ms, player, noDamage); break;
             case HAZARD_TYPE_ARROW:  this._updateArrow(ms, projectiles, noDamage); break;
+            case HAZARD_TYPE_TAR:    this._updateTar(ms, player); break;
         }
     }
 
@@ -191,6 +204,7 @@ export class Hazard {
             case HAZARD_TYPE_SPIKES: this._renderSpikes(ctx); break;
             case HAZARD_TYPE_LAVA:   this._renderLava(ctx); break;
             case HAZARD_TYPE_ARROW:  this._renderArrow(ctx); break;
+            case HAZARD_TYPE_TAR:    this._renderTar(ctx); break;
         }
     }
 
@@ -390,5 +404,154 @@ export class Hazard {
         ctx.closePath();
         ctx.fill();
         ctx.restore();
+    }
+
+    // ── Tar / Oil ──────────────────────────────────────────
+
+    _updateTar(ms, player) {
+        this.animTime += ms;
+
+        // ── Bubble lifecycle ──
+        this._tarBubbleTimer += ms;
+        if (this._tarBubbleTimer >= this._tarBubbleInterval) {
+            this._tarBubbleTimer = 0;
+            this._tarBubbleInterval = 500 + Math.random() * 600;
+            // Spawn a new bubble at a random position within the tile
+            const S = TILE_SIZE;
+            this.bubbles.push({
+                x: this.x + 6 + Math.random() * (S - 12),
+                y: this.y + 6 + Math.random() * (S - 12),
+                maxR: 1.8 + Math.random() * 2.5,   // max radius before pop
+                r: 0,                               // current radius
+                phase: 0,                           // 0 = growing, 1 = popping
+                life: 0,
+                growSpeed: 0.002 + Math.random() * 0.003,
+                popTimer: 0,
+                popDuration: 120 + Math.random() * 80,
+            });
+            // Cap bubble count to keep it reasonable
+            if (this.bubbles.length > 6) this.bubbles.shift();
+        }
+
+        // Update each bubble
+        for (let i = this.bubbles.length - 1; i >= 0; i--) {
+            const b = this.bubbles[i];
+            b.life += ms;
+
+            if (b.phase === 0) {
+                // Growing phase
+                b.r = Math.min(b.r + b.growSpeed * ms, b.maxR);
+                if (b.r >= b.maxR) {
+                    b.phase = 1; // start popping
+                    b.popTimer = 0;
+                }
+            } else {
+                // Popping phase — expand quickly then fade
+                b.popTimer += ms;
+                if (b.popTimer >= b.popDuration) {
+                    this.bubbles.splice(i, 1);
+                }
+            }
+        }
+
+        // ── Slow player ──
+        if (this._isPlayerOnTile(player)) {
+            player.onTar = true;
+            player.tarLingerTimer = HAZARD_TAR_LINGER;
+        }
+    }
+
+    _renderTar(ctx) {
+        const x = this.x;
+        const y = this.y;
+        const S = TILE_SIZE;
+        const t = this.animTime;
+
+        // ── Base tar pool (very dark, slightly glossy) ──
+        ctx.fillStyle = HAZARD_TAR_COLOR;
+        ctx.fillRect(x, y, S, S);
+
+        // Slightly lighter oily swirl for depth
+        ctx.fillStyle = HAZARD_TAR_COLOR2;
+        ctx.globalAlpha = 0.35 + Math.sin(t * 0.0015) * 0.1;
+        const sw = S * 0.55;
+        const sx = x + S / 2 + Math.sin(t * 0.001) * 3 - sw / 2;
+        const sy = y + S / 2 + Math.cos(t * 0.0008 + 1) * 3 - sw / 2;
+        ctx.beginPath();
+        ctx.arc(sx + sw / 2, sy + sw / 2, sw / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // ── Oily rainbow sheen (iridescent highlight) ──
+        const sheenAngle = t * 0.0004;
+        const sheenX = x + S / 2 + Math.cos(sheenAngle) * 8;
+        const sheenY = y + S / 2 + Math.sin(sheenAngle * 0.7) * 6;
+        const grad = ctx.createRadialGradient(sheenX, sheenY, 0, sheenX, sheenY, 12);
+        grad.addColorStop(0, 'rgba(80, 60, 120, 0.18)');
+        grad.addColorStop(0.5, 'rgba(40, 80, 60, 0.10)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, S, S);
+
+        // ── Bubbles ──
+        for (const b of this.bubbles) {
+            if (b.phase === 0) {
+                // Growing bubble — dark circle with lighter rim
+                const alpha = 0.5 + (b.r / b.maxR) * 0.3;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fillStyle = HAZARD_TAR_BUBBLE;
+                ctx.globalAlpha = alpha;
+                ctx.fill();
+
+                // Glossy highlight on top-left of bubble
+                if (b.r > 1.2) {
+                    ctx.beginPath();
+                    ctx.arc(b.x - b.r * 0.25, b.y - b.r * 0.25, b.r * 0.35, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            } else {
+                // Popping animation — ring expanding outward, fading
+                const popProgress = b.popTimer / b.popDuration; // 0→1
+                const popR = b.maxR + popProgress * 4;
+                const popAlpha = (1 - popProgress) * 0.5;
+
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, popR, 0, Math.PI * 2);
+                ctx.strokeStyle = HAZARD_TAR_BUBBLE;
+                ctx.globalAlpha = popAlpha;
+                ctx.lineWidth = 1.5 * (1 - popProgress);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                // Tiny droplet splashes
+                if (popProgress < 0.5) {
+                    const splashAlpha = (1 - popProgress * 2) * 0.4;
+                    for (let s = 0; s < 3; s++) {
+                        const angle = (s / 3) * Math.PI * 2 + popProgress * 2;
+                        const dist = popR + popProgress * 6;
+                        const dx = b.x + Math.cos(angle) * dist;
+                        const dy = b.y + Math.sin(angle) * dist;
+                        ctx.beginPath();
+                        ctx.arc(dx, dy, 0.8, 0, Math.PI * 2);
+                        ctx.fillStyle = HAZARD_TAR_COLOR2;
+                        ctx.globalAlpha = splashAlpha;
+                        ctx.fill();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        // ── Edge darkening ──
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, S - 2, S - 2);
+
+        // ── Subtle sticky glow ──
+        ctx.fillStyle = 'rgba(40, 30, 20, 0.08)';
+        ctx.fillRect(x - 2, y - 2, S + 4, S + 4);
     }
 }

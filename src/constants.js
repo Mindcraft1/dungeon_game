@@ -175,11 +175,13 @@ export const CANYON_COLOR_RIM    = '#4a3060';   // visible rim highlight
 export const HAZARD_TYPE_SPIKES = 'spikes';
 export const HAZARD_TYPE_LAVA   = 'lava';
 export const HAZARD_TYPE_ARROW  = 'arrow';
+export const HAZARD_TYPE_TAR    = 'tar';
 
 // Intro stages (progressive difficulty)
 export const HAZARD_SPIKE_INTRO_STAGE = 4;
 export const HAZARD_LAVA_INTRO_STAGE  = 6;
 export const HAZARD_ARROW_INTRO_STAGE = 8;
+export const HAZARD_TAR_INTRO_STAGE   = 10;
 
 // Spike hazard
 export const HAZARD_SPIKE_DAMAGE   = 8;
@@ -198,11 +200,18 @@ export const HAZARD_ARROW_COOLDOWN = 3500;   // ms between shots
 export const HAZARD_ARROW_SPEED    = 160;
 export const HAZARD_ARROW_RADIUS   = 3;
 
+// Tar / oil hazard
+export const HAZARD_TAR_SLOW       = 0.45;   // speed multiplier while on tar
+export const HAZARD_TAR_LINGER     = 600;    // ms slow persists after leaving tar
+
 // Hazard colors
 export const HAZARD_SPIKE_COLOR    = '#8e8e8e';
 export const HAZARD_LAVA_COLOR     = '#e25822';
 export const HAZARD_LAVA_COLOR2    = '#ff6b35';
 export const HAZARD_ARROW_COLOR    = '#ff6b35';
+export const HAZARD_TAR_COLOR      = '#1a1a1a';
+export const HAZARD_TAR_COLOR2     = '#2c2418';
+export const HAZARD_TAR_BUBBLE     = '#3a3225';
 
 // Pickup type keys
 export const PICKUP_RAGE_SHARD = 'rage_shard';
@@ -372,7 +381,7 @@ export const BOSS_BOMBARDMENT_COUNT   = 5;
 export const BOSS_BOMBARDMENT_LINGER  = 700;
 export const BOSS_STOMP_WINDUP      = 800;
 export const BOSS_STOMP_RADIUS      = 100;
-export const BOSS_LEAP_WINDUP       = 950;
+export const BOSS_LEAP_WINDUP       = 900;
 export const BOSS_LEAP_RADIUS       = 75;
 export const BOSS_SHOCKWAVE_WINDUP  = 600;
 export const BOSS_SHOCKWAVE_COUNT   = 10;    // projectiles in the ring
