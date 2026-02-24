@@ -1835,7 +1835,8 @@ export class Game {
         if (p.talentSpeedMult !== 1) speed *= p.talentSpeedMult;
 
         // ── Max HP multiplier ──
-        const maxHp = (m.hpMultiplier || 1);
+        let maxHp = (m.hpMultiplier || 1);
+        if (p.talentMaxHpMult !== 1) maxHp *= p.talentMaxHpMult;
 
         // ── XP gain multiplier ──
         let xpGain = (m.xpMultiplier || 1);
@@ -1866,6 +1867,7 @@ export class Game {
         // ── Attack speed (inverse of cooldown mult, > 1 = faster) ──
         let attackSpeed = 1;
         if (p.hasBuff(PICKUP_SPEED_SURGE)) attackSpeed *= (1 / BUFF_SPEED_SURGE_CD_MULT);
+        if (p.talentAtkCdMult !== 1) attackSpeed *= (1 / p.talentAtkCdMult);
 
         // ── Crit chance (base + node bonuses) ──
         const _cmods = UpgradeEngine.getCombatMods();
@@ -1914,6 +1916,24 @@ export class Game {
         }
         if (p.berserkActive) {
             specials.push({ icon: '🔥', name: 'Berserk!', color: '#ef5350' });
+        }
+
+        // Talent specials
+        if (p.talentExecutionerMult > 1) {
+            const pct = Math.round((p.talentExecutionerMult - 1) * 100);
+            specials.push({ icon: '⚔️', name: `Execute +${pct}%`, color: '#ff5252' });
+        }
+        if (p.talentRoomHealPct > 0) {
+            const pct = Math.round(p.talentRoomHealPct * 100);
+            specials.push({ icon: '💚', name: `Room Heal ${pct}%`, color: '#66bb6a' });
+        }
+        if (p.talentBuffDurMult > 1) {
+            const pct = Math.round((p.talentBuffDurMult - 1) * 100);
+            specials.push({ icon: '⏳', name: `Buff Dur +${pct}%`, color: '#ab47bc' });
+        }
+        if (p.talentInvulnCdMult < 1) {
+            const pct = Math.round((1 - p.talentInvulnCdMult) * 100);
+            specials.push({ icon: '⏱️', name: `Invuln -${pct}%`, color: '#42a5f5' });
         }
 
         return { damage, speed, maxHp, xpGain, defense, trapResist, bossDamage, attackRange, attackSpeed, critChance, critDamage, specials };
@@ -3503,7 +3523,7 @@ export class Game {
                 if (!this.trainingMode) {
                     const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
                     // Elites always drop; normal enemies only have a % chance
-                    const talentCoinMult = this.talentState ? computeTalentMods(this.talentState).coinDropRateMult : 1;
+                    const talentCoinMult = this.player.talentCoinDropMult || 1;
                     if (isElite || Math.random() < COIN_DROP_CHANCE * talentCoinMult) {
                         let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
                         if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
@@ -3518,7 +3538,7 @@ export class Game {
                     const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
                     const shopXpMult = this._getShopXpMultiplier();
                     const darkXpMult = this.darknessXpMult;
-                    const talentXpMult = this.talentState ? computeTalentMods(this.talentState).xpGainMult : 1;
+                    const talentXpMult = this.player.talentXpMult || 1;
                     const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult * talentXpMult);
                     if (this.player.addXp(xp)) {
                         Audio.playLevelUp();
@@ -4774,7 +4794,7 @@ export class Game {
         const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
         const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
         const shopXpMult = this._getShopXpMultiplier();
-        const talentXpMult = this.talentState ? computeTalentMods(this.talentState).xpGainMult : 1;
+        const talentXpMult = this.player.talentXpMult || 1;
         const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult * talentXpMult);
         if (this.player.addXp(xp)) {
             Audio.playLevelUp();

@@ -571,7 +571,7 @@ export class Player {
         if (this.guardianShieldReady) {
             this.guardianShieldReady = false;
             this.guardianShieldCooldown = this.guardianShieldMaxCooldown;
-            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
+            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME) * this.talentInvulnCdMult;
             this.damageFlashTimer = 80;
             return;
         }
@@ -580,7 +580,7 @@ export class Player {
         if (this.phaseShieldActive) {
             this.phaseShieldActive = false;
             this._removeBuff(PICKUP_PHASE_SHIELD);
-            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
+            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME) * this.talentInvulnCdMult;
             this.damageFlashTimer = 80;
             return;
         }
@@ -612,7 +612,7 @@ export class Player {
             }
         }
         this.hp = Math.max(0, this.hp - finalAmount);
-        this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
+        this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME) * this.talentInvulnCdMult;
         this.damageFlashTimer = 150;
     }
 
