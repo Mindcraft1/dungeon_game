@@ -1,4 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { PLAYER_COLORS, getColorById } from '../cosmetics.js';
 
 const MAX_PROFILES = 6;
 const MAX_NAME_LEN = 12;
@@ -6,14 +7,16 @@ const MAX_NAME_LEN = 12;
 /**
  * Render the character/profiles screen.
  * @param {CanvasRenderingContext2D} ctx
- * @param {Array<{name:string, highscore:number}>} profiles
+ * @param {Array<{name:string, highscore:number, colorId?:string}>} profiles
  * @param {number} activeIndex – currently active profile
- * @param {number} cursorIndex – current UI cursor position (0..profiles.length = last is "+New")
+ * @param {number} cursorIndex – current UI cursor position (0..profiles.length = last is \"+New\")
  * @param {boolean} isCreating – typing a new name?
  * @param {string} newName – name being typed
  * @param {boolean} isDeleting – showing delete confirmation?
+ * @param {boolean} isColorPicking – showing color picker overlay?
+ * @param {number} colorCursor – current cursor in color picker grid
  */
-export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting) {
+export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting, isColorPicking, colorCursor) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -72,10 +75,22 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
             ctx.textAlign = 'center';
         }
 
-        // Name
+        // Color swatch (player circle preview)
+        const pColor = getColorById(p.colorId);
+        const swatchX = bx + 28;
+        const swatchY = y + (isActive ? 30 : 24);
+        ctx.fillStyle = pColor.body;
+        ctx.beginPath();
+        ctx.arc(swatchX, swatchY, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = pColor.outline;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Name (shifted right to make room for swatch)
         ctx.fillStyle = selected ? '#fff' : '#aaa';
         ctx.font = 'bold 18px monospace';
-        ctx.fillText(p.name, CANVAS_WIDTH / 2, y + (isActive ? 32 : 24));
+        ctx.fillText(p.name, CANVAS_WIDTH / 2 + 10, y + (isActive ? 32 : 24));
 
         // Highscore
         const hs = p.highscore > 0 ? `★ Stage ${p.highscore}` : 'No runs yet';
@@ -116,6 +131,12 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         return;
     }
 
+    // ── Color picker overlay ──
+    if (isColorPicking && profiles[cursorIndex]) {
+        _renderColorPickerOverlay(ctx, profiles[cursorIndex], colorCursor);
+        return;
+    }
+
     // ── Arrow indicator ──
     if (!isCreating) {
         const cy = startY + cursorIndex * rowH + 22;
@@ -130,7 +151,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // ── Controls hint ──
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  C = Color  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
@@ -223,6 +244,124 @@ function _renderDeleteOverlay(ctx, name) {
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
     ctx.fillText('ENTER/Click = Delete  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 18);
+
+    ctx.textAlign = 'left';
+}
+
+function _renderColorPickerOverlay(ctx, profile, cursor) {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    const bw = 420;
+    const bh = 340;
+    const bx = (CANVAS_WIDTH - bw) / 2;
+    const by = (CANVAS_HEIGHT - bh) / 2;
+
+    // Panel background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#4fc3f7';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.textAlign = 'center';
+
+    // Title
+    ctx.fillStyle = '#4fc3f7';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('CHOOSE COLOR', CANVAS_WIDTH / 2, by + 32);
+
+    ctx.fillStyle = '#666';
+    ctx.font = '11px monospace';
+    ctx.fillText(`for "${profile.name}"`, CANVAS_WIDTH / 2, by + 50);
+
+    // ── Color swatch grid ──
+    const cols = 4;
+    const swatchSize = 50;
+    const gap = 12;
+    const gridW = cols * swatchSize + (cols - 1) * gap;
+    const gridX = CANVAS_WIDTH / 2 - gridW / 2;
+    const gridY = by + 70;
+
+    for (let i = 0; i < PLAYER_COLORS.length; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const sx = gridX + col * (swatchSize + gap);
+        const sy = gridY + row * (swatchSize + gap);
+        const c = PLAYER_COLORS[i];
+        const isSelected = i === cursor;
+        const isCurrent = c.id === (profile.colorId || 'cyan');
+
+        // Swatch background
+        ctx.fillStyle = isSelected ? 'rgba(79,195,247,0.15)' : 'rgba(255,255,255,0.03)';
+        ctx.fillRect(sx, sy, swatchSize, swatchSize);
+
+        // Selection highlight border
+        if (isSelected) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx - 1, sy - 1, swatchSize + 2, swatchSize + 2);
+        }
+
+        // Current color check mark
+        if (isCurrent && !isSelected) {
+            ctx.strokeStyle = '#4fc3f7';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx, sy, swatchSize, swatchSize);
+        }
+
+        // Draw player circle preview
+        const cx = sx + swatchSize / 2;
+        const cy = sy + swatchSize / 2 - 4;
+        ctx.fillStyle = c.body;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = c.outline;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Eye dot
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx + 8, cy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Color name
+        ctx.fillStyle = isSelected ? '#fff' : '#777';
+        ctx.font = '9px monospace';
+        ctx.fillText(c.name, cx, sy + swatchSize - 3);
+    }
+
+    // ── Large preview ──
+    const previewColor = PLAYER_COLORS[cursor] || PLAYER_COLORS[0];
+    const previewY = gridY + Math.ceil(PLAYER_COLORS.length / cols) * (swatchSize + gap) + 15;
+
+    // Preview circle
+    const pvx = CANVAS_WIDTH / 2;
+    const pvy = previewY + 5;
+    ctx.fillStyle = previewColor.body;
+    ctx.beginPath();
+    ctx.arc(pvx, pvy, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = previewColor.outline;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(pvx + 12, pvy, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Preview name
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(previewColor.name, pvx, pvy + 38);
+
+    // ── Hints ──
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
 
     ctx.textAlign = 'left';
 }

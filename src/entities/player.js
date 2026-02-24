@@ -90,6 +90,12 @@ export class Player {
 
         // ── Mouse aim state (set by game.js per frame) ──
         this._mouseAiming = false;
+
+        // ── Cosmetic colors (set by game.js from profile) ──
+        this.bodyColor = PLAYER_COLOR;
+        this.outlineColor = '#2980b9';
+        this.dashColor = '#b3e5fc';
+        this.ghostColor = '#4fc3f7';
     }
 
     /**
@@ -678,7 +684,7 @@ export class Player {
             const progress = 1 - this.dashTimer / DASH_DURATION;
             ctx.save();
             ctx.globalAlpha = 0.25 * (1 - progress);
-            ctx.fillStyle = '#4fc3f7';
+            ctx.fillStyle = this.ghostColor;
             ctx.beginPath();
             ctx.arc(
                 this.x - this.dashDirX * 18,
@@ -702,13 +708,13 @@ export class Player {
         }
 
         // Body
-        ctx.fillStyle = flashing ? '#ffffff' : (this.dashing ? '#b3e5fc' : PLAYER_COLOR);
+        ctx.fillStyle = flashing ? '#ffffff' : (this.dashing ? this.dashColor : this.bodyColor);
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
 
         // Outline
-        ctx.strokeStyle = '#2980b9';
+        ctx.strokeStyle = this.outlineColor;
         ctx.lineWidth = 2;
         ctx.stroke();
 

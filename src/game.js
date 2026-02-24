@@ -55,6 +55,7 @@ import { renderSettings } from './ui/settings.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
 import { getBiomeForStage } from './biomes.js';
+import { getColorById, PLAYER_COLORS } from './cosmetics.js';
 
 // ── Meta Progression ──
 import * as MetaStore from './meta/metaStore.js';
@@ -136,6 +137,8 @@ export class Game {
         this.profileCreating = false;
         this.profileNewName = '';
         this.profileDeleting = false;
+        this.profileColorPicking = false;
+        this.colorPickerCursor = 0;
 
         this.stage = 1;
         this.player = null;
@@ -305,6 +308,10 @@ export class Game {
                 this.activeProfileIndex = data.activeIndex || 0;
                 // Clamp
                 if (this.activeProfileIndex >= this.profiles.length) this.activeProfileIndex = 0;
+                // Migrate: ensure every profile has a colorId
+                for (const p of this.profiles) {
+                    if (!p.colorId) p.colorId = 'cyan';
+                }
             }
         } catch (e) {
             this.profiles = [];
@@ -525,6 +532,7 @@ export class Game {
                 this.profileCursor = 0;
                 this.profileCreating = false;
                 this.profileDeleting = false;
+                this.profileColorPicking = false;
                 this.state = STATE_PROFILES;
             } else if (this.menuIndex === 5) {
                 this._openTrainingConfig();
@@ -785,6 +793,15 @@ export class Game {
         // Set initial safe position to spawn
         this.player.lastSafeX = px;
         this.player.lastSafeY = py;
+        // Apply cosmetic colors from profile
+        const _profile = this.activeProfile;
+        if (_profile) {
+            const colorDef = getColorById(_profile.colorId);
+            this.player.bodyColor = colorDef.body;
+            this.player.outlineColor = colorDef.outline;
+            this.player.dashColor = colorDef.dash;
+            this.player.ghostColor = colorDef.ghost;
+        }
         // Apply biome speed modifier
         this.player.biomeSpeedMult = this.currentBiome
             ? this.currentBiome.playerSpeedMult
@@ -2379,6 +2396,12 @@ export class Game {
             return;
         }
 
+        // Color picker overlay
+        if (this.profileColorPicking) {
+            this._updateColorPicker();
+            return;
+        }
+
         // Delete confirmation
         if (this.profileDeleting) {
             if (wasPressed('Enter') || wasMousePressed(0)) {
@@ -2427,6 +2450,14 @@ export class Game {
             this.profileDeleting = true;
         }
 
+        // Color picker (C key)
+        if (wasPressed('KeyC') && this.profileCursor < this.profiles.length) {
+            const currentColorId = this.profiles[this.profileCursor].colorId || 'cyan';
+            this.colorPickerCursor = Math.max(0, PLAYER_COLORS.findIndex(c => c.id === currentColorId));
+            this.profileColorPicking = true;
+            Audio.playMenuSelect();
+        }
+
         // Back (only if a profile is selected) — ESC or RMB
         if ((wasPressed('Escape') || wasMousePressed(2)) && this.profiles.length > 0) {
             this.state = STATE_MENU;
@@ -2443,7 +2474,7 @@ export class Game {
         if (wasPressed('Enter')) {
             const name = this.profileNewName.trim();
             if (name.length > 0) {
-                this.profiles.push({ name, highscore: 0 });
+                this.profiles.push({ name, highscore: 0, colorId: 'cyan' });
                 this.activeProfileIndex = this.profiles.length - 1;
                 this._saveProfiles();
                 MetaStore.load(this.activeProfileIndex);
@@ -2467,6 +2498,65 @@ export class Game {
             if (/^[a-zA-Z0-9 ._\-]$/.test(key)) {
                 this.profileNewName += key;
             }
+        }
+    }
+
+    _updateColorPicker() {
+        const cols = 4;
+        const total = PLAYER_COLORS.length;
+
+        // Navigation
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.colorPickerCursor = (this.colorPickerCursor - 1 + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.colorPickerCursor = (this.colorPickerCursor + 1) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.colorPickerCursor = (this.colorPickerCursor - cols + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.colorPickerCursor = (this.colorPickerCursor + cols) % total;
+            Audio.playMenuNav();
+        }
+
+        // Mouse hover on color swatches
+        const mp = getMousePos();
+        if (mp && isMouseActive()) {
+            const gridX = 400 - (cols * 60) / 2;
+            const gridY = 240;
+            const swatchSize = 50;
+            const gap = 10;
+            const col = Math.floor((mp.x - gridX) / (swatchSize + gap));
+            const row = Math.floor((mp.y - gridY) / (swatchSize + gap));
+            if (col >= 0 && col < cols && row >= 0) {
+                const idx = row * cols + col;
+                if (idx >= 0 && idx < total) {
+                    if (idx !== this.colorPickerCursor) {
+                        this.colorPickerCursor = idx;
+                        Audio.playMenuNav();
+                    }
+                }
+            }
+        }
+
+        // Confirm
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
+            const chosen = PLAYER_COLORS[this.colorPickerCursor];
+            if (chosen) {
+                this.profiles[this.profileCursor].colorId = chosen.id;
+                this._saveProfiles();
+                Audio.playMenuSelect();
+            }
+            this.profileColorPicking = false;
+        }
+
+        // Cancel
+        if (wasPressed('Escape') || wasMousePressed(2)) {
+            this.profileColorPicking = false;
         }
     }
 
@@ -4185,7 +4275,8 @@ export class Game {
         if (this.state === STATE_PROFILES) {
             renderProfiles(ctx, this.profiles, this.activeProfileIndex,
                            this.profileCursor, this.profileCreating,
-                           this.profileNewName, this.profileDeleting);
+                           this.profileNewName, this.profileDeleting,
+                           this.profileColorPicking, this.colorPickerCursor);
             this._renderCheatNotifications(ctx);
             return;
         }
