@@ -2833,11 +2833,13 @@ export class Game {
         // Mouse hover on hat swatches
         const mp = getMousePos();
         if (mp && isMouseActive()) {
-            const swatchSize = 80;
-            const gap = 12;
+            const swatchSize = 70;
+            const gap = 10;
             const gridW = cols * swatchSize + (cols - 1) * gap;
             const gridX = 400 - gridW / 2;
-            const gridY = 130;
+            const bh = 540;
+            const by = (300 - bh / 2);
+            const gridY = by + 65;
             const col = Math.floor((mp.x - gridX) / (swatchSize + gap));
             const row = Math.floor((mp.y - gridY) / (swatchSize + gap));
             if (col >= 0 && col < cols && row >= 0) {

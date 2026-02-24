@@ -26,6 +26,9 @@
 18. [Achievements (40 Stück)](#18-achievements-40-stück)
 19. [Loadout System](#19-loadout-system)
 20. [Meta-Boosters (Einmal-pro-Run)](#20-meta-boosters-einmal-pro-run)
+21. [Charakter-Klassen](#21-charakter-klassen)
+22. [Waffen-Typen](#22-waffen-typen)
+23. [Charakter-Anpassung (Kosmetik)](#23-charakter-anpassung-kosmetik)
 
 ---
 
@@ -35,10 +38,11 @@ Biome wechseln alle **10 Stages** (= Boss-Intervall / Act-Grenze) und beeinfluss
 
 | Biome | Stages | Farbe | Gegner-Schwerpunkt | Hazard-Schwerpunkt | Besonderheit |
 |-------|--------|-------|--------------------|--------------------|--------------|
-| 🌿 **Jungle** | 1–10, 41–50, … | Grün | Dasher ×1.4 | Alles reduziert | Fallende Blätter, Glühwürmchen |
-| 🏜️ **Desert** | 11–20, 51–60, … | Orange | Tank ×1.5 | Spikes ×1.4, Arrow ×1.2 | Sandkörner, Hitze-Flimmern |
-| 🔥 **Wasteland** | 21–30, 61–70, … | Rot | Shooter ×1.2, Tank ×1.3 | Lava ×1.6, Arrow ×1.3 | Glut-Funken, Asche |
-| 🌊 **Depths** | 31–40, 71–80, … | Blau | Shooter ×1.5 | Arrow ×1.4 | Spieler -10% Speed, Blasen, Lichtpunkte |
+| 🌿 **Jungle** | 1–10, 51–60, … | Grün | Dasher ×1.4 | Alles reduziert | Fallende Blätter, Glühwürmchen |
+| 🌊 **Depths** | 11–20, 61–70, … | Blau | Shooter ×1.5 | Arrow ×1.4 | Spieler -10% Speed, Blasen, Lichtpunkte |
+| 🏜️ **Desert** | 21–30, 71–80, … | Orange | Tank ×1.5 | Spikes ×1.4, Arrow ×1.2 | Sandkörner, Hitze-Flimmern |
+| 🔥 **Wasteland** | 31–40, 81–90, … | Rot | Shooter ×1.2, Tank ×1.3 | Lava ×1.6, Arrow ×1.3 | Glut-Funken, Asche |
+| 🚀 **Spaceship** | 41–50, 91–100, … | Cyan | Shooter ×1.5, Dasher ×1.3 | Laser ×1.8, Laser Wall ×1.6 | Daten-Partikel, Funken, Schaltkreis-Böden |
 
 Jedes Biome hat eigene:
 - **Boden- & Wand-Farben** (Floor/Wall Tiles)
@@ -593,6 +597,7 @@ Ab **Stage 11** (Act 2) erscheinen Abgründe im Raum.
 ## 19. Loadout System
 
 Vor jedem Run wählt der Spieler sein Loadout:
+- **1 Waffe** — aus freigeschalteten Waffen (siehe [§22 Waffen-Typen](#22-waffen-typen))
 - **2 Ability-Slots** (Q + E) — aus freigeschalteten Abilities
 - **2 Proc-Slots** — aus freigeschalteten Passives
 
@@ -637,12 +642,14 @@ Ab **Stage 8** besteht eine **15% Chance**, dass nach dem Clearen eines Raumes e
 | 8 | ➡️ Arrow Traps, 🎲 Events möglich (12% Chance), Second Wave möglich |
 | 9 | 🟠 Tank Enemies |
 | 10 | 💪 **Boss 1 (The Brute)** + Shop, Pity-System prüft |
-| 11 | 🏜️ Desert Biome, 🕳️ Canyon Pits |
+| 11 | � Depths Biome (-10% Player Speed), 🕳️ Canyon Pits |
 | 20 | 🧙 **Boss 2 (The Warlock)** + Shop |
-| 21 | 🔥 Wasteland Biome |
+| 21 | 🏜️ Desert Biome |
 | 30 | 👻 **Boss 3 (The Phantom)** + Shop |
-| 31 | 🌊 Depths Biome (-10% Player Speed) |
+| 31 | 🔥 Wasteland Biome |
 | 40 | 🛡️ **Boss 4 (The Juggernaut)** + Shop |
+| 41 | 🚀 Spaceship Biome |
+| 50 | 💪 **Boss 5** + Shop |
 
 ### Act-Struktur
 
@@ -652,6 +659,106 @@ Ab **Stage 8** besteht eine **15% Chance**, dass nach dem Clearen eines Raumes e
 | **Act 2** (Identity) | 11–19 → Boss 20 | Build testen | 6→8 | +2 |
 | **Act 3** (Synergy) | 21–29 → Boss 30 | Synergie beweisen | 8→10 | +4 |
 | **Act 4** (Mastery) | 31–39 → Boss 40 | Meisterschaft | 10 (max) | +6 |
+| **Act 5** (Endurance) | 41–49 → Boss 50 | Grenzen austesten | 10 (max) | +6 |
+
+---
+
+## 21. Charakter-Klassen
+
+Klasse wird bei **Profil-Erstellung** gewählt und kann danach nicht geändert werden. Jede Klasse hat eigene Stat-Multiplikatoren und eine passive Fähigkeit.
+
+| Klasse | Farbe | HP-Mult | DMG-Mult | Speed-Mult | Passive |
+|--------|-------|---------|----------|------------|---------|
+| ⭐ **Adventurer** | Gold | ×1.0 | ×1.0 | ×1.0 | Heile 10% Max HP nach jedem geclarten Raum |
+| 🛡️ **Guardian** | Blau | ×1.2 | ×1.0 | ×0.9 | Auto-Shield: blockt 1 Hit, alle 20s aufladbar |
+| 🗡️ **Rogue** | Grün | ×0.85 | ×1.0 | ×1.15 | +15% Crit-Chance, Crits machen ×1.8 Schaden |
+| 💥 **Berserker** | Rot | ×0.9 | ×1.15 | ×1.0 | Unter 30% HP → +40% Schaden |
+
+**Default-Klasse:** Adventurer (für alte Profile ohne Klasse).
+
+### Passive Details
+
+- **Adventurer – Room Heal:** Nach jedem geclarten Raum wird 10% Max HP geheilt. Zuverlässige passive Heilung.
+- **Guardian – Auto-Shield:** Blockt den nächsten erlittenen Hit komplett (setzt Invulnerabilität statt Schaden). Cooldown: 20 Sekunden. Visuell: pulsierender blauer Ring + 🛡 Icon über dem Spieler.
+- **Rogue – Crit Bonus:** +15% auf die Basis-Crit-Chance (5% → 20%). Crits machen ×1.8 statt normalem Schaden. Stapelt mit Keen Eye-Nodes.
+- **Berserker – Rage:** Wenn HP unter 30% fällt, wird `berserkActive = true` → +40% Schadens-Multiplikator. Visuell: roter pulsierender Aura-Ring + rote Partikel.
+
+### Klassen-Emblem
+
+Jede Klasse hat ein kleines Emblem, das semi-transparent im Spieler-Kreis gezeichnet wird:
+- Adventurer: Kompass-Stern
+- Guardian: Schild-Form
+- Rogue: X Schrägstriche
+- Berserker: Flamme / Faust
+
+---
+
+## 22. Waffen-Typen
+
+Drei Waffen ändern das Verhalten des Melee-Angriffs. Ausgewählt im **Loadout-Screen** vor dem Run.
+
+Multiplikatoren werden auf die Basis-Werte angewendet und stapeln mit Klassen-Mults, Buffs und Nodes.
+
+| Waffe | Icon | Arc | Range | Cooldown | DMG-Mult | KB-Mult | Unlock | Besonderheit |
+|-------|------|-----|-------|----------|----------|---------|--------|--------------|
+| ⚔ **Sword** | ⚔ | 120° (×1.0) | 50px (×1.0) | 350ms (×1.0) | ×1.0 | ×1.0 | Immer | Ausgewogen, keine Schwächen |
+| 🔱 **Spear** | 🔱 | ~40° (×0.33) | 75px (×1.5) | ~400ms (×1.14) | ×1.1 | ×0.75 | Stage 10 | Enger Bogen, große Reichweite |
+| 🔨 **Hammer** | 🔨 | 360° (×3.0) | 35px (×0.7) | ~500ms (×1.43) | ×1.3 | ×1.75 | Stage 15 | Voller Kreis, langsam, massiver Knockback |
+
+### Waffen-Auswahl
+
+- Waffen-Auswahl ist **pro Run** (nicht im Profil gespeichert)
+- Gesperrte Waffen zeigen die Freischalt-Bedingung
+- Im Loadout-Screen als obere Sektion über den Abilities
+
+---
+
+## 23. Charakter-Anpassung (Kosmetik)
+
+Rein visuelle Optionen, die pro Profil auf dem **Characters-Screen** eingestellt werden.
+
+### Körperfarbe (C-Taste auf Profil-Screen)
+
+8 Farbpaletten — jede definiert Körper, Umriss, Dash- und Geister-Farbe:
+
+| Farbe | Body | Outline | Dash | Ghost |
+|-------|------|---------|------|-------|
+| 🔵 **Cyan** (Default) | `#4fc3f7` | `#2980b9` | `#b3e5fc` | `#4fc3f7` |
+| 🔴 **Crimson** | `#ef5350` | `#b71c1c` | `#ffcdd2` | `#ef5350` |
+| 🟢 **Emerald** | `#66bb6a` | `#2e7d32` | `#c8e6c9` | `#66bb6a` |
+| 🟡 **Gold** | `#ffd740` | `#f9a825` | `#fff9c4` | `#ffd740` |
+| 🟣 **Violet** | `#ce93d8` | `#7b1fa2` | `#f3e5f5` | `#ce93d8` |
+| ⚪ **White** | `#eceff1` | `#78909c` | `#ffffff` | `#eceff1` |
+| 🟠 **Orange** | `#ffa726` | `#e65100` | `#ffe0b2` | `#ffa726` |
+| 🧊 **Ice** | `#80deea` | `#00838f` | `#e0f7fa` | `#80deea` |
+
+### Hüte / Accessoires (H-Taste auf Profil-Screen)
+
+12 kosmetische Hüte, die auf dem Spieler-Kreis gezeichnet werden. Müssen freigeschaltet werden.
+
+| Hut | Unlock-Bedingung | Visuell |
+|-----|------------------|---------|
+| **None** | Immer | Kein Hut |
+| 🎀 **Bandana** | Stage 5 erreicht | Rotes Stirnband mit Schweif |
+| 👑 **Crown** | Stage 10 erreicht | Goldene Krone mit Juwelen |
+| 😈 **Horns** | Achievement: Boss Hunter (3 Bosse in 1 Run) | Braune gebogene Hörner |
+| 😇 **Halo** | Stage 20 erreicht | Pulsierender goldener Heiligenschein |
+| 🧙 **Wizard Hat** | Achievement: Centurion (100 Kills total) | Lila Spitzhut mit Stern |
+| 🦌 **Antlers** | Stage 30 erreicht | Verzweigte Geweihe |
+| 🦍 **Ape** | 🌿 Jungle-Biome abgeschlossen (Stage 10) | Braunes Fell, Augenbrauen, Ohren |
+| 🤿 **Diving Mask** | 🌊 Depths-Biome abgeschlossen (Stage 20) | Blaue Taucherbrille + Schnorchel |
+| 🧕 **Turban** | 🏜️ Desert-Biome abgeschlossen (Stage 30) | Cremefarbene Wicklung, Juwel, Feder |
+| ☣️ **Gas Mask** | 🔥 Wasteland-Biome abgeschlossen (Stage 40) | Dunkle Gläser, Filterkanister |
+| 🧑‍🚀 **Astronaut** | 🚀 Spaceship-Biome abgeschlossen (Stage 50) | Weißer Helm, goldenes Visier |
+
+### Profil-Daten
+
+Pro Profil gespeichert: `{ name, highscore, colorId, classId, hatId }`
+
+- `colorId` — Default: `'cyan'`
+- `classId` — Default: `'adventurer'` (gewählt bei Erstellung)
+- `hatId` — Default: `'none'`
+- Alte Profile ohne diese Felder werden automatisch migriert
 
 ---
 

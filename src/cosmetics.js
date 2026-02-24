@@ -231,6 +231,239 @@ export const PLAYER_HATS = [
             ctx.restore();
         },
     },
+    // ── Biome-unlocked hats ──────────────────────────────────
+    {
+        id: 'ape',
+        name: 'Ape',
+        unlockDesc: 'Complete the Jungle biome',
+        isUnlocked: (profile) => (profile.highscore || 0) >= 10,
+        render: (ctx, x, y, r, facing) => {
+            ctx.save();
+            ctx.translate(x, y);
+            // Shaggy brown fur tuft on top
+            ctx.fillStyle = '#5d4037';
+            const tufts = 7;
+            for (let i = 0; i < tufts; i++) {
+                const angle = -Math.PI * 0.8 + (Math.PI * 0.6 / (tufts - 1)) * i;
+                const bx = Math.cos(angle) * r * 0.6;
+                const by = Math.sin(angle) * r * 0.6 - r * 0.3;
+                ctx.beginPath();
+                ctx.ellipse(bx, by, r * 0.25, r * 0.45, angle + 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Brow ridge
+            ctx.strokeStyle = '#4e342e';
+            ctx.lineWidth = r * 0.18;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.1, r * 0.75, -2.5, -0.65);
+            ctx.stroke();
+            // Ears
+            ctx.fillStyle = '#6d4c41';
+            ctx.beginPath();
+            ctx.arc(-r * 1.0, -r * 0.15, r * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(r * 1.0, -r * 0.15, r * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            // Inner ear
+            ctx.fillStyle = '#d7ccc8';
+            ctx.beginPath();
+            ctx.arc(-r * 1.0, -r * 0.15, r * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(r * 1.0, -r * 0.15, r * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    },
+    {
+        id: 'diving_mask',
+        name: 'Diving Mask',
+        unlockDesc: 'Complete the Depths biome',
+        isUnlocked: (profile) => (profile.highscore || 0) >= 20,
+        render: (ctx, x, y, r, facing) => {
+            ctx.save();
+            ctx.translate(x, y);
+            // Mask frame (covers the face area)
+            ctx.strokeStyle = '#37474f';
+            ctx.lineWidth = r * 0.18;
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.85, -2.2, 0.5);
+            ctx.stroke();
+            // Glass lens (blue tint)
+            ctx.fillStyle = 'rgba(66,165,245,0.3)';
+            ctx.strokeStyle = '#546e7a';
+            ctx.lineWidth = r * 0.1;
+            ctx.beginPath();
+            ctx.ellipse(r * 0.15, -r * 0.05, r * 0.55, r * 0.45, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Snorkel tube
+            ctx.strokeStyle = '#455a64';
+            ctx.lineWidth = r * 0.15;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.7, -r * 0.3);
+            ctx.lineTo(-r * 0.9, -r * 0.9);
+            ctx.lineTo(-r * 0.75, -r * 1.4);
+            ctx.stroke();
+            // Snorkel top
+            ctx.fillStyle = '#42a5f5';
+            ctx.beginPath();
+            ctx.arc(-r * 0.75, -r * 1.4, r * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    },
+    {
+        id: 'turban',
+        name: 'Turban',
+        unlockDesc: 'Complete the Desert biome',
+        isUnlocked: (profile) => (profile.highscore || 0) >= 30,
+        render: (ctx, x, y, r, facing) => {
+            ctx.save();
+            ctx.translate(x, y);
+            // Main turban wrap
+            ctx.fillStyle = '#f5f5dc';
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.3, r * 1.05, Math.PI, 0);
+            ctx.fill();
+            // Wrap layers
+            ctx.strokeStyle = '#e0d8b0';
+            ctx.lineWidth = r * 0.08;
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.3, r * 0.95, -2.8, -0.34);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.3, r * 0.8, -2.6, -0.5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.25, r * 0.65, -2.5, -0.6);
+            ctx.stroke();
+            // Jewel in center
+            ctx.fillStyle = '#e53935';
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.75, r * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffd740';
+            ctx.lineWidth = r * 0.06;
+            ctx.stroke();
+            // Small feather
+            ctx.strokeStyle = '#fff9c4';
+            ctx.lineWidth = r * 0.06;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, -r * 0.92);
+            ctx.quadraticCurveTo(r * 0.2, -r * 1.5, r * 0.05, -r * 1.7);
+            ctx.stroke();
+            ctx.restore();
+        },
+    },
+    {
+        id: 'gasmask',
+        name: 'Gas Mask',
+        unlockDesc: 'Complete the Wasteland biome',
+        isUnlocked: (profile) => (profile.highscore || 0) >= 40,
+        render: (ctx, x, y, r, facing) => {
+            ctx.save();
+            ctx.translate(x, y);
+            // Mask body
+            ctx.fillStyle = '#455a64';
+            ctx.beginPath();
+            ctx.arc(0, r * 0.1, r * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            // Eye lenses (round, dark)
+            ctx.fillStyle = '#1a1a1a';
+            ctx.strokeStyle = '#607d8b';
+            ctx.lineWidth = r * 0.08;
+            ctx.beginPath();
+            ctx.arc(-r * 0.28, -r * 0.05, r * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(r * 0.28, -r * 0.05, r * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Lens reflections
+            ctx.fillStyle = 'rgba(144,202,249,0.3)';
+            ctx.beginPath();
+            ctx.arc(-r * 0.22, -r * 0.12, r * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(r * 0.34, -r * 0.12, r * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            // Filter canister
+            ctx.fillStyle = '#37474f';
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.15, r * 0.35);
+            ctx.lineTo(r * 0.15, r * 0.35);
+            ctx.lineTo(r * 0.2, r * 0.9);
+            ctx.lineTo(-r * 0.2, r * 0.9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#546e7a';
+            ctx.lineWidth = r * 0.06;
+            ctx.stroke();
+            // Filter canister ridges
+            ctx.strokeStyle = '#607d8b';
+            ctx.lineWidth = r * 0.04;
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.17, r * 0.55); ctx.lineTo(r * 0.17, r * 0.55);
+            ctx.moveTo(-r * 0.18, r * 0.7); ctx.lineTo(r * 0.18, r * 0.7);
+            ctx.stroke();
+            // Head strap
+            ctx.strokeStyle = '#37474f';
+            ctx.lineWidth = r * 0.1;
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.95, -2.3, -0.85);
+            ctx.stroke();
+            ctx.restore();
+        },
+    },
+    {
+        id: 'astronaut',
+        name: 'Astronaut',
+        unlockDesc: 'Complete the Spaceship biome',
+        isUnlocked: (profile) => (profile.highscore || 0) >= 50,
+        render: (ctx, x, y, r, facing) => {
+            ctx.save();
+            ctx.translate(x, y);
+            // Helmet dome (white, larger than head)
+            ctx.fillStyle = 'rgba(230,230,240,0.85)';
+            ctx.strokeStyle = '#b0bec5';
+            ctx.lineWidth = r * 0.12;
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.05, r * 1.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Visor (gold/orange tint, reflective)
+            ctx.fillStyle = 'rgba(255,183,77,0.5)';
+            ctx.strokeStyle = '#f9a825';
+            ctx.lineWidth = r * 0.08;
+            ctx.beginPath();
+            ctx.ellipse(r * 0.1, 0, r * 0.75, r * 0.6, 0.05, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Visor reflection streak
+            ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+            ctx.lineWidth = r * 0.1;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.25, -r * 0.3);
+            ctx.lineTo(r * 0.1, -r * 0.15);
+            ctx.stroke();
+            // Side ear covers
+            ctx.fillStyle = '#cfd8dc';
+            ctx.beginPath();
+            ctx.arc(-r * 1.15, r * 0.1, r * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(r * 1.15, r * 0.1, r * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        },
+    },
 ];
 
 export const DEFAULT_HAT_ID = 'none';

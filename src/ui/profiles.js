@@ -565,7 +565,7 @@ function _renderHatPickerOverlay(ctx, profile, cursor) {
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const bw = 460;
-    const bh = 470;
+    const bh = 540;
     const bx = (CANVAS_WIDTH - bw) / 2;
     const by = (CANVAS_HEIGHT - bh) / 2;
 
@@ -589,12 +589,12 @@ function _renderHatPickerOverlay(ctx, profile, cursor) {
 
     // ── Hat swatch grid ──
     const cols = 4;
-    const swatchSize = 80;
-    const gap = 12;
+    const swatchSize = 70;
+    const gap = 10;
     const rows = Math.ceil(PLAYER_HATS.length / cols);
     const gridW = cols * swatchSize + (cols - 1) * gap;
     const gridX = CANVAS_WIDTH / 2 - gridW / 2;
-    const gridY = by + 70;
+    const gridY = by + 65;
 
     const pColor = getColorById(profile.colorId);
 
