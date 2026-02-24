@@ -205,11 +205,11 @@ export function createEventState(eventType, context) {
         case EVENT_TRIAL:
             // Trial: show intro first, then game.js handles the timed challenge
             base.phase = 'choosing';
-            base.timeLimit = 15000;  // 15s survive timer
-            base.timeRemaining = 15000;
+            base.timeLimit = 18000;  // 18s survive timer
+            base.timeRemaining = 18000;
             base.succeeded = false;
             base.choices = [
-                { label: '⚔️ Accept the Trial — Survive 15s for a Forge Token', reward: 'start_trial', color: '#f44336' },
+                { label: '⚔️ Accept the Trial — Survive 18s for a Forge Token', reward: 'start_trial', color: '#f44336' },
                 { label: 'Decline — Skip this room', reward: null, color: '#666' },
             ];
             break;

@@ -2222,6 +2222,17 @@ export class Game {
                 es.phase = 'challenge';
                 es.cursor = 0;
                 this.trialActive = true;
+                // Spawn 2 extra enemies for the trial challenge
+                const extraCount = 2;
+                const { hp: hpBase, speed: spdBase, damage: dmgBase } = this._getEnemyScaling(this.stage);
+                const extraSpawns = getEnemySpawns(this.grid, this._currentSpawnPos, { col: this.door.col, row: this.door.row }, extraCount);
+                const extraTypes = this._getEnemyTypes(this.stage, extraCount, this.currentBiome);
+                for (let i = 0; i < extraSpawns.length; i++) {
+                    this.enemies.push(new Enemy(
+                        extraSpawns[i].x, extraSpawns[i].y,
+                        hpBase, spdBase, dmgBase, extraTypes[i], this.stage,
+                    ));
+                }
                 this.state = STATE_PLAYING;
                 return;
             }
