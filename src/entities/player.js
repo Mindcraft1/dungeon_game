@@ -725,7 +725,8 @@ export class Player {
         if (this.talentSpeedMult !== 1) spd *= this.talentSpeedMult;
         if (this.biomeSpeedMult !== 1.0) spd *= this.biomeSpeedMult;
         if (this.onLava) spd *= HAZARD_LAVA_SLOW;
-        if (this.onTar || this.tarLingerTimer > 0) spd *= HAZARD_TAR_SLOW;
+        // Skip tar slow while dashing so the player can dash over holes adjacent to tar
+        if (!this.dashing && (this.onTar || this.tarLingerTimer > 0)) spd *= HAZARD_TAR_SLOW;
         return spd;
     }
 
