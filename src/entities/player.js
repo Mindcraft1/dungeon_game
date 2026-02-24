@@ -32,6 +32,7 @@ export class Player {
         this.radius = PLAYER_RADIUS;
         this.speed = PLAYER_SPEED;
         this.maxHp = PLAYER_MAX_HP;
+        this._baseMaxHp = PLAYER_MAX_HP;   // pre-talent base HP (all sources except talent mult)
         this.hp = PLAYER_MAX_HP;
         this.damage = PLAYER_DAMAGE;
 
@@ -630,7 +631,8 @@ export class Player {
 
         switch (choice) {
             case 'hp':
-                this.maxHp += UPGRADE_HP;
+                this._baseMaxHp += UPGRADE_HP;
+                this.maxHp = Math.round(this._baseMaxHp * this.talentMaxHpMult);
                 this.hp = Math.min(this.hp + Math.floor(UPGRADE_HP * 0.6), this.maxHp);
                 break;
             case 'speed':

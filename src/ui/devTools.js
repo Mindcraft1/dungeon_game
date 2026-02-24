@@ -498,6 +498,7 @@ export function applyToPlayer(player) {
     if (devOverrides.playerMaxHp !== null) {
         const oldMax = player.maxHp;
         player.maxHp = devOverrides.playerMaxHp;
+        player._baseMaxHp = Math.round(player.maxHp / (player.talentMaxHpMult || 1));
         // Scale current HP proportionally
         if (oldMax > 0) player.hp = Math.min(player.hp, player.maxHp);
     }

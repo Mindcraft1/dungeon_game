@@ -421,7 +421,8 @@ export class Game {
                         this.player.level++;
                         this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
                         this.player.damage += 8;
-                        this.player.maxHp += 25;
+                        this.player._baseMaxHp += 25;
+                        this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
                         this.player.hp = this.player.maxHp;
                         this.player.speed += 15;
                     }
@@ -1503,6 +1504,7 @@ export class Game {
 
         // HP multiplier (perk)
         this.player.maxHp = Math.floor(this.player.maxHp * m.hpMultiplier);
+        this.player._baseMaxHp = this.player.maxHp;
         this.player.hp = this.player.maxHp;
         this.player.overHeal = 0;
 
@@ -1534,6 +1536,7 @@ export class Game {
 
         // Stat multipliers (applied to already-modified base stats)
         this.player.maxHp = Math.floor(this.player.maxHp * cls.hpMult);
+        this.player._baseMaxHp = this.player.maxHp;
         this.player.hp = this.player.maxHp;
         this.player.damage = Math.floor(this.player.damage * cls.damageMult);
         this.player.speed = Math.floor(this.player.speed * cls.speedMult);
@@ -2200,7 +2203,8 @@ export class Game {
         switch (id) {
             case 'run_item_max_hp_boost':
                 if (this.player) {
-                    this.player.maxHp += 15;
+                    this.player._baseMaxHp += 15;
+                    this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
                     this.player.hp = Math.min(this.player.hp + 15, this.player.maxHp);
                 }
                 break;
@@ -2423,9 +2427,12 @@ export class Game {
                 UpgradeEngine.applyNode(choice.nodeId, 'event');
                 // Apply curse if present
                 if (choice.curse === 'hp_reduce' && choice.curseAmount && this.player) {
-                    const reduce = Math.floor(this.player.maxHp * choice.curseAmount);
-                    this.player.maxHp = Math.max(20, this.player.maxHp - reduce);
+                    const oldMaxHp = this.player.maxHp;
+                    const baseReduce = Math.round(this.player._baseMaxHp * choice.curseAmount);
+                    this.player._baseMaxHp = Math.max(20, this.player._baseMaxHp - baseReduce);
+                    this.player.maxHp = Math.max(20, Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult));
                     this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+                    const reduce = oldMaxHp - this.player.maxHp;
                     showToast(`Curse: -${reduce} Max HP`, '#e91e63', '💀');
                 }
                 const nDef = getNodeDef(choice.nodeId);
@@ -4391,18 +4398,17 @@ export class Game {
         this.player.talentPickupRadiusMult   = m.pickupRadiusMult;
         this.player.talentCoinDropMult       = m.coinDropRateMult;
 
-        // Max HP: apply as ratio (track last applied talent HP mult)
-        const oldMult = this.player.talentMaxHpMult || 1;
+        // Max HP: recompute from stored base (no reverse-engineering)
         const newMult = m.maxHpMult;
-        if (newMult !== oldMult) {
-            // Remove old talent bonus, apply new one
-            const baseHp = Math.round(this.player.maxHp / oldMult);
-            this.player.maxHp = Math.floor(baseHp * newMult);
-            this.player.hp = Math.min(this.player.hp, this.player.maxHp);
-            // Heal the amount of new HP gained
-            const hpGain = this.player.maxHp - Math.floor(baseHp * oldMult);
+        const oldMaxHp = this.player.maxHp;
+        const newMaxHp = Math.round(this.player._baseMaxHp * newMult);
+        if (newMaxHp !== oldMaxHp) {
+            this.player.maxHp = newMaxHp;
+            const hpGain = newMaxHp - oldMaxHp;
             if (hpGain > 0) {
                 this.player.hp = Math.min(this.player.hp + hpGain, this.player.maxHp);
+            } else {
+                this.player.hp = Math.min(this.player.hp, this.player.maxHp);
             }
         }
         this.player.talentMaxHpMult = newMult;
@@ -4775,7 +4781,8 @@ export class Game {
         // Apply permanent reward
         switch (choice) {
             case 'hp':
-                this.player.maxHp += BOSS_REWARD_HP;
+                this.player._baseMaxHp += BOSS_REWARD_HP;
+                this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
                 break;
             case 'damage':
                 this.player.damage += BOSS_REWARD_DAMAGE;
