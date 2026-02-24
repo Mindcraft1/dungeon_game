@@ -191,91 +191,7 @@ const BIOMES = [
         },
     },
 
-    // ── 3. WASTELAND (Stages 11–15, 31–35, …) ─────────────
-    {
-        id:   BIOME_WASTELAND,
-        name: 'Wasteland',
-        nameColor: '#ef5350',
-
-        floorColor: '#1e1a1a',
-        wallColor:  '#4a3535',
-        wallLight:  '#5a4545',
-        wallDark:   '#3a2525',
-        gridTint:   'rgba(255,100,50,0.03)',
-
-        enemyWeights: {
-            basic: 0.8, shooter: 1.2, dasher: 1.1, tank: 1.3,
-        },
-        hazardWeights: {
-            spikes: 1.0, lava: 1.6, arrow: 1.3, tar: 1.4,
-        },
-        playerSpeedMult: 1.0,
-
-        ambientParticles: {
-            // Rising ember sparks
-            embers: { rate: 0.14, colors: ['#ff6b35', '#ff4500', '#ff8c00', '#e25822'], sizeMin: 1, sizeMax: 2.5 },
-            // Falling ash flakes
-            ash: { rate: 0.08, colors: ['#666', '#777', '#555'], sizeMin: 1.5, sizeMax: 3 },
-        },
-
-        floorDecor: {
-            chance: 0.12,
-            types: [
-                { shape: 'scorch', color: '#2a1a1a', colorAlt: '#3a2020', weight: 3 },
-                { shape: 'crack',  color: '#3a2525', weight: 3 },
-                { shape: 'debris', color: '#4a3535', weight: 2 },
-            ],
-        },
-
-        wallDecor: {
-            chance: 0.22,
-            types: [
-                { shape: 'glowCrack', color: '#ff4500', colorAlt: '#ff6b35', weight: 3 },
-                { shape: 'crack',     color: '#3a2525', weight: 2 },
-            ],
-        },
-
-        atmosphere: {
-            tintColor: 'rgba(200,60,30,0.05)',
-            vignetteColor: 'rgba(30,5,0,0.40)',
-            vignetteSize: 0.35,
-        },
-
-        // ── Boss appearance per type ──
-        bossTheme: {
-            brute: {
-                body: '#c62828',       // crimson
-                stroke: '#7f0000',
-                eyes: '#ff8a65',
-                eyesFlash: '#ff5722',
-                chargeAura: '#ff4444',
-            },
-            warlock: {
-                body: '#7b1fa2',       // deep purple fire
-                stroke: '#4a0072',
-                innerEye: '#ff8a80',
-                innerEyeFlash: '#ff5252',
-                pupil: '#1a0020',
-                orbit: '#e040fb',
-            },
-            phantom: {
-                body: '#e65100',       // ember orange
-                stroke: '#bf360c',
-                glow: '#ffccbc',
-                afterimage: '#e65100',
-            },
-            juggernaut: {
-                body: '#b71c1c',       // molten red
-                stroke: '#7f0000',
-                armor: '#d32f2f',
-                armorLight: '#ef5350',
-                viewport: '#ffab00',
-                viewportGlow: '#ffd740',
-            },
-        },
-    },
-
-    // ── 4. DESERT (Stages 16–20, 36–40, …) ─────────────────
+    // ── 3. DESERT (Stages 11–15, 31–35, …) ─────────────────
     {
         id:   BIOME_DESERT,
         name: 'Desert',
@@ -355,6 +271,90 @@ const BIOMES = [
                 armorLight: '#c68a17',
                 viewport: '#ff3d00',
                 viewportGlow: '#ff6e40',
+            },
+        },
+    },
+
+    // ── 4. WASTELAND (Stages 16–20, 36–40, …) ─────────────
+    {
+        id:   BIOME_WASTELAND,
+        name: 'Wasteland',
+        nameColor: '#ef5350',
+
+        floorColor: '#1e1a1a',
+        wallColor:  '#4a3535',
+        wallLight:  '#5a4545',
+        wallDark:   '#3a2525',
+        gridTint:   'rgba(255,100,50,0.03)',
+
+        enemyWeights: {
+            basic: 0.8, shooter: 1.2, dasher: 1.1, tank: 1.3,
+        },
+        hazardWeights: {
+            spikes: 1.0, lava: 1.6, arrow: 1.3, tar: 1.4,
+        },
+        playerSpeedMult: 1.0,
+
+        ambientParticles: {
+            // Rising ember sparks
+            embers: { rate: 0.14, colors: ['#ff6b35', '#ff4500', '#ff8c00', '#e25822'], sizeMin: 1, sizeMax: 2.5 },
+            // Falling ash flakes
+            ash: { rate: 0.08, colors: ['#666', '#777', '#555'], sizeMin: 1.5, sizeMax: 3 },
+        },
+
+        floorDecor: {
+            chance: 0.12,
+            types: [
+                { shape: 'scorch', color: '#2a1a1a', colorAlt: '#3a2020', weight: 3 },
+                { shape: 'crack',  color: '#3a2525', weight: 3 },
+                { shape: 'debris', color: '#4a3535', weight: 2 },
+            ],
+        },
+
+        wallDecor: {
+            chance: 0.22,
+            types: [
+                { shape: 'glowCrack', color: '#ff4500', colorAlt: '#ff6b35', weight: 3 },
+                { shape: 'crack',     color: '#3a2525', weight: 2 },
+            ],
+        },
+
+        atmosphere: {
+            tintColor: 'rgba(200,60,30,0.05)',
+            vignetteColor: 'rgba(30,5,0,0.40)',
+            vignetteSize: 0.35,
+        },
+
+        // ── Boss appearance per type ──
+        bossTheme: {
+            brute: {
+                body: '#c62828',       // crimson
+                stroke: '#7f0000',
+                eyes: '#ff8a65',
+                eyesFlash: '#ff5722',
+                chargeAura: '#ff4444',
+            },
+            warlock: {
+                body: '#7b1fa2',       // deep purple fire
+                stroke: '#4a0072',
+                innerEye: '#ff8a80',
+                innerEyeFlash: '#ff5252',
+                pupil: '#1a0020',
+                orbit: '#e040fb',
+            },
+            phantom: {
+                body: '#e65100',       // ember orange
+                stroke: '#bf360c',
+                glow: '#ffccbc',
+                afterimage: '#e65100',
+            },
+            juggernaut: {
+                body: '#b71c1c',       // molten red
+                stroke: '#7f0000',
+                armor: '#d32f2f',
+                armorLight: '#ef5350',
+                viewport: '#ffab00',
+                viewportGlow: '#ffd740',
             },
         },
     },
