@@ -57,6 +57,7 @@ import * as Music from './music.js';
 import { getBiomeForStage } from './biomes.js';
 import { getColorById, PLAYER_COLORS } from './cosmetics.js';
 import { getClassById, CLASS_DEFINITIONS, DEFAULT_CLASS_ID, renderClassEmblem } from './classes.js';
+import { getWeaponById, WEAPON_ORDER, WEAPON_DEFINITIONS, DEFAULT_WEAPON_ID, isWeaponUnlocked } from './weapons.js';
 
 // ── Meta Progression ──
 import * as MetaStore from './meta/metaStore.js';
@@ -292,6 +293,7 @@ export class Game {
         this.loadoutAbilities = [];   // selected ability IDs (max 2)
         this.loadoutProcs = [];       // selected proc IDs (max 2)
         this.loadoutRejectFlash = 0;  // ms remaining for "full" feedback
+        this.selectedWeaponId = DEFAULT_WEAPON_ID;  // weapon chosen on loadout screen
     }
 
     // ── Profile helpers ─────────────────────────────────────
@@ -599,6 +601,9 @@ export class Game {
         // ── Class stat multipliers ──
         this._applyClassModifiers();
 
+        // ── Weapon modifiers ──
+        this._applyWeaponModifiers();
+
         // ── Shop System: reset run state & apply meta booster ──
         this.runCoins = 0;
         this.runShopDamageMult = 1;
@@ -670,6 +675,7 @@ export class Game {
         this.controlsHintTimer = 6000;
         this._loadConfiguredTrainingRoom();
         this._applyClassModifiers();
+        this._applyWeaponModifiers();
         this.state = STATE_PLAYING;
     }
 
@@ -1280,6 +1286,11 @@ export class Game {
         const loadout = sanitizeLoadout(meta.selectedLoadout || { abilities: ['shockwave'], procs: ['explosive_strikes'] }, meta);
         this.loadoutAbilities = [...loadout.abilities];
         this.loadoutProcs = [...loadout.procs];
+        // Restore saved weapon or default
+        this.selectedWeaponId = (meta.selectedLoadout && meta.selectedLoadout.weaponId) || DEFAULT_WEAPON_ID;
+        // Validate weapon is still unlocked
+        const hs = this.activeProfile ? this.activeProfile.highscore : 0;
+        if (!isWeaponUnlocked(this.selectedWeaponId, hs)) this.selectedWeaponId = DEFAULT_WEAPON_ID;
         this.loadoutCursor = TOTAL_LOADOUT_ITEMS - 1; // cursor on START
         this.loadoutRejectFlash = 0;
         this.state = STATE_LOADOUT;
@@ -1288,6 +1299,36 @@ export class Game {
     _updateLoadout() {
         const totalItems = TOTAL_LOADOUT_ITEMS; // abilities + procs + START button
         const startIdx = totalItems - 1;
+
+        // ── Mouse click on weapon cards ──
+        // Check BEFORE other mouse logic; set flag to prevent toggle/start fallthrough.
+        let weaponClicked = false;
+        {
+            const centerX = CANVAS_WIDTH / 2;
+            const cardW = 160;
+            const cardH = 34;
+            const gap = 12;
+            const weapY = 106 - 4;  // card top y (matches loadoutScreen render)
+            const totalW = WEAPON_ORDER.length * cardW + (WEAPON_ORDER.length - 1) * gap;
+            const startX = centerX - totalW / 2;
+            const mp = getMousePos();
+            const hs = this.activeProfile ? this.activeProfile.highscore : 0;
+
+            if (wasMousePressed(0) && mp.y >= weapY && mp.y <= weapY + cardH) {
+                weaponClicked = true;
+                for (let i = 0; i < WEAPON_ORDER.length; i++) {
+                    const cx = startX + i * (cardW + gap);
+                    if (mp.x >= cx && mp.x <= cx + cardW) {
+                        const id = WEAPON_ORDER[i];
+                        if (isWeaponUnlocked(id, hs) && id !== this.selectedWeaponId) {
+                            this.selectedWeaponId = id;
+                            Audio.playMenuNav();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
 
         // Navigation
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
@@ -1298,10 +1339,10 @@ export class Game {
             this.loadoutCursor = (this.loadoutCursor + 1) % totalItems;
             Audio.playMenuNav();
         }
-        // Mouse hover (loadout: abilities at 155, procs follow, spacing=40, START at end)
-        const _loAbStartY = 155;
-        const _loSpacing = 40;
-        const _lomh = getMenuHover(_loAbStartY, totalItems, _loSpacing, 34, 400);
+        // Mouse hover (loadout: abilities start at 195 (after weapon section), procs follow, spacing=40, START at end)
+        const _loAbStartY = 174;
+        const _loSpacing = 34;
+        const _lomh = getMenuHover(_loAbStartY, totalItems, _loSpacing, 30, 400);
         if (_lomh >= 0 && _lomh !== this.loadoutCursor) { this.loadoutCursor = _lomh; Audio.playMenuNav(); }
 
         // Escape or RMB → back to menu
@@ -1311,18 +1352,30 @@ export class Game {
             return;
         }
 
+        // ── Weapon cycling (A/D or Left/Right) ──
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this._cycleWeapon(-1);
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this._cycleWeapon(1);
+        }
+
         // Toggle selection (Space, Enter, or Click on a non-start item)
-        const togglePressed = (wasPressed('Space') && this.loadoutCursor !== startIdx) || (wasPressed('Enter') && this.loadoutCursor !== startIdx) || (wasMousePressed(0) && this.loadoutCursor !== startIdx);
+        const togglePressed = (wasPressed('Space') && this.loadoutCursor !== startIdx) || (wasPressed('Enter') && this.loadoutCursor !== startIdx) || (!weaponClicked && wasMousePressed(0) && this.loadoutCursor !== startIdx);
         if (togglePressed && this.loadoutCursor < startIdx) {
             this._loadoutToggle(this.loadoutCursor);
         }
 
         // Confirm (Enter, Space, or Click on START)
-        if (((wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) && this.loadoutCursor === startIdx)) {
+        if (((wasPressed('Enter') || wasPressed('Space') || (!weaponClicked && wasMousePressed(0))) && this.loadoutCursor === startIdx)) {
             if (this.loadoutAbilities.length >= 1) {
-                // Save loadout to meta
+                // Save loadout to meta (including weapon)
                 const meta = MetaStore.getState();
-                meta.selectedLoadout = { abilities: [...this.loadoutAbilities], procs: [...this.loadoutProcs] };
+                meta.selectedLoadout = {
+                    abilities: [...this.loadoutAbilities],
+                    procs: [...this.loadoutProcs],
+                    weaponId: this.selectedWeaponId,
+                };
                 MetaStore.save();
                 Audio.playMenuSelect();
                 this._startGame();
@@ -1378,6 +1431,22 @@ export class Game {
         }
     }
 
+    /** Cycle weapon selection by delta (-1 or +1), skipping locked weapons. */
+    _cycleWeapon(delta) {
+        const hs = this.activeProfile ? this.activeProfile.highscore : 0;
+        const curIdx = WEAPON_ORDER.indexOf(this.selectedWeaponId);
+        const len = WEAPON_ORDER.length;
+        for (let i = 1; i <= len; i++) {
+            const nextIdx = (curIdx + delta * i + len) % len;
+            const nextId = WEAPON_ORDER[nextIdx];
+            if (isWeaponUnlocked(nextId, hs)) {
+                this.selectedWeaponId = nextId;
+                Audio.playMenuNav();
+                return;
+            }
+        }
+    }
+
     /** Equip abilities/procs from the saved loadout in metaState. */
     _equipSavedLoadout() {
         const meta = MetaStore.getState();
@@ -1389,6 +1458,10 @@ export class Game {
         this.procSystem.reset();
         loadout.abilities.forEach((id, i) => this.abilitySystem.equip(i, id));
         loadout.procs.forEach((id, i) => this.procSystem.equip(i, id));
+        // Restore weapon selection for training etc.
+        if (meta.selectedLoadout && meta.selectedLoadout.weaponId) {
+            this.selectedWeaponId = meta.selectedLoadout.weaponId;
+        }
     }
 
     // ── Meta Progression helpers ──────────────────────────────
@@ -1458,6 +1531,22 @@ export class Game {
             // Adventurer: heal % of max HP after each room clear
             this.player.adventurerHealPercent = passive.healPercent;
         }
+    }
+
+    /**
+     * Apply weapon multipliers to the player at run start.
+     * Reads selectedWeaponId from game state (set via loadout screen).
+     */
+    _applyWeaponModifiers() {
+        if (!this.player) return;
+        const wep = getWeaponById(this.selectedWeaponId);
+        this.player.weaponId = wep.id;
+        this.player.weaponArcMult = wep.arcMult;
+        this.player.weaponRangeMult = wep.rangeMult;
+        this.player.weaponCooldownMult = wep.cooldownMult;
+        this.player.weaponDamageMult = wep.damageMult;
+        this.player.weaponKnockbackMult = wep.knockbackMult;
+        this.player.weaponColor = wep.color;
     }
 
     /** Open meta menu from any screen. */
@@ -4608,7 +4697,8 @@ export class Game {
 
         if (this.state === STATE_LOADOUT) {
             const meta = MetaStore.getState();
-            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, meta, this.loadoutRejectFlash);
+            const hs = this.activeProfile ? this.activeProfile.highscore : 0;
+            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, meta, this.loadoutRejectFlash, this.selectedWeaponId, hs);
             this._renderCheatNotifications(ctx);
             return;
         }

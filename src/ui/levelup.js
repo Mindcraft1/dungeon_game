@@ -174,18 +174,19 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         }
     }
 
-    // ── Active Effects (two-column layout) ──
+    // ── Active Effects (adaptive multi-column layout) ──
     if (hasEffects) {
         const panelTop = Math.max(summaryY + 10, 210);
         const panelBottom = CANVAS_HEIGHT - 50;
         const panelH = panelBottom - panelTop;
+        const panelMargin = 20;
 
         // Panel background
         ctx.fillStyle = 'rgba(20,20,35,0.7)';
-        ctx.fillRect(30, panelTop - 6, CANVAS_WIDTH - 60, panelH + 12);
+        ctx.fillRect(panelMargin, panelTop - 6, CANVAS_WIDTH - panelMargin * 2, panelH + 12);
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(30, panelTop - 6, CANVAS_WIDTH - 60, panelH + 12);
+        ctx.strokeRect(panelMargin, panelTop - 6, CANVAS_WIDTH - panelMargin * 2, panelH + 12);
 
         // Header
         ctx.fillStyle = '#888';
@@ -196,58 +197,82 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         // Clip for effects
         ctx.save();
         ctx.beginPath();
-        ctx.rect(32, panelTop + 14, CANVAS_WIDTH - 64, panelH - 18);
+        ctx.rect(panelMargin + 2, panelTop + 14, CANVAS_WIDTH - panelMargin * 2 - 4, panelH - 18);
         ctx.clip();
 
-        // Render effects in two columns
-        const colW = (CANVAS_WIDTH - 80) / 2;
-        const col1X = 42;
-        const col2X = 42 + colW + 10;
-        const rowH = 26;
+        // Adaptive column/row sizing based on effect count
+        const contentW = CANVAS_WIDTH - panelMargin * 2 - 20;
+        const availableH = panelH - 22;
+        const effectCount = activeEffects.length;
+
+        // Estimate unique categories for overhead rows
+        const uniqueCats = new Set(activeEffects.map(fx => fx.category)).size;
+        const catOverhead = uniqueCats * 0.7; // category headers add ~0.7 rows each per column
+
+        // Decide layout: compact (no descriptions) if effects won't fit 2 cols
+        const normalRowH = 26;
+        const compactRowH = 14;
+        const normalMaxPerCol = Math.floor(availableH / normalRowH);
+        const normalCapacity = normalMaxPerCol * 2 - catOverhead * 2;
+
+        const compact = effectCount > normalCapacity;
+        const rowH = compact ? compactRowH : normalRowH;
+        const maxRowsPerCol = Math.floor(availableH / rowH);
+
+        // Calculate number of columns needed (2–5)
+        let numCols = 2;
+        if (compact) {
+            const effPerCol = maxRowsPerCol - catOverhead;
+            numCols = Math.min(5, Math.max(2, Math.ceil(effectCount / Math.max(1, effPerCol))));
+        }
+
+        const colGap = 8;
+        const colW = (contentW - colGap * (numCols - 1)) / numCols;
+        const baseX = panelMargin + 10;
+
         let col = 0;
         let row = 0;
-        const maxRows = Math.floor((panelH - 22) / rowH);
-        let lastCat = ['', ''];
+        let lastCat = Array(numCols).fill('');
 
         for (const fx of activeEffects) {
-            const x = col === 0 ? col1X : col2X;
-            const y = panelTop + 20 + row * rowH;
+            const x = baseX + col * (colW + colGap);
 
             // Category header
             if (fx.category !== lastCat[col]) {
                 if (row > 0) row += 0.2;
                 const catY = panelTop + 20 + row * rowH;
-                if (row < maxRows) {
+                if (row < maxRowsPerCol) {
                     ctx.fillStyle = '#666';
-                    ctx.font = 'bold 7px monospace';
+                    ctx.font = compact ? 'bold 6px monospace' : 'bold 7px monospace';
                     ctx.textAlign = 'left';
-                    ctx.fillText(fx.category.toUpperCase(), x, catY + 7);
+                    ctx.fillText(fx.category.toUpperCase(), x, catY + (compact ? 5 : 7));
                 }
-                row += 0.5;
+                row += compact ? 0.4 : 0.5;
                 lastCat[col] = fx.category;
             }
 
-            if (row >= maxRows) {
-                if (col === 0) {
-                    col = 1;
+            if (row >= maxRowsPerCol) {
+                if (col < numCols - 1) {
+                    col++;
                     row = 0;
-                    lastCat[1] = '';
+                    lastCat[col] = '';
                     continue;
                 }
-                break;
+                break; // all columns full
             }
 
             const fy = panelTop + 20 + row * rowH;
 
-            // Icon + name
+            // Icon
             ctx.fillStyle = fx.color;
-            ctx.font = '8px monospace';
+            ctx.font = compact ? '7px monospace' : '8px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(fx.icon, x, fy + 8);
+            ctx.fillText(fx.icon, x, fy + (compact ? 6 : 8));
 
+            // Name
             ctx.fillStyle = '#bbb';
-            ctx.font = '8px monospace';
-            const maxNameW = colW - 20;
+            ctx.font = compact ? '7px monospace' : '8px monospace';
+            const maxNameW = colW - 16;
             let nameStr = fx.name;
             if (ctx.measureText(nameStr).width > maxNameW) {
                 while (nameStr.length > 0 && ctx.measureText(nameStr + '…').width > maxNameW) {
@@ -255,13 +280,13 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
                 }
                 nameStr += '…';
             }
-            ctx.fillText(nameStr, x + 14, fy + 8);
+            ctx.fillText(nameStr, x + 12, fy + (compact ? 6 : 8));
 
-            // Description — show what the effect actually does
-            if (fx.desc) {
+            // Description — only in non-compact mode
+            if (!compact && fx.desc) {
                 ctx.fillStyle = '#777';
                 ctx.font = '7px monospace';
-                const maxDescW = colW - 20;
+                const maxDescW = colW - 16;
                 let descStr = fx.desc;
                 if (ctx.measureText(descStr).width > maxDescW) {
                     while (descStr.length > 0 && ctx.measureText(descStr + '…').width > maxDescW) {
@@ -269,7 +294,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
                     }
                     descStr += '…';
                 }
-                ctx.fillText(descStr, x + 14, fy + 18);
+                ctx.fillText(descStr, x + 12, fy + 18);
             }
 
             row++;

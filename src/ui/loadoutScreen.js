@@ -11,6 +11,7 @@ import {
     isAbilityUnlocked, isProcUnlocked,
 } from '../combat/combatUnlocks.js';
 import { getUnlockSummary } from '../unlocks/unlockMap.js';
+import { WEAPON_ORDER, WEAPON_DEFINITIONS, isWeaponUnlocked } from '../weapons.js';
 
 /**
  * Render the loadout selection screen.
@@ -20,8 +21,10 @@ import { getUnlockSummary } from '../unlocks/unlockMap.js';
  * @param {string[]} selectedProcs      – selected proc IDs (max 2, ordered 1/2)
  * @param {object}   meta               – full metaState (has .unlockedAbilities, .unlockedProcs, .stats)
  * @param {number}   rejectFlash        – ms remaining for "slot full" flash (0 = off)
+ * @param {string}   selectedWeaponId   – currently selected weapon ID
+ * @param {number}   profileHighscore   – active profile highscore (for unlock checks)
  */
-export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, meta, rejectFlash) {
+export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, meta, rejectFlash, selectedWeaponId, profileHighscore) {
     // ── Background ──
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -45,25 +48,28 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.shadowColor = '#ff9800';
     ctx.shadowBlur = 15 * glow;
     ctx.fillStyle = '#ff9800';
-    ctx.font = 'bold 32px monospace';
-    ctx.fillText('⚔  LOADOUT  ⚔', CANVAS_WIDTH / 2, 55);
+    ctx.font = 'bold 28px monospace';
+    ctx.fillText('⚔  LOADOUT  ⚔', CANVAS_WIDTH / 2, 38);
     ctx.restore();
 
     ctx.fillStyle = '#666';
-    ctx.font = '12px monospace';
-    ctx.fillText('Choose abilities & passives for your run', CANVAS_WIDTH / 2, 76);
+    ctx.font = '11px monospace';
+    ctx.fillText('Choose abilities & passives for your run', CANVAS_WIDTH / 2, 56);
 
     // ── Current loadout summary strip ──
-    _renderSummaryStrip(ctx, selectedAbilities, selectedProcs);
+    _renderSummaryStrip(ctx, selectedAbilities, selectedProcs, selectedWeaponId);
+
+    // ── WEAPON section ──
+    _renderWeaponSelector(ctx, selectedWeaponId, profileHighscore || 0);
 
     // ── ABILITIES section ──
     ctx.fillStyle = '#4fc3f7';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('── ACTIVE ABILITIES ──  (max 2)', CANVAS_WIDTH / 2, 128);
+    ctx.fillText('── ACTIVE ABILITIES ──  (max 2)', CANVAS_WIDTH / 2, 156);
 
-    const abilityStartY = 155;
-    const itemSpacing = 40;
+    const abilityStartY = 174;
+    const itemSpacing = 34;
 
     for (let i = 0; i < ABILITY_ORDER.length; i++) {
         const id = ABILITY_ORDER[i];
@@ -78,13 +84,13 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     }
 
     // ── PASSIVES section ──
-    const procHeaderY = abilityStartY + ABILITY_ORDER.length * itemSpacing + 14;
+    const procHeaderY = abilityStartY + ABILITY_ORDER.length * itemSpacing + 10;
     ctx.fillStyle = '#ff9800';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('── PASSIVE EFFECTS ──  (max 2)', CANVAS_WIDTH / 2, procHeaderY);
 
-    const procStartY = procHeaderY + 27;
+    const procStartY = procHeaderY + 22;
 
     for (let i = 0; i < PROC_ORDER.length; i++) {
         const id = PROC_ORDER[i];
@@ -101,7 +107,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     // ── START RUN button ──
     const startIdx = ABILITY_ORDER.length + PROC_ORDER.length;
     const isStartCursor = cursor === startIdx;
-    const startY = procStartY + PROC_ORDER.length * itemSpacing + 26;
+    const startY = procStartY + PROC_ORDER.length * itemSpacing + 18;
     const canStart = selectedAbilities.length >= 1;
 
     // ── Unlock progress hint ──
@@ -144,20 +150,25 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('W/S Navigate  ·  Click/SPACE Select  ·  ENTER Start  ·  ESC/RMB Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
+    ctx.fillText('W/S Navigate  ·  A/D Weapon  ·  Click/SPACE Select  ·  ENTER Start  ·  ESC/RMB Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
 
     ctx.textAlign = 'left';
 }
 
 // ── Internal helpers ──────────────────────────────────────
 
-function _renderSummaryStrip(ctx, abilities, procs) {
-    const y = 96;
+function _renderSummaryStrip(ctx, abilities, procs, weaponId) {
+    const y = 72;
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
 
     // Build summary
     const parts = [];
+
+    // Weapon
+    const wep = WEAPON_DEFINITIONS[weaponId] || WEAPON_DEFINITIONS.sword;
+    parts.push({ text: `${wep.icon} ${wep.name}`, color: wep.color });
+
     const slotLabels = ['Q', 'E'];
     for (let i = 0; i < 2; i++) {
         const id = abilities[i];
@@ -190,6 +201,86 @@ function _renderSummaryStrip(ctx, abilities, procs) {
         x += ctx.measureText(p.text).width + 18;
     }
     ctx.textAlign = 'center';
+}
+
+/** Render the weapon selector strip between summary and abilities. */
+function _renderWeaponSelector(ctx, selectedWeaponId, highscore) {
+    const y = 106;
+    const centerX = CANVAS_WIDTH / 2;
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff9800';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('── WEAPON ──  (A/D to change)', centerX, y - 14);
+
+    // Draw weapon cards side by side
+    const cardW = 160;
+    const cardH = 34;
+    const gap = 12;
+    const totalW = WEAPON_ORDER.length * cardW + (WEAPON_ORDER.length - 1) * gap;
+    let startX = centerX - totalW / 2;
+
+    for (let i = 0; i < WEAPON_ORDER.length; i++) {
+        const id = WEAPON_ORDER[i];
+        const def = WEAPON_DEFINITIONS[id];
+        const unlocked = isWeaponUnlocked(id, highscore);
+        const selected = id === selectedWeaponId;
+        const cx = startX + i * (cardW + gap);
+
+        // Card background
+        if (selected) {
+            ctx.fillStyle = 'rgba(255,152,0,0.10)';
+            ctx.fillRect(cx, y - 4, cardW, cardH);
+            ctx.strokeStyle = def.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cx, y - 4, cardW, cardH);
+        } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.02)';
+            ctx.fillRect(cx, y - 4, cardW, cardH);
+            ctx.strokeStyle = unlocked ? '#333' : '#222';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx, y - 4, cardW, cardH);
+        }
+
+        const midX = cx + cardW / 2;
+
+        if (unlocked) {
+            // Icon + Name
+            ctx.fillStyle = selected ? def.color : '#888';
+            ctx.font = `${selected ? 'bold ' : ''}13px monospace`;
+            ctx.fillText(`${def.icon} ${def.name}`, midX, y + 12);
+
+            // Stat hint — compact ▲/▼ format so it fits in card
+            ctx.fillStyle = selected ? '#aaa' : '#555';
+            ctx.font = '9px monospace';
+            const hints = [];
+            if (def.arcMult !== 1) hints.push(`${def.arcMult > 1 ? '▲' : '▼'}Arc`);
+            if (def.rangeMult !== 1) hints.push(`${def.rangeMult > 1 ? '▲' : '▼'}Rng`);
+            if (def.damageMult !== 1) hints.push(`${def.damageMult > 1 ? '▲' : '▼'}Dmg`);
+            if (def.cooldownMult !== 1) hints.push(`${def.cooldownMult > 1 ? '▲' : '▼'}Spd`);
+            if (def.knockbackMult !== 1) hints.push(`${def.knockbackMult > 1 ? '▲' : '▼'}KB`);
+            if (hints.length === 0) hints.push('Balanced');
+            ctx.fillText(hints.join(' '), midX, y + 26);
+
+            if (selected) {
+                // Small triangle indicator
+                ctx.fillStyle = def.color;
+                ctx.beginPath();
+                ctx.moveTo(midX, y - 8);
+                ctx.lineTo(midX - 4, y - 13);
+                ctx.lineTo(midX + 4, y - 13);
+                ctx.fill();
+            }
+        } else {
+            // Locked
+            ctx.fillStyle = '#444';
+            ctx.font = '13px monospace';
+            ctx.fillText(`🔒 ${def.name}`, midX, y + 12);
+            ctx.fillStyle = '#383838';
+            ctx.font = '9px monospace';
+            ctx.fillText(`Reach Stage ${def.unlock.value}`, midX, y + 26);
+        }
+    }
 }
 
 function _renderRow(ctx, def, unlocked, selected, isCursor, y, meta, type, slotIndex, rejectFlash) {

@@ -117,6 +117,15 @@ export class Player {
         this.berserkThreshold = 0;            // HP% threshold (0-1)
         this.berserkDamageBuff = 0;           // bonus damage multiplier (0-1)
         this.berserkActive = false;           // currently in berserk state?
+
+        // ── Weapon system (set by game.js from loadout) ──
+        this.weaponId = 'sword';              // equipped weapon ID
+        this.weaponArcMult = 1;               // multiplier on ATTACK_ARC
+        this.weaponRangeMult = 1;             // multiplier on ATTACK_RANGE
+        this.weaponCooldownMult = 1;          // multiplier on ATTACK_COOLDOWN
+        this.weaponDamageMult = 1;            // multiplier on melee damage
+        this.weaponKnockbackMult = 1;         // multiplier on ATTACK_KNOCKBACK
+        this.weaponColor = '#90caf9';         // theme color for attack arc
     }
 
     /**
@@ -322,22 +331,22 @@ export class Player {
     attack(enemies, mods = {}, globalMods = {}) {
         if (this.attackTimer > 0) return -1;
 
-        // Cooldown (may be reduced by Speed Surge buff, melee nodes, global nodes)
+        // Cooldown (may be reduced by Speed Surge buff, melee nodes, global nodes, weapon)
         const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
         const nodeCdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
-        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult * nodeCdMult;
+        this.attackTimer = getVal('attackCooldown', ATTACK_COOLDOWN) * cdMult * nodeCdMult * this.weaponCooldownMult;
         this.attackVisualTimer = getVal('attackDuration', ATTACK_DURATION);
 
-        // Range (may be extended by Piercing Shot buff)
+        // Range (may be extended by Piercing Shot buff + weapon)
         const rangeMult = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
-        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1);
+        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeMult * (this.attackRangeMultiplier || 1) * this.weaponRangeMult;
 
-        // Attack arc (base + node widening)
-        this._currentArcMult = mods.arcMult || 1;
+        // Attack arc (base + node widening + weapon)
+        this._currentArcMult = (mods.arcMult || 1) * this.weaponArcMult;
         const effectiveArc = ATTACK_ARC * this._currentArcMult;
 
-        // Damage calculation (includes Berserker rage bonus)
-        let dmg = this.getEffectiveDamage();
+        // Damage calculation (includes Berserker rage bonus + weapon)
+        let dmg = Math.floor(this.getEffectiveDamage() * this.weaponDamageMult);
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
         // Global damage multiplier from nodes
@@ -384,7 +393,7 @@ export class Player {
             while (diff < -Math.PI) diff += Math.PI * 2;
             if (Math.abs(diff) > effectiveArc / 2) continue;
 
-            const kbVal = getVal('attackKnockback', ATTACK_KNOCKBACK);
+            const kbVal = getVal('attackKnockback', ATTACK_KNOCKBACK) * this.weaponKnockbackMult;
             const kbX = dist > 0 ? (dx / dist) * kbVal * kbMult : 0;
             const kbY = dist > 0 ? (dy / dist) * kbVal * kbMult : 0;
 
@@ -719,12 +728,13 @@ export class Player {
 
         ctx.save();
         ctx.globalAlpha = alpha * 0.35;
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = this.weaponColor || '#ffffff';
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
         const arcMult = this._currentArcMult || 1;
         const effectiveArc = ATTACK_ARC * arcMult;
-        ctx.arc(this.x, this.y, getVal('attackRange', ATTACK_RANGE), angle - effectiveArc / 2, angle + effectiveArc / 2);
+        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * this.weaponRangeMult;
+        ctx.arc(this.x, this.y, effectiveRange, angle - effectiveArc / 2, angle + effectiveArc / 2);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
@@ -961,7 +971,7 @@ export class Player {
             ctx.moveTo(this.x, this.y);
             const piercingArcMult = this._currentArcMult || 1;
             const piercingArc = ATTACK_ARC * piercingArcMult;
-            ctx.arc(this.x, this.y, ATTACK_RANGE * 1.4, angle - piercingArc / 2, angle + piercingArc / 2);
+            ctx.arc(this.x, this.y, ATTACK_RANGE * 1.4 * this.weaponRangeMult, angle - piercingArc / 2, angle + piercingArc / 2);
             ctx.closePath();
             ctx.fill();
         }
