@@ -107,86 +107,86 @@ const BIOMES = [
         },
     },
 
-    // ── 2. DESERT (Stages 6–10, 26–30, …) ─────────────────
+    // ── 2. DEPTHS (Stages 6–10, 26–30, …) ────────────────
     {
-        id:   BIOME_DESERT,
-        name: 'Desert',
-        nameColor: '#ffa726',
+        id:   BIOME_DEPTHS,
+        name: 'Depths',
+        nameColor: '#42a5f5',
 
-        floorColor: '#2e251a',
-        wallColor:  '#6a5535',
-        wallLight:  '#7a6540',
-        wallDark:   '#5a4528',
-        gridTint:   'rgba(255,200,100,0.03)',
+        floorColor: '#141a2e',
+        wallColor:  '#2e3a5a',
+        wallLight:  '#3a4a6a',
+        wallDark:   '#1e2a40',
+        gridTint:   'rgba(100,150,255,0.04)',
 
         enemyWeights: {
-            basic: 1.0, shooter: 0.8, dasher: 0.7, tank: 1.5,
+            basic: 0.8, shooter: 1.5, dasher: 0.9, tank: 1.0,
         },
         hazardWeights: {
-            spikes: 1.4, lava: 0.8, arrow: 1.2, tar: 0.6,
+            spikes: 0.8, lava: 0.8, arrow: 1.4, tar: 1.0,
         },
-        playerSpeedMult: 1.0,
+        playerSpeedMult: 0.9,
 
         ambientParticles: {
-            // Blowing sand grains
-            sand: { rate: 0.18, colors: ['#d4a056', '#c49a42', '#b8860b'], sizeMin: 1, sizeMax: 2.5 },
-            // Heat shimmer (rare, large, faint)
-            shimmer: { rate: 0.015, color: 'rgba(255,220,150,0.3)', size: 8 },
+            // Rising bubbles
+            bubbles: { rate: 0.10, colors: ['rgba(150,200,255,0.5)', 'rgba(100,180,255,0.4)', 'rgba(180,220,255,0.35)'], sizeMin: 1.5, sizeMax: 4 },
+            // Drifting light motes
+            motes: { rate: 0.04, colors: ['rgba(100,200,255,0.4)', 'rgba(150,220,255,0.3)'], sizeMin: 2, sizeMax: 5, glow: true },
         },
 
         floorDecor: {
-            chance: 0.10,
+            chance: 0.14,
             types: [
-                { shape: 'crack',  color: '#5a4528', weight: 4 },
-                { shape: 'dot',    color: '#6a5535', weight: 2 },  // sand cluster
-                { shape: 'pebble', color: '#7a6540', weight: 2 },
+                { shape: 'puddle', color: 'rgba(60,100,180,0.25)', weight: 3 },
+                { shape: 'dot',    color: '#1e3a5e', weight: 2 },  // algae
+                { shape: 'crack',  color: '#1e2a40', weight: 1 },
             ],
         },
 
         wallDecor: {
-            chance: 0.18,
+            chance: 0.20,
             types: [
-                { shape: 'erosion', color: '#5a4528', colorAlt: '#4a3a20', weight: 3 },
-                { shape: 'crack',   color: '#4a3a20', weight: 2 },
+                { shape: 'drip',   color: '#4a6a9a', colorAlt: 'rgba(80,140,220,0.3)', weight: 3 },
+                { shape: 'moss',   color: '#2e4a6e', weight: 2 },
             ],
         },
 
         atmosphere: {
-            tintColor: 'rgba(200,160,80,0.04)',
-            vignetteColor: 'rgba(40,25,5,0.30)',
-            vignetteSize: 0.28,
+            tintColor: 'rgba(40,80,200,0.06)',
+            vignetteColor: 'rgba(0,5,30,0.45)',
+            vignetteSize: 0.38,
         },
 
         // ── Boss appearance per type ──
         bossTheme: {
             brute: {
-                body: '#c68a17',       // golden sand
-                stroke: '#8b6914',
-                eyes: '#ffe082',
-                eyesFlash: '#ffcc00',
-                chargeAura: '#ffa726',
+                body: '#1565c0',       // deep blue
+                stroke: '#0d47a1',
+                eyes: '#64b5f6',
+                eyesFlash: '#42a5f5',
+                chargeAura: '#1e88e5',
             },
             warlock: {
-                body: '#a0522d',       // sienna
-                stroke: '#6d3a1f',
-                innerEye: '#ffd54f',
-                innerEyeFlash: '#ffb300',
-                pupil: '#3e2723',
-                orbit: '#d4a056',
+                body: '#4527a0',       // deep indigo
+                stroke: '#1a237e',
+                innerEye: '#b39ddb',
+                innerEyeFlash: '#9575cd',
+                pupil: '#0d0040',
+                orbit: '#7c4dff',
             },
             phantom: {
-                body: '#d4a056',       // dusty gold
-                stroke: '#8d6e63',
-                glow: '#fff8e1',
-                afterimage: '#d4a056',
+                body: '#00838f',       // deep teal
+                stroke: '#004d40',
+                glow: '#b2ebf2',
+                afterimage: '#00838f',
             },
             juggernaut: {
-                body: '#8b6914',       // scorched gold
-                stroke: '#5d4037',
-                armor: '#a07b28',
-                armorLight: '#c68a17',
-                viewport: '#ff3d00',
-                viewportGlow: '#ff6e40',
+                body: '#1a237e',       // deep navy
+                stroke: '#0d1642',
+                armor: '#283593',
+                armorLight: '#3949ab',
+                viewport: '#00e5ff',
+                viewportGlow: '#84ffff',
             },
         },
     },
@@ -275,86 +275,86 @@ const BIOMES = [
         },
     },
 
-    // ── 4. DEPTHS (Stages 16–20, 36–40, …) ────────────────
+    // ── 4. DESERT (Stages 16–20, 36–40, …) ─────────────────
     {
-        id:   BIOME_DEPTHS,
-        name: 'Depths',
-        nameColor: '#42a5f5',
+        id:   BIOME_DESERT,
+        name: 'Desert',
+        nameColor: '#ffa726',
 
-        floorColor: '#141a2e',
-        wallColor:  '#2e3a5a',
-        wallLight:  '#3a4a6a',
-        wallDark:   '#1e2a40',
-        gridTint:   'rgba(100,150,255,0.04)',
+        floorColor: '#2e251a',
+        wallColor:  '#6a5535',
+        wallLight:  '#7a6540',
+        wallDark:   '#5a4528',
+        gridTint:   'rgba(255,200,100,0.03)',
 
         enemyWeights: {
-            basic: 0.8, shooter: 1.5, dasher: 0.9, tank: 1.0,
+            basic: 1.0, shooter: 0.8, dasher: 0.7, tank: 1.5,
         },
         hazardWeights: {
-            spikes: 0.8, lava: 0.8, arrow: 1.4, tar: 1.0,
+            spikes: 1.4, lava: 0.8, arrow: 1.2, tar: 0.6,
         },
-        playerSpeedMult: 0.9,
+        playerSpeedMult: 1.0,
 
         ambientParticles: {
-            // Rising bubbles
-            bubbles: { rate: 0.10, colors: ['rgba(150,200,255,0.5)', 'rgba(100,180,255,0.4)', 'rgba(180,220,255,0.35)'], sizeMin: 1.5, sizeMax: 4 },
-            // Drifting light motes
-            motes: { rate: 0.04, colors: ['rgba(100,200,255,0.4)', 'rgba(150,220,255,0.3)'], sizeMin: 2, sizeMax: 5, glow: true },
+            // Blowing sand grains
+            sand: { rate: 0.18, colors: ['#d4a056', '#c49a42', '#b8860b'], sizeMin: 1, sizeMax: 2.5 },
+            // Heat shimmer (rare, large, faint)
+            shimmer: { rate: 0.015, color: 'rgba(255,220,150,0.3)', size: 8 },
         },
 
         floorDecor: {
-            chance: 0.14,
+            chance: 0.10,
             types: [
-                { shape: 'puddle', color: 'rgba(60,100,180,0.25)', weight: 3 },
-                { shape: 'dot',    color: '#1e3a5e', weight: 2 },  // algae
-                { shape: 'crack',  color: '#1e2a40', weight: 1 },
+                { shape: 'crack',  color: '#5a4528', weight: 4 },
+                { shape: 'dot',    color: '#6a5535', weight: 2 },  // sand cluster
+                { shape: 'pebble', color: '#7a6540', weight: 2 },
             ],
         },
 
         wallDecor: {
-            chance: 0.20,
+            chance: 0.18,
             types: [
-                { shape: 'drip',   color: '#4a6a9a', colorAlt: 'rgba(80,140,220,0.3)', weight: 3 },
-                { shape: 'moss',   color: '#2e4a6e', weight: 2 },
+                { shape: 'erosion', color: '#5a4528', colorAlt: '#4a3a20', weight: 3 },
+                { shape: 'crack',   color: '#4a3a20', weight: 2 },
             ],
         },
 
         atmosphere: {
-            tintColor: 'rgba(40,80,200,0.06)',
-            vignetteColor: 'rgba(0,5,30,0.45)',
-            vignetteSize: 0.38,
+            tintColor: 'rgba(200,160,80,0.04)',
+            vignetteColor: 'rgba(40,25,5,0.30)',
+            vignetteSize: 0.28,
         },
 
         // ── Boss appearance per type ──
         bossTheme: {
             brute: {
-                body: '#1565c0',       // deep blue
-                stroke: '#0d47a1',
-                eyes: '#64b5f6',
-                eyesFlash: '#42a5f5',
-                chargeAura: '#1e88e5',
+                body: '#c68a17',       // golden sand
+                stroke: '#8b6914',
+                eyes: '#ffe082',
+                eyesFlash: '#ffcc00',
+                chargeAura: '#ffa726',
             },
             warlock: {
-                body: '#4527a0',       // deep indigo
-                stroke: '#1a237e',
-                innerEye: '#b39ddb',
-                innerEyeFlash: '#9575cd',
-                pupil: '#0d0040',
-                orbit: '#7c4dff',
+                body: '#a0522d',       // sienna
+                stroke: '#6d3a1f',
+                innerEye: '#ffd54f',
+                innerEyeFlash: '#ffb300',
+                pupil: '#3e2723',
+                orbit: '#d4a056',
             },
             phantom: {
-                body: '#00838f',       // deep teal
-                stroke: '#004d40',
-                glow: '#b2ebf2',
-                afterimage: '#00838f',
+                body: '#d4a056',       // dusty gold
+                stroke: '#8d6e63',
+                glow: '#fff8e1',
+                afterimage: '#d4a056',
             },
             juggernaut: {
-                body: '#1a237e',       // deep navy
-                stroke: '#0d1642',
-                armor: '#283593',
-                armorLight: '#3949ab',
-                viewport: '#00e5ff',
-                viewportGlow: '#84ffff',
+                body: '#8b6914',       // scorched gold
+                stroke: '#5d4037',
+                armor: '#a07b28',
+                armorLight: '#c68a17',
+                viewport: '#ff3d00',
+                viewportGlow: '#ff6e40',
             },
         },
     },
