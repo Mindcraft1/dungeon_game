@@ -174,7 +174,7 @@ export function generateBossScrollChoices(forceScroll = false) {
     for (const id of ABILITY_ORDER) {
         if (!meta.unlockedAbilities[id]) {
             const def = ABILITY_DEFINITIONS[id];
-            if (def) locked.push({ type: 'ability', id, name: def.name, icon: def.icon, color: def.color });
+            if (def) locked.push({ type: 'ability', id, name: def.name, desc: def.desc || '', icon: def.icon, color: def.color });
         }
     }
 
@@ -182,7 +182,7 @@ export function generateBossScrollChoices(forceScroll = false) {
     for (const id of PROC_ORDER) {
         if (!meta.unlockedProcs[id]) {
             const def = PROC_DEFINITIONS[id];
-            if (def) locked.push({ type: 'proc', id, name: def.name, icon: def.icon, color: def.color });
+            if (def) locked.push({ type: 'proc', id, name: def.name, desc: def.desc || '', icon: def.icon, color: def.color });
         }
     }
 
@@ -191,7 +191,7 @@ export function generateBossScrollChoices(forceScroll = false) {
         if (!meta.unlockedNodes[id]) {
             const def = NODE_DEFINITIONS[id];
             if (def && def.rarity !== 'common') {
-                locked.push({ type: 'node', id, name: def.name, icon: def.icon, color: def.color });
+                locked.push({ type: 'node', id, name: def.name, desc: def.desc || '', icon: def.icon, color: def.color });
             }
         }
     }

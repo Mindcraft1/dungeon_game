@@ -7,7 +7,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 /**
  * Render the boss scroll choice overlay.
  * @param {CanvasRenderingContext2D} ctx
- * @param {Array<{type,id,name,icon,color}>} choices - 3 unlock options
+ * @param {Array<{type,id,name,desc,icon,color}>} choices - 3 unlock options
  * @param {number} cursor - 0..2
  */
 export function renderBossScrollOverlay(ctx, choices, cursor) {
@@ -16,7 +16,7 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const panelW = 420;
-    const panelH = 300;
+    const panelH = 340;
     const px = (CANVAS_WIDTH - panelW) / 2;
     const py = (CANVAS_HEIGHT - panelH) / 2;
 
@@ -46,7 +46,7 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
 
     // Choices
     const startY = py + 90;
-    const rowH = 50;
+    const rowH = 64;
 
     choices.forEach((choice, i) => {
         const y = startY + i * rowH;
@@ -68,9 +68,16 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
         ctx.font = selected ? 'bold 15px monospace' : '14px monospace';
         ctx.fillText(`${choice.icon}  ${choice.name}`, CANVAS_WIDTH / 2, y + 2);
 
+        // Description
+        if (choice.desc) {
+            ctx.fillStyle = selected ? '#ccc' : '#666';
+            ctx.font = '11px monospace';
+            ctx.fillText(choice.desc, CANVAS_WIDTH / 2, y + 18);
+        }
+
         ctx.fillStyle = selected ? '#bbb' : '#555';
         ctx.font = '10px monospace';
-        ctx.fillText(`[${typeLabel}]`, CANVAS_WIDTH / 2, y + 18);
+        ctx.fillText(`[${typeLabel}]`, CANVAS_WIDTH / 2, y + 32);
     });
 
     // Controls

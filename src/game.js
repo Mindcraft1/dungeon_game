@@ -21,7 +21,7 @@ import {
     RUN_SHOP_ITEMS, RUN_SHOP_ITEM_IDS,
     PLAYER_INVULN_TIME,
     BOMB_RADIUS, BOMB_DAMAGE_MULT, BOMB_STUN_DURATION, BOMB_KNOCKBACK,
-    COIN_DROP_LIFETIME,
+    COIN_DROP_CHANCE, COIN_DROP_LIFETIME,
     SHOP_FORGE_TOKEN_COST, SHOP_FORGE_TOKEN_CHANCE,
     PICKUP_RAGE_SHARD, PICKUP_PIERCING_SHOT, PICKUP_SWIFT_BOOTS,
     PICKUP_SPEED_SURGE, PICKUP_IRON_SKIN,
@@ -56,6 +56,7 @@ import * as Audio from './audio.js';
 import * as Music from './music.js';
 import { getBiomeForStage } from './biomes.js';
 import { getColorById, PLAYER_COLORS } from './cosmetics.js';
+import { getClassById, CLASS_DEFINITIONS, DEFAULT_CLASS_ID, renderClassEmblem } from './classes.js';
 
 // ── Meta Progression ──
 import * as MetaStore from './meta/metaStore.js';
@@ -139,6 +140,8 @@ export class Game {
         this.profileDeleting = false;
         this.profileColorPicking = false;
         this.colorPickerCursor = 0;
+        this.profileClassPicking = false;  // class selection during profile creation
+        this.classPickerCursor = 0;        // index into CLASS_DEFINITIONS
 
         this.stage = 1;
         this.player = null;
@@ -274,6 +277,8 @@ export class Game {
         this.forgeTokenCount = 0;           // forge tokens held (from trader/trial/shop)
         this.rerollTokenCount = 0;          // reroll tokens held (from trader)
         this.hasForgeTokenInShop = false;   // whether forge token appears in current shop visit
+        this.trialActive = false;           // true while trial challenge is in progress
+        this._pendingForge = false;          // true when forge UI should open after current event
         this._pendingBossScroll = null;     // scroll choices deferred until after boss rewards
 
         // ── Room Type System ──
@@ -308,9 +313,10 @@ export class Game {
                 this.activeProfileIndex = data.activeIndex || 0;
                 // Clamp
                 if (this.activeProfileIndex >= this.profiles.length) this.activeProfileIndex = 0;
-                // Migrate: ensure every profile has a colorId
+                // Migrate: ensure every profile has a colorId and classId
                 for (const p of this.profiles) {
                     if (!p.colorId) p.colorId = 'cyan';
+                    if (!p.classId) p.classId = DEFAULT_CLASS_ID;
                 }
             }
         } catch (e) {
@@ -533,6 +539,7 @@ export class Game {
                 this.profileCreating = false;
                 this.profileDeleting = false;
                 this.profileColorPicking = false;
+                this.profileClassPicking = false;
                 this.state = STATE_PROFILES;
             } else if (this.menuIndex === 5) {
                 this._openTrainingConfig();
@@ -583,7 +590,14 @@ export class Game {
         this._gameOverEffects = null;
         this.shieldCharges = 0;
         this.regenTimer = 0;
+
+        // ── Low-HP heartbeat system ──
+        this._heartbeatTimer = 0;       // ms until next heartbeat sound
+        this._heartbeatPulse = 0;       // 0–1 visual pulse intensity (for vignette throb)
         this._applyMetaModifiers();
+
+        // ── Class stat multipliers ──
+        this._applyClassModifiers();
 
         // ── Shop System: reset run state & apply meta booster ──
         this.runCoins = 0;
@@ -615,6 +629,8 @@ export class Game {
         this.forgeTokenCount = 0;
         this.rerollTokenCount = 0;
         this.hasForgeTokenInShop = false;
+        this.trialActive = false;
+        this._pendingForge = false;
         this._pendingBossScroll = null;
 
         // ── Achievement event: run start (blocked by cheats) ──
@@ -653,6 +669,7 @@ export class Game {
         if (this.player) this.player.biomeSpeedMult = 1.0;
         this.controlsHintTimer = 6000;
         this._loadConfiguredTrainingRoom();
+        this._applyClassModifiers();
         this.state = STATE_PLAYING;
     }
 
@@ -802,6 +819,16 @@ export class Game {
             this.player.dashColor = colorDef.dash;
             this.player.ghostColor = colorDef.ghost;
         }
+        // Apply class definition (stat mults + passive) from profile
+        if (_profile && _profile.classId) {
+            const classDef = getClassById(_profile.classId);
+            this.player.classId = classDef.id;
+            this.player.classPassive = classDef.passive;
+        } else {
+            this.player.classId = DEFAULT_CLASS_ID;
+            this.player.classPassive = getClassById(DEFAULT_CLASS_ID).passive;
+        }
+
         // Apply biome speed modifier
         this.player.biomeSpeedMult = this.currentBiome
             ? this.currentBiome.playerSpeedMult
@@ -1070,6 +1097,17 @@ export class Game {
             this.shieldCharges = Math.min(this.shieldCharges + 1, 3);
         }
 
+        // ── Adventurer class passive: heal on room clear ──
+        if (this.player.adventurerHealPercent > 0) {
+            const healAmt = Math.floor(this.player.maxHp * this.player.adventurerHealPercent);
+            if (this.player.hp < this.player.maxHp) {
+                this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                this.particles.levelUp(this.player.x, this.player.y);
+                Audio.playHeal();
+                showToast(`+${healAmt} HP (Survivor's Instinct)`, '#ffd54f', '✦');
+            }
+        }
+
         // ── Achievement events: stage entered + biome (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
             achEmit('stage_entered', { stage: this.stage });
@@ -1117,7 +1155,16 @@ export class Game {
             // ── Check for random event (only non-darkness normal rooms) ──
             if (!this.trainingMode && !this.cheatsUsedThisRun
                 && this.currentRoomType === ROOM_TYPE_NORMAL) {
-                const eventType = EventSystem.rollForEvent(this.stage);
+                let eventType = EventSystem.rollForEvent(this.stage);
+                // Library requires applied upgrade nodes; if player has none, re-roll once
+                if (eventType === 'library') {
+                    const appliedNodes = UpgradeEngine.getAppliedNodes();
+                    if (Object.keys(appliedNodes).length === 0) {
+                        eventType = EventSystem.rollForEvent(this.stage);
+                        // If re-roll gives Library again or null, skip the event
+                        if (eventType === 'library') eventType = null;
+                    }
+                }
                 if (eventType) {
                     this.currentRoomType = ROOM_TYPE_EVENT;
                     this.eventState = EventSystem.createEventState(eventType, this._getUpgradeContext());
@@ -1372,6 +1419,45 @@ export class Game {
         this.player.metaDamageTakenMultiplier = m.damageTakenMultiplier;
         this.player.metaSpikeDamageMultiplier = m.spikeDamageMultiplier;
         this.player.metaLavaDotMultiplier = m.lavaDotMultiplier;
+    }
+
+    /**
+     * Apply character class stat multipliers and passive setup.
+     * Called at run start after meta modifiers.
+     */
+    _applyClassModifiers() {
+        if (!this.player || !this.player.classId) return;
+        const cls = getClassById(this.player.classId);
+
+        // Stat multipliers (applied to already-modified base stats)
+        this.player.maxHp = Math.floor(this.player.maxHp * cls.hpMult);
+        this.player.hp = this.player.maxHp;
+        this.player.damage = Math.floor(this.player.damage * cls.damageMult);
+        this.player.speed = Math.floor(this.player.speed * cls.speedMult);
+
+        // Passive setup
+        const passive = cls.passive;
+        if (passive.type === 'shield') {
+            // Guardian: auto-shield that blocks 1 hit, recharges after cooldown
+            this.player.guardianShieldReady = true;
+            this.player.guardianShieldCooldown = 0;
+            this.player.guardianShieldMaxCooldown = passive.cooldown;
+        }
+        if (passive.type === 'crit') {
+            // Rogue: bonus crit chance and crit damage multiplier
+            this.player.critChance += passive.critBonus;
+            this.player.rogueCritMult = passive.critMult;
+        }
+        if (passive.type === 'berserk') {
+            // Berserker: damage buff when below HP threshold
+            this.player.berserkThreshold = passive.hpThreshold;
+            this.player.berserkDamageBuff = passive.damageBuff;
+            this.player.berserkActive = false;
+        }
+        if (passive.type === 'roomHeal') {
+            // Adventurer: heal % of max HP after each room clear
+            this.player.adventurerHealPercent = passive.healPercent;
+        }
     }
 
     /** Open meta menu from any screen. */
@@ -1666,9 +1752,13 @@ export class Game {
 
         // ── Crit damage multiplier (only meaningful if heavy_crit proc is equipped) ──
         let critDamage = 1;
+        // Rogue class passive: base crit damage multiplier
+        if (p.rogueCritMult > 0) {
+            critDamage = p.rogueCritMult; // e.g. 1.8×
+        }
         if (this.procSystem.hasProc('heavy_crit')) {
             const extraDmgMult = (_procMods.heavy_crit && _procMods.heavy_crit.extraDmgMult) || 1;
-            critDamage = 1 + (0.4 * extraDmgMult); // base heavy crit = +40%
+            critDamage += (0.4 * extraDmgMult); // stacks on top of rogue bonus
         }
 
         // ── Special effects (non-percentage abilities) ──
@@ -1690,6 +1780,17 @@ export class Game {
         }
         if (p.crushingBlowReady) {
             specials.push({ icon: '🟠', name: 'Next Hit 3×', color: '#e67e22' });
+        }
+
+        // Class passive indicators
+        if (p.adventurerHealPercent > 0) {
+            specials.push({ icon: '✦', name: 'Room Heal', color: '#ffd54f' });
+        }
+        if (p.guardianShieldReady) {
+            specials.push({ icon: '🛡', name: 'Shield Ready', color: '#4fc3f7' });
+        }
+        if (p.berserkActive) {
+            specials.push({ icon: '🔥', name: 'Berserk!', color: '#ef5350' });
         }
 
         return { damage, speed, maxHp, xpGain, defense, trapResist, bossDamage, attackRange, attackSpeed, critChance, critDamage, specials };
@@ -1967,17 +2068,16 @@ export class Game {
         showToast(`Purchased: ${item.name}`, item.color, item.icon);
     }
 
-    /** Purchase forge token from the boss shop. */
+    /** Purchase forge token from the boss shop → immediately open Forge UI. */
     _buyForgeToken() {
         if (this.runCoins < SHOP_FORGE_TOKEN_COST) {
             showToast('Not enough coins!', '#e74c3c', '✗');
             return;
         }
         this.runCoins -= SHOP_FORGE_TOKEN_COST;
-        this.forgeTokenCount++;
         this.hasForgeTokenInShop = false; // max 1 per shop visit
         Audio.playMenuSelect();
-        showToast('Purchased: Forge Token 🔨', '#ff9800', '🔨');
+        this._openForgeUI();
     }
 
     /** Close run shop and return to playing (player walks through door to next room). */
@@ -1985,6 +2085,14 @@ export class Game {
         this._cachedLevelUpChoices = null;
         this.hasForgeTokenInShop = false;
         this.state = STATE_PLAYING;
+    }
+
+    /** Open the Forge upgrade UI directly (used when acquiring a forge token). */
+    _openForgeUI() {
+        const context = this._getUpgradeContext();
+        this.eventState = EventSystem.createEventState('forge', context);
+        this.state = STATE_EVENT;
+        showToast('Choose a Forge upgrade! 🔨', '#ff9800', '🔨');
     }
 
     // ── Event System ──────────────────────────────────────
@@ -1998,6 +2106,7 @@ export class Game {
         // Skip/exit on ESC or RMB at any phase
         if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuNav();
+            this.trialActive = false;
             this.eventState = null;
             this.state = STATE_PLAYING;
             return;
@@ -2007,22 +2116,27 @@ export class Game {
         if (es.phase === 'result' || es.phase === 'done' || es.phase === 'empty') {
             if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
                 Audio.playMenuSelect();
+                this.trialActive = false;
                 this.eventState = null;
-                this.state = STATE_PLAYING;
+                // If a forge token was just earned, open the Forge UI immediately
+                if (this._pendingForge) {
+                    this._pendingForge = false;
+                    this._openForgeUI();
+                } else {
+                    this.state = STATE_PLAYING;
+                }
             }
             return;
         }
 
-        // Challenge phase (Trial) — handled by game update as timed survival
+        // Challenge phase (Trial) — now handled in _updatePlaying, but keep fallback
         if (es.phase === 'challenge') {
-            // Trial event: just proceed (enemies already spawned in room)
-            // Timer countdown happens in _updatePlaying via eventState
-            if (wasPressed('Enter') || wasPressed('Space')) {
-                // Skip trial (forfeit)
-                es.phase = 'result';
-                es.result = { skipped: true };
-                Audio.playMenuNav();
-            }
+            // This shouldn't run since trial challenge is in STATE_PLAYING now
+            // But if somehow reached, forfeit
+            es.phase = 'result';
+            es.result = { skipped: true };
+            this.trialActive = false;
+            Audio.playMenuNav();
             return;
         }
 
@@ -2103,6 +2217,15 @@ export class Game {
             const choice = es.choices[es.cursor];
             if (!choice) return;
 
+            // Trial event: accept → start the timed challenge in gameplay
+            if (choice.reward === 'start_trial') {
+                es.phase = 'challenge';
+                es.cursor = 0;
+                this.trialActive = true;
+                this.state = STATE_PLAYING;
+                return;
+            }
+
             // Trader event
             if (choice.reward) {
                 if (choice.cost > 0 && this.runCoins < choice.cost) {
@@ -2112,7 +2235,7 @@ export class Game {
                 if (choice.cost > 0) this.runCoins -= choice.cost;
 
                 if (choice.reward === 'forge_token') {
-                    this.forgeTokenCount++;
+                    this._pendingForge = true;
                     es.phase = 'result';
                     es.result = { tokenGranted: 'Forge' };
                 } else if (choice.reward === 'reroll_token') {
@@ -2466,6 +2589,12 @@ export class Game {
     }
 
     _updateProfileCreate() {
+        // If class picker is open, delegate to that
+        if (this.profileClassPicking) {
+            this._updateClassPicker();
+            return;
+        }
+
         if (wasPressed('Escape') || wasMousePressed(2)) {
             this.profileCreating = false;
             return;
@@ -2474,13 +2603,10 @@ export class Game {
         if (wasPressed('Enter')) {
             const name = this.profileNewName.trim();
             if (name.length > 0) {
-                this.profiles.push({ name, highscore: 0, colorId: 'cyan' });
-                this.activeProfileIndex = this.profiles.length - 1;
-                this._saveProfiles();
-                MetaStore.load(this.activeProfileIndex);
-                AchievementStore.load(this.activeProfileIndex);
-                this.profileCreating = false;
-                this.profileCursor = this.activeProfileIndex;
+                // Open class picker before creating profile
+                this.profileClassPicking = true;
+                this.classPickerCursor = 0;
+                Audio.playMenuSelect();
             }
             return;
         }
@@ -2560,6 +2686,72 @@ export class Game {
         }
     }
 
+    _updateClassPicker() {
+        const total = CLASS_DEFINITIONS.length;
+
+        // Navigation (left/right or A/D)
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.classPickerCursor = (this.classPickerCursor - 1 + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.classPickerCursor = (this.classPickerCursor + 1) % total;
+            Audio.playMenuNav();
+        }
+        // Also allow W/S for consistency
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.classPickerCursor = (this.classPickerCursor - 1 + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.classPickerCursor = (this.classPickerCursor + 1) % total;
+            Audio.playMenuNav();
+        }
+
+        // Mouse hover on class cards
+        const mp = getMousePos();
+        if (mp && isMouseActive()) {
+            const cardW = 160;
+            const gap = 20;
+            const totalW = total * cardW + (total - 1) * gap;
+            const startX = (800 - totalW) / 2;
+            const cardY = 200;
+            const cardH = 240;
+            for (let i = 0; i < total; i++) {
+                const cx = startX + i * (cardW + gap);
+                if (mp.x >= cx && mp.x <= cx + cardW && mp.y >= cardY && mp.y <= cardY + cardH) {
+                    if (i !== this.classPickerCursor) {
+                        this.classPickerCursor = i;
+                        Audio.playMenuNav();
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Confirm
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
+            const chosen = CLASS_DEFINITIONS[this.classPickerCursor];
+            if (chosen) {
+                const name = this.profileNewName.trim();
+                this.profiles.push({ name, highscore: 0, colorId: 'cyan', classId: chosen.id });
+                this.activeProfileIndex = this.profiles.length - 1;
+                this._saveProfiles();
+                MetaStore.load(this.activeProfileIndex);
+                AchievementStore.load(this.activeProfileIndex);
+                this.profileCreating = false;
+                this.profileClassPicking = false;
+                this.profileCursor = this.activeProfileIndex;
+                Audio.playMenuSelect();
+            }
+        }
+
+        // Cancel — go back to name entry
+        if (wasPressed('Escape') || wasMousePressed(2)) {
+            this.profileClassPicking = false;
+        }
+    }
+
     _deleteProfile(index) {
         if (index < 0 || index >= this.profiles.length) return;
         // Delete meta data for this profile (and shift higher indices)
@@ -2603,6 +2795,24 @@ export class Game {
                 this.state = STATE_BOSS_VICTORY;
             }
             return;
+        }
+
+        // ── Trial event timer (active during gameplay) ──
+        if (this.trialActive && this.eventState && this.eventState.phase === 'challenge') {
+            this.eventState.timeRemaining -= dt * 1000;
+            const allDead = this.enemies.every(e => e.dead);
+            if (this.eventState.timeRemaining <= 0 || allDead) {
+                // Trial succeeded — award forge token (opens forge UI after result)
+                this.trialActive = false;
+                this.eventState.succeeded = true;
+                this.eventState.phase = 'result';
+                this.eventState.result = { tokenGranted: 'Forge' };
+                this._pendingForge = true;
+                showToast('Trial Complete! Choose your upgrade 🔨', '#ff9800', '⚔️');
+                Audio.playMenuSelect();
+                this.state = STATE_EVENT;
+                return;
+            }
         }
 
         // Pause / Return from training (Escape or P)
@@ -2894,6 +3104,18 @@ export class Game {
 
                     // ── Proc dispatch on melee hits ──
                     const isCrit = Math.random() < this.player.critChance;
+
+                    // Rogue passive: crit bonus damage (applied before procs)
+                    if (isCrit && this.player.rogueCritMult > 0) {
+                        const critExtraMult = this.player.rogueCritMult - 1; // e.g. 1.8 → 0.8
+                        for (const e of hitEnemies) {
+                            if (!e.dead) {
+                                const extraDmg = Math.floor(this.player.getEffectiveDamage() * critExtraMult);
+                                e.takeDamage(extraDmg, 0, 0);
+                            }
+                        }
+                    }
+
                     for (const e of hitEnemies) {
                         if (!e.dead) {
                             this.procSystem.handleHit(
@@ -3039,9 +3261,12 @@ export class Game {
                 // Coin drop (real game only) — physical coin the player must collect
                 if (!this.trainingMode) {
                     const isElite = (e.type === ENEMY_TYPE_TANK || e.type === ENEMY_TYPE_DASHER);
-                    let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
-                    if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
-                    this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
+                    // Elites always drop; normal enemies only have a % chance
+                    if (isElite || Math.random() < COIN_DROP_CHANCE) {
+                        let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
+                        if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
+                        this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
+                    }
                 }
 
                 if (!this.trainingMode) {
@@ -3384,6 +3609,14 @@ export class Game {
                 const daggerCritChance = this.player.critChance + (d.critBonus || 0);
                 const daggerCrit = Math.random() < daggerCritChance;
                 const hitEntity = d.hitTarget.entity || d.hitTarget;
+
+                // Rogue passive: crit bonus damage on dagger crit
+                if (daggerCrit && this.player.rogueCritMult > 0 && hitEntity && !hitEntity.dead) {
+                    const critExtraMult = this.player.rogueCritMult - 1;
+                    const extraDmg = Math.floor((d.damage || this.player.getEffectiveDamage()) * critExtraMult);
+                    hitEntity.takeDamage(extraDmg, 0, 0);
+                }
+
                 if (hitEntity && !hitEntity.dead) {
                     this.procSystem.handleHit(
                         { source: this.player, target: hitEntity, damage: d.damage || this.player.damage, isCrit: daggerCrit, attackType: 'dagger' },
@@ -3605,6 +3838,27 @@ export class Game {
             }
         }
 
+        // ── Low-HP heartbeat pulse ──
+        const hpRatio = this.player.hp / this.player.maxHp;
+        const LOW_HP_THRESHOLD = 0.30;
+        if (hpRatio > 0 && hpRatio <= LOW_HP_THRESHOLD && !this.trainingMode) {
+            // Intensity 0→1 as HP goes from 30% → 0%
+            const intensity = 1 - (hpRatio / LOW_HP_THRESHOLD);
+            // Interval: 900ms at 30% HP → 400ms near death
+            const interval = 900 - intensity * 500;
+            this._heartbeatTimer -= dt * 1000;
+            // Visual pulse decays each frame
+            this._heartbeatPulse = Math.max(0, this._heartbeatPulse - dt * 3.5);
+            if (this._heartbeatTimer <= 0) {
+                Audio.playHeartbeat(0.5 + intensity * 0.5);
+                this._heartbeatTimer = interval;
+                this._heartbeatPulse = 1; // flash on beat
+            }
+        } else {
+            this._heartbeatTimer = 0;
+            this._heartbeatPulse = 0;
+        }
+
         // Death (only in real game)
         if (!this.trainingMode && this.player.hp <= 0) {
             // Meta booster: Panic Button — revive once
@@ -3797,9 +4051,9 @@ export class Game {
     _loadMouseAimSetting() {
         try {
             const val = localStorage.getItem('dungeon_mouse_aim');
-            if (val === null) return true; // default: on
+            if (val === null) return false; // default: off
             return val === 'true';
-        } catch (e) { return true; }
+        } catch (e) { return false; }
     }
 
     _saveMouseAimSetting() {
@@ -3812,6 +4066,17 @@ export class Game {
         // Use cached choices (computed at state transition to avoid random mismatch with render)
         const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
         const count = choices.length;
+
+        // ── Reroll Token: press R to reroll choices ──
+        if (wasPressed('KeyR') && this.rerollTokenCount > 0) {
+            this.rerollTokenCount--;
+            this._cachedLevelUpChoices = this._getLevelUpChoices();
+            this.upgradeIndex = 0;
+            this._levelUpSpaceReady = false;
+            showToast('Rerolled! 🔄 (' + this.rerollTokenCount + ' left)', '#2196f3', '🔄');
+            Audio.playMenuSelect();
+            return;
+        }
 
         // Navigate with W/S or arrows
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
@@ -4276,7 +4541,8 @@ export class Game {
             renderProfiles(ctx, this.profiles, this.activeProfileIndex,
                            this.profileCursor, this.profileCreating,
                            this.profileNewName, this.profileDeleting,
-                           this.profileColorPicking, this.colorPickerCursor);
+                           this.profileColorPicking, this.colorPickerCursor,
+                           this.profileClassPicking, this.classPickerCursor);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -4380,6 +4646,42 @@ export class Game {
         // Biome atmospheric overlay (tint + vignette) — after entities, before HUD
         renderAtmosphere(ctx, this.currentBiome);
 
+        // ── Low-HP red vignette ──
+        const _hpRatio = this.player.hp / this.player.maxHp;
+        if (_hpRatio > 0 && _hpRatio <= 0.30 && !this.trainingMode) {
+            const _intensity = 1 - (_hpRatio / 0.30); // 0→1 as HP drops
+            // Pulse throb adds extra brightness on each heartbeat
+            const throb = this._heartbeatPulse || 0;
+            const baseAlpha = 0.10 + _intensity * 0.25;  // 0.10 → 0.35
+            const pulseAlpha = baseAlpha + throb * 0.15;  // extra flash on beat
+            ctx.save();
+            // Left edge
+            const gLeft = ctx.createLinearGradient(0, 0, CANVAS_WIDTH * 0.3, 0);
+            gLeft.addColorStop(0, `rgba(180, 0, 0, ${pulseAlpha})`);
+            gLeft.addColorStop(1, 'rgba(180, 0, 0, 0)');
+            ctx.fillStyle = gLeft;
+            ctx.fillRect(0, 0, CANVAS_WIDTH * 0.3, CANVAS_HEIGHT);
+            // Right edge
+            const gRight = ctx.createLinearGradient(CANVAS_WIDTH, 0, CANVAS_WIDTH * 0.7, 0);
+            gRight.addColorStop(0, `rgba(180, 0, 0, ${pulseAlpha})`);
+            gRight.addColorStop(1, 'rgba(180, 0, 0, 0)');
+            ctx.fillStyle = gRight;
+            ctx.fillRect(CANVAS_WIDTH * 0.7, 0, CANVAS_WIDTH * 0.3, CANVAS_HEIGHT);
+            // Top edge
+            const gTop = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT * 0.2);
+            gTop.addColorStop(0, `rgba(180, 0, 0, ${pulseAlpha * 0.6})`);
+            gTop.addColorStop(1, 'rgba(180, 0, 0, 0)');
+            ctx.fillStyle = gTop;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT * 0.2);
+            // Bottom edge
+            const gBot = ctx.createLinearGradient(0, CANVAS_HEIGHT, 0, CANVAS_HEIGHT * 0.8);
+            gBot.addColorStop(0, `rgba(180, 0, 0, ${pulseAlpha * 0.6})`);
+            gBot.addColorStop(1, 'rgba(180, 0, 0, 0)');
+            ctx.fillStyle = gBot;
+            ctx.fillRect(0, CANVAS_HEIGHT * 0.8, CANVAS_WIDTH, CANVAS_HEIGHT * 0.2);
+            ctx.restore();
+        }
+
         // ── Room type lifecycle: render overlay ──
         const _renderRoomDef = getRoomType(this.currentRoomType);
         callHook(_renderRoomDef, 'onRender', ctx);
@@ -4414,6 +4716,29 @@ export class Game {
                   this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
                   biomeName, biomeColor,
                   this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
+
+        // ── Trial timer banner ──
+        if (this.trialActive && this.eventState && this.eventState.phase === 'challenge') {
+            const secs = Math.max(0, this.eventState.timeRemaining / 1000).toFixed(1);
+            ctx.save();
+            ctx.fillStyle = 'rgba(244, 67, 54, 0.25)';
+            ctx.fillRect(0, 50, CANVAS_WIDTH, 36);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#f44336';
+            ctx.font = 'bold 18px monospace';
+            ctx.fillText(`⚔️ TRIAL — Survive: ${secs}s`, CANVAS_WIDTH / 2, 74);
+            ctx.restore();
+        }
+
+        // ── Token indicator (reroll) ──
+        if (this.rerollTokenCount > 0) {
+            ctx.save();
+            ctx.textAlign = 'right';
+            ctx.font = '11px monospace';
+            ctx.fillStyle = '#2196f3';
+            ctx.fillText(`🔄 Reroll ×${this.rerollTokenCount}`, CANVAS_WIDTH - 10, 108);
+            ctx.restore();
+        }
 
         // Stat modifier summary (net buffs/nerfs from all sources)
         renderBuffSummary(ctx, this._computeNetModifiers());
@@ -4532,7 +4857,7 @@ export class Game {
             this._renderPauseOverlay(ctx);
         } else if (this.state === STATE_LEVEL_UP) {
             const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
-            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady);
+            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady, this.rerollTokenCount);
         } else if (this.state === STATE_GAME_OVER) {
             const runRewards = RewardSystem.getRunRewards();
             renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards, this._gameOverEffects || null, this.runUnlocksLog.length > 0 ? this.runUnlocksLog : null);
@@ -4756,10 +5081,10 @@ export class Game {
                 const nameText = fx.name;
                 ctx.fillText(nameText, rightX + 24, ey + 8);
 
-                // Desc (truncated, dimmer)
+                // Desc — show what the effect actually does
                 if (fx.desc) {
-                    ctx.fillStyle = '#777';
-                    ctx.font = '7px monospace';
+                    ctx.fillStyle = '#999';
+                    ctx.font = '8px monospace';
                     const maxDescW = rightW - 36;
                     let descText = fx.desc;
                     if (ctx.measureText(descText).width > maxDescW) {
@@ -4769,7 +5094,7 @@ export class Game {
                         descText += '…';
                     }
                     ctx.fillText(descText, rightX + 24, ey + 17);
-                    ey += lineH + 6;
+                    ey += lineH + 8;
                 } else {
                     ey += lineH;
                 }

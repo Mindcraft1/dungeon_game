@@ -1764,6 +1764,73 @@ export function playCritImpact() {
     _noiseBurst(3000, 4, 0.12, 0.15, t);
 }
 
+/** Low-HP heartbeat pulse — deep "lub-dub" thump */
+export function playHeartbeat(intensity = 1) {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const t = ctx.currentTime;
+    const vol = 0.18 * Math.min(1, intensity);
+
+    // ── "Lub" (first beat — deeper, louder) ──
+    const lubG = _gain(vol);
+    if (!lubG) return;
+    const lubO = ctx.createOscillator();
+    lubO.type = 'sine';
+    lubO.frequency.setValueAtTime(55, t);
+    lubO.frequency.exponentialRampToValueAtTime(30, t + 0.12);
+    lubO.connect(lubG);
+    _adsr(lubG, t, vol, 0.01, 0.04, 0.3, 0.01, 0.08);
+    lubO.start(t);
+    lubO.stop(t + 0.16);
+
+    // Sub-harmonic layer for chest-feel
+    const subG = _gain(vol * 0.6);
+    if (subG) {
+        const subO = ctx.createOscillator();
+        subO.type = 'sine';
+        subO.frequency.setValueAtTime(35, t);
+        subO.frequency.exponentialRampToValueAtTime(20, t + 0.14);
+        subO.connect(subG);
+        _adsr(subG, t, vol * 0.6, 0.01, 0.05, 0.2, 0.01, 0.08);
+        subO.start(t);
+        subO.stop(t + 0.18);
+    }
+
+    // ── "Dub" (second beat — slightly higher, softer, 120ms later) ──
+    const dubDelay = 0.12;
+    const dubG = _gain(vol * 0.7);
+    if (dubG) {
+        const dubO = ctx.createOscillator();
+        dubO.type = 'sine';
+        dubO.frequency.setValueAtTime(65, t + dubDelay);
+        dubO.frequency.exponentialRampToValueAtTime(35, t + dubDelay + 0.1);
+        dubO.connect(dubG);
+        _adsr(dubG, t + dubDelay, vol * 0.7, 0.008, 0.03, 0.25, 0.01, 0.06);
+        dubO.start(t + dubDelay);
+        dubO.stop(t + dubDelay + 0.14);
+    }
+
+    // Soft noise thump for body
+    const buf = _noiseBuffer(0.06);
+    if (buf) {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.value = 200;
+        filt.Q.value = 1;
+        const nEnv = ctx.createGain();
+        nEnv.gain.setValueAtTime(vol * 0.3, t);
+        nEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        src.connect(filt);
+        filt.connect(nEnv);
+        nEnv.connect(_master);
+        src.start(t);
+        src.stop(t + 0.1);
+    }
+}
+
 export function toggleMute() {
     _ensureCtx();
     _muted = !_muted;

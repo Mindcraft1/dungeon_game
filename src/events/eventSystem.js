@@ -158,7 +158,6 @@ export function createEventState(eventType, context) {
             // Show currently applied nodes that could be replaced
             const applied = UpgradeEngine.getAppliedNodes();
             const appliedList = Object.keys(applied).map(id => {
-                const def = UpgradeEngine.getCombatMods(); // just for reference
                 const nodeDef = NODE_DEFINITIONS_LOOKUP(id);
                 return nodeDef ? { id, name: nodeDef.name, icon: nodeDef.icon, color: nodeDef.color, category: nodeDef.category } : null;
             }).filter(Boolean);
@@ -204,11 +203,15 @@ export function createEventState(eventType, context) {
         }
 
         case EVENT_TRIAL:
-            // Trial: will be handled by game.js spawning a timed challenge
-            base.phase = 'challenge';
+            // Trial: show intro first, then game.js handles the timed challenge
+            base.phase = 'choosing';
             base.timeLimit = 15000;  // 15s survive timer
             base.timeRemaining = 15000;
             base.succeeded = false;
+            base.choices = [
+                { label: '⚔️ Accept the Trial — Survive 15s for a Forge Token', reward: 'start_trial', color: '#f44336' },
+                { label: 'Decline — Skip this room', reward: null, color: '#666' },
+            ];
             break;
 
         case EVENT_TRADER: {
@@ -363,7 +366,7 @@ export function renderEvent(ctx, eventState) {
         ctx.font = skipSelected ? 'bold 13px monospace' : '12px monospace';
         ctx.fillText('Skip', CANVAS_WIDTH / 2, skipY + 4);
     } else if (phase === 'challenge') {
-        // Trial countdown
+        // Trial countdown (rendered as HUD banner during gameplay, not here)
         const secs = Math.ceil((eventState.timeRemaining || 0) / 1000);
         ctx.fillStyle = '#f44336';
         ctx.font = 'bold 28px monospace';

@@ -539,6 +539,7 @@ export const META_BOOSTER_IDS = Object.keys(META_BOOSTERS);
 
 // ── In-Run Shop Items (Coins) ──
 // ── Coin Drop Economy ──
+export const COIN_DROP_CHANCE = 0.35;        // 35% chance normal enemies drop a coin (elites/bosses always drop)
 export const COIN_DROP_LIFETIME = 4000;      // 4s before disappearing
 export const COIN_DROP_RADIUS = 8;
 export const COIN_DROP_BOBBLE_SPEED = 0.005;

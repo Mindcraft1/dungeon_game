@@ -1,5 +1,6 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { PLAYER_COLORS, getColorById } from '../cosmetics.js';
+import { CLASS_DEFINITIONS, getClassById, renderClassIcon } from '../classes.js';
 
 const MAX_PROFILES = 6;
 const MAX_NAME_LEN = 12;
@@ -15,8 +16,10 @@ const MAX_NAME_LEN = 12;
  * @param {boolean} isDeleting – showing delete confirmation?
  * @param {boolean} isColorPicking – showing color picker overlay?
  * @param {number} colorCursor – current cursor in color picker grid
+ * @param {boolean} isClassPicking – showing class picker overlay?
+ * @param {number} classCursor – current cursor in class picker
  */
-export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting, isColorPicking, colorCursor) {
+export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting, isColorPicking, colorCursor, isClassPicking, classCursor) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -87,6 +90,19 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
+        // Class icon (next to color swatch)
+        const classIconX = bx + 52;
+        const classIconY = swatchY;
+        renderClassIcon(ctx, p.classId || 'guardian', classIconX, classIconY, 8);
+
+        // Class name label
+        const cls = getClassById(p.classId);
+        ctx.fillStyle = cls.color;
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(cls.name, classIconX + 12, classIconY + 3);
+        ctx.textAlign = 'center';
+
         // Name (shifted right to make room for swatch)
         ctx.fillStyle = selected ? '#fff' : '#aaa';
         ctx.font = 'bold 18px monospace';
@@ -120,9 +136,15 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     }
 
     // ── Name creation overlay ──
-    if (isCreating) {
+    if (isCreating && !isClassPicking) {
         _renderCreateOverlay(ctx, newName);
         return; // Don't render hints behind overlay
+    }
+
+    // ── Class picker overlay (during profile creation) ──
+    if (isCreating && isClassPicking) {
+        _renderClassPickerOverlay(ctx, newName, classCursor);
+        return;
     }
 
     // ── Delete confirmation overlay ──
@@ -208,6 +230,163 @@ function _renderCreateOverlay(ctx, name) {
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
     ctx.fillText('ENTER = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+
+    ctx.textAlign = 'left';
+}
+
+function _renderClassPickerOverlay(ctx, name, cursor) {
+    // Fully opaque backdrop to cover profiles screen
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.textAlign = 'center';
+
+    // Title
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText('CHOOSE YOUR CLASS', CANVAS_WIDTH / 2, 80);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '12px monospace';
+    ctx.fillText(`for "${name}"`, CANVAS_WIDTH / 2, 105);
+
+    // ── Class cards ──
+    const cardW = 170;
+    const cardH = 330;
+    const gap = 12;
+    const total = CLASS_DEFINITIONS.length;
+    const totalW = total * cardW + (total - 1) * gap;
+    const startX = (CANVAS_WIDTH - totalW) / 2;
+    const cardY = 120;
+
+    for (let i = 0; i < total; i++) {
+        const cls = CLASS_DEFINITIONS[i];
+        const cx = startX + i * (cardW + gap);
+        const selected = i === cursor;
+
+        // Card background
+        if (selected) {
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(cx, cardY, cardW, cardH);
+            ctx.strokeStyle = cls.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cx, cardY, cardW, cardH);
+        } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.02)';
+            ctx.fillRect(cx, cardY, cardW, cardH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx, cardY, cardW, cardH);
+        }
+
+        // Clip card content to card bounds
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx, cardY, cardW, cardH);
+        ctx.clip();
+
+        const midX = cx + cardW / 2;
+
+        // Class icon (player circle with emblem)
+        const iconY = cardY + 45;
+        const iconR = 24;
+        ctx.fillStyle = cls.color;
+        ctx.beginPath();
+        ctx.arc(midX, iconY, iconR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = selected ? '#fff' : 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Eye dot
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(midX + iconR * 0.55, iconY, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Emblem inside circle
+        renderClassIcon(ctx, cls.id, midX, iconY, iconR * 0.35);
+
+        // Class name
+        ctx.fillStyle = selected ? cls.color : '#aaa';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(cls.name, midX, iconY + iconR + 26);
+
+        // Description (word-wrapped)
+        ctx.fillStyle = selected ? '#ccc' : '#666';
+        ctx.font = '11px monospace';
+        const descWords = cls.desc.split(' ');
+        let descLine = '';
+        let descY = iconY + iconR + 46;
+        for (const w of descWords) {
+            const test = descLine + (descLine ? ' ' : '') + w;
+            if (ctx.measureText(test).width > cardW - 16) {
+                ctx.fillText(descLine, midX, descY);
+                descLine = w;
+                descY += 14;
+            } else {
+                descLine = test;
+            }
+        }
+        if (descLine) ctx.fillText(descLine, midX, descY);
+
+        // ── Stat modifiers ──
+        const statsY = iconY + iconR + 84;
+        ctx.font = '12px monospace';
+
+        // HP
+        const hpLabel = cls.hpMult > 1 ? `+${Math.round((cls.hpMult - 1) * 100)}% HP` : cls.hpMult < 1 ? `${Math.round((cls.hpMult - 1) * 100)}% HP` : '— HP';
+        ctx.fillStyle = cls.hpMult > 1 ? '#4caf50' : cls.hpMult < 1 ? '#ef5350' : '#555';
+        ctx.fillText(hpLabel, midX, statsY);
+
+        // Damage
+        const dmgLabel = cls.damageMult > 1 ? `+${Math.round((cls.damageMult - 1) * 100)}% DMG` : cls.damageMult < 1 ? `${Math.round((cls.damageMult - 1) * 100)}% DMG` : '— DMG';
+        ctx.fillStyle = cls.damageMult > 1 ? '#ffa726' : cls.damageMult < 1 ? '#ef5350' : '#555';
+        ctx.fillText(dmgLabel, midX, statsY + 18);
+
+        // Speed
+        const spdLabel = cls.speedMult > 1 ? `+${Math.round((cls.speedMult - 1) * 100)}% Speed` : cls.speedMult < 1 ? `${Math.round((cls.speedMult - 1) * 100)}% Speed` : '— Speed';
+        ctx.fillStyle = cls.speedMult > 1 ? '#4fc3f7' : cls.speedMult < 1 ? '#ef5350' : '#555';
+        ctx.fillText(spdLabel, midX, statsY + 36);
+
+        // ── Passive ──
+        const passiveY = statsY + 65;
+        ctx.fillStyle = selected ? '#ffd700' : '#888';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('PASSIVE', midX, passiveY);
+
+        ctx.fillStyle = selected ? '#ddd' : '#666';
+        ctx.font = '10px monospace';
+
+        // Word-wrap passive description
+        const words = cls.passive.desc.split(' ');
+        let line = '';
+        let lineY = passiveY + 16;
+        for (const word of words) {
+            const test = line + (line ? ' ' : '') + word;
+            if (ctx.measureText(test).width > cardW - 20) {
+                ctx.fillText(line, midX, lineY);
+                line = word;
+                lineY += 13;
+            } else {
+                line = test;
+            }
+        }
+        if (line) ctx.fillText(line, midX, lineY);
+
+        ctx.restore(); // End card clipping
+    }
+
+    // ── Selection indicator ──
+    const selectedX = startX + cursor * (cardW + gap) + cardW / 2;
+    ctx.fillStyle = CLASS_DEFINITIONS[cursor].color;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('▼', selectedX, cardY - 8);
+
+    // ── Hints ──
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('A/D or Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }

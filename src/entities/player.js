@@ -23,6 +23,7 @@ import {
 import { resolveWalls, resolveWallsOnly, isCanyon } from '../collision.js';
 import { devOverrides, getVal } from '../ui/devTools.js';
 import { applyFreeze, applyBurn } from '../combat/statusEffects.js';
+import { renderClassEmblem } from '../classes.js';
 
 export class Player {
     constructor(x, y) {
@@ -96,6 +97,26 @@ export class Player {
         this.outlineColor = '#2980b9';
         this.dashColor = '#b3e5fc';
         this.ghostColor = '#4fc3f7';
+
+        // ── Class system (set by game.js at run start) ──
+        this.classId = null;                  // 'adventurer' | 'guardian' | 'rogue' | 'berserker'
+        this.classPassive = null;             // passive definition from classes.js
+
+        // Adventurer passive — room clear heal
+        this.adventurerHealPercent = 0;       // 0 = no adventurer heal
+
+        // Guardian passive — auto-shield
+        this.guardianShieldReady = false;
+        this.guardianShieldCooldown = 0;      // ms until shield recharges
+        this.guardianShieldMaxCooldown = 0;   // max cooldown (from passive def)
+
+        // Rogue passive — crit multiplier
+        this.rogueCritMult = 0;               // 0 means no rogue bonus (use default 1.5×)
+
+        // Berserker passive — rage below HP threshold
+        this.berserkThreshold = 0;            // HP% threshold (0-1)
+        this.berserkDamageBuff = 0;           // bonus damage multiplier (0-1)
+        this.berserkActive = false;           // currently in berserk state?
     }
 
     /**
@@ -197,6 +218,20 @@ export class Player {
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
         if (this.daggerCooldown > 0) this.daggerCooldown -= ms;
         this._updateBuffs(ms);
+
+        // ── Guardian shield recharge ──
+        if (this.guardianShieldMaxCooldown > 0 && !this.guardianShieldReady && this.guardianShieldCooldown > 0) {
+            this.guardianShieldCooldown -= ms;
+            if (this.guardianShieldCooldown <= 0) {
+                this.guardianShieldReady = true;
+                this.guardianShieldCooldown = 0;
+            }
+        }
+
+        // ── Berserker rage state ──
+        if (this.berserkThreshold > 0) {
+            this.berserkActive = (this.hp / this.maxHp) <= this.berserkThreshold;
+        }
     }
 
     // ── Canyon helpers ───────────────────────────────────────
@@ -301,8 +336,8 @@ export class Player {
         this._currentArcMult = mods.arcMult || 1;
         const effectiveArc = ATTACK_ARC * this._currentArcMult;
 
-        // Damage calculation
-        let dmg = this.damage;
+        // Damage calculation (includes Berserker rage bonus)
+        let dmg = this.getEffectiveDamage();
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
         // Global damage multiplier from nodes
@@ -397,7 +432,7 @@ export class Player {
         const dirY = len > 0 ? this.facingY / len : 0;
 
         // Damage: base = player damage × DAGGER_DAMAGE_MULT, with buff multipliers
-        let dmg = Math.floor(this.damage * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
+        let dmg = Math.floor(this.getEffectiveDamage() * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
         // Global damage multiplier from nodes
@@ -498,6 +533,15 @@ export class Player {
 
     takeDamage(amount) {
         if (this.invulnTimer > 0) return;
+
+        // Guardian passive: auto-shield blocks one hit completely
+        if (this.guardianShieldReady) {
+            this.guardianShieldReady = false;
+            this.guardianShieldCooldown = this.guardianShieldMaxCooldown;
+            this.invulnTimer = getVal('playerInvulnTime', PLAYER_INVULN_TIME);
+            this.damageFlashTimer = 80;
+            return;
+        }
 
         // Phase Shield: block one hit completely
         if (this.phaseShieldActive) {
@@ -643,6 +687,15 @@ export class Player {
         return spd;
     }
 
+    /** Effective damage accounting for Berserker rage passive. */
+    getEffectiveDamage() {
+        let dmg = this.damage;
+        if (this.berserkActive && this.berserkDamageBuff > 0) {
+            dmg = Math.floor(dmg * (1 + this.berserkDamageBuff));
+        }
+        return dmg;
+    }
+
     /** Clear all buffs (e.g. on death/restart). */
     clearBuffs() {
         this.activeBuffs = [];
@@ -654,6 +707,7 @@ export class Player {
 
     render(ctx) {
         this._renderBuffEffects(ctx);
+        this._renderClassPassiveEffects(ctx);
         this._renderAttackArc(ctx);
         this._renderBody(ctx);
     }
@@ -728,6 +782,95 @@ export class Player {
             3, 0, Math.PI * 2,
         );
         ctx.fill();
+
+        // Class emblem (drawn semi-transparent inside the circle)
+        if (this.classId) {
+            renderClassEmblem(ctx, this.classId, this.x, this.y, this.radius);
+        }
+
+        ctx.restore();
+    }
+
+    /** Render class-specific passive visual effects (drawn behind/around player). */
+    _renderClassPassiveEffects(ctx) {
+        ctx.save();
+
+        // ── Adventurer: gentle golden compass sparkle ──
+        if (this.adventurerHealPercent > 0) {
+            const pulse = Math.sin(Date.now() * 0.003) * 0.08;
+            ctx.globalAlpha = 0.18 + pulse;
+            ctx.strokeStyle = '#ffd54f';
+            ctx.lineWidth = 1.5;
+            // 4-pointed star rotating slowly
+            const t = Date.now() * 0.001;
+            const sr = this.radius + 7;
+            ctx.beginPath();
+            for (let i = 0; i < 4; i++) {
+                const angle = t + (Math.PI / 2) * i;
+                const ox = Math.cos(angle) * sr;
+                const oy = Math.sin(angle) * sr;
+                ctx.moveTo(this.x + ox * 0.3, this.y + oy * 0.3);
+                ctx.lineTo(this.x + ox, this.y + oy);
+            }
+            ctx.stroke();
+        }
+
+        // ── Guardian: shield ring (when ready) / recharge indicator ──
+        if (this.guardianShieldMaxCooldown > 0) {
+            if (this.guardianShieldReady) {
+                // Pulsing shield ring
+                ctx.globalAlpha = 0.25 + Math.sin(Date.now() * 0.004) * 0.1;
+                ctx.strokeStyle = '#4fc3f7';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Small shield icon above player
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#4fc3f7';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('🛡', this.x, this.y - this.radius - 8);
+                ctx.textAlign = 'left';
+            } else if (this.guardianShieldCooldown > 0) {
+                // Recharging arc indicator
+                const progress = 1 - (this.guardianShieldCooldown / this.guardianShieldMaxCooldown);
+                ctx.globalAlpha = 0.15;
+                ctx.strokeStyle = '#4fc3f7';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + 10, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // ── Berserker: red pulsing aura when active ──
+        if (this.berserkActive) {
+            const pulse = Math.sin(Date.now() * 0.01) * 0.15;
+            ctx.globalAlpha = 0.3 + pulse;
+            ctx.shadowColor = '#ef5350';
+            ctx.shadowBlur = 18;
+            ctx.strokeStyle = '#ef5350';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Red particles orbiting
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = '#ff5252';
+            const t = Date.now() * 0.005;
+            for (let i = 0; i < 4; i++) {
+                const angle = t + (Math.PI / 2) * i;
+                const px = this.x + Math.cos(angle) * (this.radius + 7);
+                const py = this.y + Math.sin(angle) * (this.radius + 7);
+                ctx.beginPath();
+                ctx.arc(px, py, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
 
         ctx.restore();
     }

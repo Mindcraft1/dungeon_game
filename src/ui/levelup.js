@@ -4,7 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE 
  * Draw the Level-Up overlay (game is paused while visible).
  * @param {Array} [choices] – dynamic choices array from game.js, or null for default
  */
-export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null, spaceConfirmReady = false) {
+export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null, spaceConfirmReady = false, rerollTokenCount = 0) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -102,7 +102,8 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
         ctx.fillStyle = '#ffd700';
         ctx.fillText('Press SPACE again to confirm', CANVAS_WIDTH / 2, by + bh - 16);
     } else {
-        ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+        const rerollHint = rerollTokenCount > 0 ? `  ·  R to Reroll (${rerollTokenCount})` : '';
+        ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm' + rerollHint, CANVAS_WIDTH / 2, by + bh - 16);
     }
     ctx.textAlign = 'left';
 }
@@ -202,7 +203,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         const colW = (CANVAS_WIDTH - 80) / 2;
         const col1X = 42;
         const col2X = 42 + colW + 10;
-        const rowH = 16;
+        const rowH = 26;
         let col = 0;
         let row = 0;
         const maxRows = Math.floor((panelH - 22) / rowH);
@@ -214,7 +215,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
 
             // Category header
             if (fx.category !== lastCat[col]) {
-                if (row > 0) row += 0.3;
+                if (row > 0) row += 0.2;
                 const catY = panelTop + 20 + row * rowH;
                 if (row < maxRows) {
                     ctx.fillStyle = '#666';
@@ -222,7 +223,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
                     ctx.textAlign = 'left';
                     ctx.fillText(fx.category.toUpperCase(), x, catY + 7);
                 }
-                row += 0.8;
+                row += 0.5;
                 lastCat[col] = fx.category;
             }
 
@@ -255,6 +256,21 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
                 nameStr += '…';
             }
             ctx.fillText(nameStr, x + 14, fy + 8);
+
+            // Description — show what the effect actually does
+            if (fx.desc) {
+                ctx.fillStyle = '#777';
+                ctx.font = '7px monospace';
+                const maxDescW = colW - 20;
+                let descStr = fx.desc;
+                if (ctx.measureText(descStr).width > maxDescW) {
+                    while (descStr.length > 0 && ctx.measureText(descStr + '…').width > maxDescW) {
+                        descStr = descStr.slice(0, -1);
+                    }
+                    descStr += '…';
+                }
+                ctx.fillText(descStr, x + 14, fy + 18);
+            }
 
             row++;
         }
