@@ -800,8 +800,6 @@ export class Hazard {
     }
 
     _renderLaserWall(ctx) {
-        if (this.wallAlpha <= 0) return;
-
         const S = TILE_SIZE;
         let wallX, wallY, wallW, wallH;
         if (this.wallAxis === 'h') {
@@ -818,6 +816,81 @@ export class Hazard {
 
         ctx.save();
 
+        // ── ALWAYS visible: floor-mounted emitter rails ──
+        // These show the player where the wall will appear even when open
+        const railColor = HAZARD_LASER_WALL_COLOR2;
+        const railAlpha = this.wallActive ? 0.25 : 0.35; // slightly brighter when open (draw attention)
+
+        if (this.wallAxis === 'h') {
+            // Two thin rails running horizontally
+            ctx.globalAlpha = railAlpha;
+            ctx.fillStyle = railColor;
+            ctx.fillRect(wallX - 2, wallY - 2, wallW + 4, 2);           // top rail
+            ctx.fillRect(wallX - 2, wallY + wallH, wallW + 4, 2);       // bottom rail
+
+            // Rail tick marks every half-tile
+            ctx.globalAlpha = railAlpha * 0.6;
+            ctx.fillStyle = HAZARD_LASER_WALL_COLOR;
+            for (let tx = wallX; tx <= wallX + wallW; tx += S * 0.5) {
+                ctx.fillRect(tx - 0.5, wallY - 4, 1, 3);
+                ctx.fillRect(tx - 0.5, wallY + wallH + 1, 1, 3);
+            }
+
+            // Emitter brackets at each end (small metallic bumps)
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = '#3a4a5a';
+            ctx.fillRect(wallX - 5, wallY - 4, 5, wallH + 8);
+            ctx.fillRect(wallX + wallW, wallY - 4, 5, wallH + 8);
+            // Bright emitter dot
+            ctx.fillStyle = this.wallActive ? HAZARD_LASER_WALL_COLOR : '#334455';
+            ctx.beginPath();
+            ctx.arc(wallX - 2.5, wallY + wallH / 2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wallX + wallW + 2.5, wallY + wallH / 2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Two thin rails running vertically
+            ctx.globalAlpha = railAlpha;
+            ctx.fillStyle = railColor;
+            ctx.fillRect(wallX - 2, wallY - 2, 2, wallH + 4);          // left rail
+            ctx.fillRect(wallX + wallW, wallY - 2, 2, wallH + 4);      // right rail
+
+            ctx.globalAlpha = railAlpha * 0.6;
+            ctx.fillStyle = HAZARD_LASER_WALL_COLOR;
+            for (let ty = wallY; ty <= wallY + wallH; ty += S * 0.5) {
+                ctx.fillRect(wallX - 4, ty - 0.5, 3, 1);
+                ctx.fillRect(wallX + wallW + 1, ty - 0.5, 3, 1);
+            }
+
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = '#3a4a5a';
+            ctx.fillRect(wallX - 4, wallY - 5, wallW + 8, 5);
+            ctx.fillRect(wallX - 4, wallY + wallH, wallW + 8, 5);
+            ctx.fillStyle = this.wallActive ? HAZARD_LASER_WALL_COLOR : '#334455';
+            ctx.beginPath();
+            ctx.arc(wallX + wallW / 2, wallY - 2.5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wallX + wallW / 2, wallY + wallH + 2.5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // ── Idle pulsing glow on rails when wall is OPEN (extra warning) ──
+        if (!this.wallActive) {
+            const pulse = 0.15 + Math.sin(Date.now() * 0.004) * 0.08;
+            ctx.globalAlpha = pulse;
+            ctx.fillStyle = HAZARD_LASER_WALL_COLOR;
+            if (this.wallAxis === 'h') {
+                ctx.fillRect(wallX, wallY, wallW, wallH);
+            } else {
+                ctx.fillRect(wallX, wallY, wallW, wallH);
+            }
+            ctx.restore();
+            return;
+        }
+
+        // ── Active wall beam (only when wallAlpha > 0) ──
         // Outer glow
         ctx.globalAlpha = this.wallAlpha * 0.2;
         ctx.fillStyle = HAZARD_LASER_WALL_COLOR2;
@@ -843,25 +916,6 @@ export class Hazard {
                 const scanY = wallY + ((t * 40 + i * wallH / 3) % wallH);
                 ctx.fillRect(wallX, scanY, wallW, 2);
             }
-        }
-
-        // Edge emitter nodes (small bright dots at each end)
-        ctx.globalAlpha = this.wallAlpha;
-        ctx.fillStyle = '#ffffff';
-        if (this.wallAxis === 'h') {
-            ctx.beginPath();
-            ctx.arc(wallX, wallY + wallH / 2, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(wallX + wallW, wallY + wallH / 2, 3, 0, Math.PI * 2);
-            ctx.fill();
-        } else {
-            ctx.beginPath();
-            ctx.arc(wallX + wallW / 2, wallY, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(wallX + wallW / 2, wallY + wallH, 3, 0, Math.PI * 2);
-            ctx.fill();
         }
 
         // Warning border when flickering

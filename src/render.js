@@ -49,6 +49,7 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
     const wallLight  = biome ? biome.wallLight  : COLOR_WALL_LIGHT;
     const wallDark   = biome ? biome.wallDark   : COLOR_WALL_DARK;
     const gridTint   = biome ? biome.gridTint   : 'rgba(255,255,255,0.03)';
+    const isSpaceship = biome && biome.id === 'spaceship';
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
@@ -57,47 +58,55 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
             const cell = grid[row][col];
 
             if (cell === TILE_WALL) {
-                // Wall – base fill
-                ctx.fillStyle = wallColor;
-                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                if (isSpaceship) {
+                    _drawSpaceshipWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
+                } else {
+                    // Wall – base fill
+                    ctx.fillStyle = wallColor;
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
-                // Light edge (top + left)
-                ctx.fillStyle = wallLight;
-                ctx.fillRect(x, y, TILE_SIZE, 2);
-                ctx.fillRect(x, y, 2, TILE_SIZE);
+                    // Light edge (top + left)
+                    ctx.fillStyle = wallLight;
+                    ctx.fillRect(x, y, TILE_SIZE, 2);
+                    ctx.fillRect(x, y, 2, TILE_SIZE);
 
-                // Dark edge (bottom + right)
-                ctx.fillStyle = wallDark;
-                ctx.fillRect(x, y + TILE_SIZE - 2, TILE_SIZE, 2);
-                ctx.fillRect(x + TILE_SIZE - 2, y, 2, TILE_SIZE);
+                    // Dark edge (bottom + right)
+                    ctx.fillStyle = wallDark;
+                    ctx.fillRect(x, y + TILE_SIZE - 2, TILE_SIZE, 2);
+                    ctx.fillRect(x + TILE_SIZE - 2, y, 2, TILE_SIZE);
 
-                // ── Wall decorations ────────────────────────
-                if (biome && biome.wallDecor && _hasFloorNeighbour(grid, row, col)) {
-                    const rng = _tileHash(col, row, decorSeed + 99);
-                    if (rng < biome.wallDecor.chance) {
-                        const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, decorSeed + 200));
-                        _drawWallDecor(ctx, x, y, type, col, row, decorSeed);
+                    // ── Wall decorations ────────────────────────
+                    if (biome && biome.wallDecor && _hasFloorNeighbour(grid, row, col)) {
+                        const rng = _tileHash(col, row, decorSeed + 99);
+                        if (rng < biome.wallDecor.chance) {
+                            const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, decorSeed + 200));
+                            _drawWallDecor(ctx, x, y, type, col, row, decorSeed);
+                        }
                     }
                 }
             } else if (cell === TILE_CANYON) {
                 // ── Canyon / Pit tile ───────────────────────
                 _drawCanyonTile(ctx, x, y, col, row, grid, decorSeed);
             } else {
-                // Floor
-                ctx.fillStyle = floorColor;
-                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                if (isSpaceship) {
+                    _drawSpaceshipFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
+                } else {
+                    // Floor
+                    ctx.fillStyle = floorColor;
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
-                // Subtle tile grid
-                ctx.strokeStyle = gridTint;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+                    // Subtle tile grid
+                    ctx.strokeStyle = gridTint;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
 
-                // ── Floor decorations ───────────────────────
-                if (biome && biome.floorDecor) {
-                    const rng = _tileHash(col, row, decorSeed);
-                    if (rng < biome.floorDecor.chance) {
-                        const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, decorSeed + 100));
-                        _drawFloorDecor(ctx, x, y, type, col, row, decorSeed);
+                    // ── Floor decorations ───────────────────────
+                    if (biome && biome.floorDecor) {
+                        const rng = _tileHash(col, row, decorSeed);
+                        if (rng < biome.floorDecor.chance) {
+                            const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, decorSeed + 100));
+                            _drawFloorDecor(ctx, x, y, type, col, row, decorSeed);
+                        }
                     }
                 }
             }
@@ -220,6 +229,72 @@ function _drawFloorDecor(ctx, x, y, type, col, row, seed) {
                 ctx.rotate(angle);
                 ctx.fillRect(-2, -1, 4, 2);
                 ctx.restore();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'grid': {
+            // Circuit-trace / hull plating grid lines (spaceship floor)
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 0.5;
+            // Horizontal segment
+            const hx = x + 4 + h1 * 8;
+            const hy = y + 10 + h2 * 20;
+            ctx.beginPath();
+            ctx.moveTo(hx, hy);
+            ctx.lineTo(hx + 14 + h2 * 14, hy);
+            ctx.stroke();
+            // Right-angle junction
+            const jx = hx + 14 + h2 * 14;
+            ctx.beginPath();
+            ctx.moveTo(jx, hy);
+            ctx.lineTo(jx, hy + (h1 > 0.5 ? -8 : 8) - h2 * 4);
+            ctx.stroke();
+            // Small node at junction
+            ctx.fillStyle = type.color;
+            ctx.fillRect(jx - 1, hy - 1, 2, 2);
+            break;
+        }
+        case 'hullSeam': {
+            // Long thin horizontal seam across hull plating
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 0.5;
+            ctx.globalAlpha = 0.5;
+            const sy = y + 6 + h1 * 28;
+            ctx.beginPath();
+            ctx.moveTo(x + 1, sy);
+            ctx.lineTo(x + TILE_SIZE - 1, sy);
+            ctx.stroke();
+            // Rivet dots along seam
+            ctx.fillStyle = type.colorAlt || type.color;
+            ctx.globalAlpha = 0.4;
+            for (let i = 0; i < 2; i++) {
+                const rx = x + 8 + i * 20 + _tileHash(col + i, row, seed + 390) * 6;
+                ctx.beginPath();
+                ctx.arc(rx, sy, 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'vent': {
+            // Small floor vent grate
+            ctx.globalAlpha = 0.4;
+            const vx = x + 8 + h1 * 16;
+            const vy = y + 8 + h2 * 16;
+            const vw = 8 + h1 * 6;
+            const vh = 6 + h2 * 4;
+            ctx.fillStyle = '#0a0e14';
+            ctx.fillRect(vx, vy, vw, vh);
+            // Slats
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 0.5;
+            for (let s = 0; s < 3; s++) {
+                const sy2 = vy + 1.5 + s * (vh / 3);
+                ctx.beginPath();
+                ctx.moveTo(vx + 1, sy2);
+                ctx.lineTo(vx + vw - 1, sy2);
+                ctx.stroke();
             }
             ctx.globalAlpha = 1;
             break;
@@ -439,6 +514,212 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
             ctx.globalAlpha = 1;
             break;
         }
+        case 'panel': {
+            // Inset wall panel with border (spaceship hull panel)
+            const inset = 4;
+            const pw = TILE_SIZE - inset * 2;
+            const ph = TILE_SIZE - inset * 2;
+            // Panel recess (darker than wall)
+            ctx.fillStyle = type.color;
+            ctx.globalAlpha = 0.5;
+            ctx.fillRect(x + inset, y + inset, pw, ph);
+            // Panel border
+            ctx.strokeStyle = type.colorAlt || 'rgba(0,229,255,0.12)';
+            ctx.lineWidth = 0.5;
+            ctx.globalAlpha = 0.8;
+            ctx.strokeRect(x + inset + 0.5, y + inset + 0.5, pw - 1, ph - 1);
+            // Inner detail line (horizontal divider)
+            ctx.globalAlpha = 0.4;
+            const midY = y + TILE_SIZE / 2 + (h1 - 0.5) * 6;
+            ctx.beginPath();
+            ctx.moveTo(x + inset + 3, midY);
+            ctx.lineTo(x + TILE_SIZE - inset - 3, midY);
+            ctx.stroke();
+            // Corner rivets
+            ctx.fillStyle = type.colorAlt || '#3a4a5a';
+            ctx.globalAlpha = 0.6;
+            const rivets = [
+                [x + inset + 2, y + inset + 2],
+                [x + TILE_SIZE - inset - 3, y + inset + 2],
+                [x + inset + 2, y + TILE_SIZE - inset - 3],
+                [x + TILE_SIZE - inset - 3, y + TILE_SIZE - inset - 3],
+            ];
+            for (const [rx, ry] of rivets) {
+                ctx.fillRect(rx, ry, 1.5, 1.5);
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'light': {
+            // Horizontal LED strip light on wall surface
+            ctx.globalAlpha = 0.35;
+            const ly = y + TILE_SIZE - 6 + h1 * 3;
+            const lx1 = x + 4;
+            const lx2 = x + TILE_SIZE - 4;
+            // Glow behind
+            ctx.shadowColor = type.color;
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(lx1, ly);
+            ctx.lineTo(lx2, ly);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            // Bright core
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(lx1, ly);
+            ctx.lineTo(lx2, ly);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'conduit': {
+            // Vertical conduit / pipe running down the wall
+            ctx.globalAlpha = 0.5;
+            const cx2 = x + 10 + h1 * 20;
+            ctx.fillStyle = type.color;
+            ctx.fillRect(cx2 - 1.5, y, 3, TILE_SIZE);
+            // Bracket clamps
+            ctx.fillStyle = type.colorAlt || '#4a5a6a';
+            ctx.fillRect(cx2 - 3, y + 6 + h2 * 8, 6, 2);
+            ctx.fillRect(cx2 - 3, y + 22 + h1 * 8, 6, 2);
+            ctx.globalAlpha = 1;
+            break;
+        }
+    }
+}
+
+// ── Spaceship biome: custom floor tile ──────────────────────
+function _drawSpaceshipFloor(ctx, x, y, col, row, grid, floorColor, gridTint, seed, biome) {
+    const S = TILE_SIZE;
+    const h = _tileHash(col, row, seed + 1000);
+    const h2 = _tileHash(col, row, seed + 1001);
+
+    // ── Base hull plate ──
+    // Alternate between 2-3 slightly different plate shades for variety
+    const shadeIdx = ((col + row * 3) ^ (col * 7)) & 3;
+    const shades = ['#0d1117', '#0f1319', '#0b0f14', '#10151c'];
+    ctx.fillStyle = shades[shadeIdx];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Panel border (every floor tile has visible plate edges) ──
+    // Thin recessed groove around each plate
+    ctx.strokeStyle = '#070a0e';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, S - 1, S - 1);
+
+    // Inner highlight on top-left edges (metallic sheen)
+    ctx.strokeStyle = 'rgba(40,60,80,0.25)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y + S - 2);
+    ctx.lineTo(x + 2, y + 2);
+    ctx.lineTo(x + S - 2, y + 2);
+    ctx.stroke();
+
+    // ── Plate markings (deterministic per tile) ──
+    // Some tiles get an inset panel look
+    if (h < 0.25) {
+        // Double-bordered panel inset
+        ctx.strokeStyle = 'rgba(0,229,255,0.06)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x + 5, y + 5, S - 10, S - 10);
+    }
+    // Some tiles get subtle directional arrow / walkway marking
+    if (h > 0.85) {
+        ctx.fillStyle = 'rgba(0,229,255,0.04)';
+        const stripeW = 3;
+        if ((col + row) % 2 === 0) {
+            ctx.fillRect(x + S / 2 - stripeW / 2, y + 4, stripeW, S - 8); // vertical stripe
+        } else {
+            ctx.fillRect(x + 4, y + S / 2 - stripeW / 2, S - 8, stripeW); // horizontal stripe
+        }
+    }
+    // Corner rivets on some tiles
+    if (h2 > 0.6) {
+        ctx.fillStyle = 'rgba(50,70,90,0.4)';
+        ctx.fillRect(x + 3, y + 3, 1.5, 1.5);
+        ctx.fillRect(x + S - 5, y + 3, 1.5, 1.5);
+        ctx.fillRect(x + 3, y + S - 5, 1.5, 1.5);
+        ctx.fillRect(x + S - 5, y + S - 5, 1.5, 1.5);
+    }
+
+    // ── Floor decor (circuit traces, vents etc.) ──
+    if (biome.floorDecor) {
+        const rng = _tileHash(col, row, seed);
+        if (rng < biome.floorDecor.chance) {
+            const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, seed + 100));
+            _drawFloorDecor(ctx, x, y, type, col, row, seed);
+        }
+    }
+}
+
+// ── Spaceship biome: custom wall tile ───────────────────────
+function _drawSpaceshipWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, seed, biome) {
+    const S = TILE_SIZE;
+    const h = _tileHash(col, row, seed + 2000);
+    const h2 = _tileHash(col, row, seed + 2001);
+    const exposed = _hasFloorNeighbour(grid, row, col);
+
+    // ── Base bulkhead fill ──
+    ctx.fillStyle = wallColor;
+    ctx.fillRect(x, y, S, S);
+
+    // ── Structural look: thick bevelled edges ──
+    ctx.fillStyle = wallLight;
+    ctx.fillRect(x, y, S, 3);
+    ctx.fillRect(x, y, 3, S);
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x, y + S - 3, S, 3);
+    ctx.fillRect(x + S - 3, y, 3, S);
+
+    // ── Bulkhead panel insets (most wall tiles) ──
+    if (h < 0.7) {
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(x + 6, y + 6, S - 12, S - 12);
+        // Inner panel highlight
+        ctx.strokeStyle = 'rgba(50,70,90,0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x + 6.5, y + 6.5, S - 13, S - 13);
+    }
+
+    // ── Rivets / bolts on structural edges ──
+    if (h2 > 0.3) {
+        ctx.fillStyle = 'rgba(60,80,100,0.5)';
+        ctx.fillRect(x + 4, y + 4, 2, 2);
+        ctx.fillRect(x + S - 6, y + 4, 2, 2);
+        ctx.fillRect(x + 4, y + S - 6, 2, 2);
+        ctx.fillRect(x + S - 6, y + S - 6, 2, 2);
+    }
+
+    // ── Exposed walls (adjacent to floor) get special treatment ──
+    if (exposed) {
+        // Horizontal bar / warning stripe at base (facing floor)
+        ctx.fillStyle = 'rgba(0,229,255,0.06)';
+        ctx.fillRect(x + 3, y + S - 6, S - 6, 2);
+
+        // Wall decorations
+        if (biome.wallDecor) {
+            const rng = _tileHash(col, row, seed + 99);
+            if (rng < biome.wallDecor.chance) {
+                const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, seed + 200));
+                _drawWallDecor(ctx, x, y, type, col, row, seed);
+            }
+        }
+    }
+
+    // ── Some walls get a subtle glowing indicator light ──
+    if (h > 0.88 && exposed) {
+        const lx = x + S / 2 + (h2 - 0.5) * 12;
+        const ly = y + S / 2 + (h - 0.5) * 8;
+        ctx.fillStyle = h2 > 0.5 ? 'rgba(0,229,255,0.25)' : 'rgba(255,100,50,0.2)';
+        ctx.beginPath();
+        ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 

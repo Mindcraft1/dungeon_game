@@ -389,19 +389,21 @@ const BIOMES = [
         },
 
         floorDecor: {
-            chance: 0.14,
+            chance: 0.22,
             types: [
-                { shape: 'grid',    color: 'rgba(0,229,255,0.08)', weight: 4 },  // circuit traces
-                { shape: 'dot',     color: '#1a2a3a', weight: 2 },  // rivet
-                { shape: 'crack',   color: '#0f1922', weight: 1 },  // hull seam
+                { shape: 'grid',     color: 'rgba(0,229,255,0.08)', weight: 4 },  // circuit traces
+                { shape: 'hullSeam', color: '#1a2a3a', colorAlt: '#2a3a4a', weight: 3 },  // hull plate seams
+                { shape: 'vent',     color: '#1a2a3a', weight: 2 },  // floor vent grates
+                { shape: 'dot',      color: '#1a2a3a', weight: 1 },  // rivet cluster
             ],
         },
 
         wallDecor: {
-            chance: 0.22,
+            chance: 0.35,
             types: [
-                { shape: 'panel',   color: '#2a3545', colorAlt: 'rgba(0,229,255,0.12)', weight: 3 },
-                { shape: 'light',   color: '#00e5ff', weight: 2 },  // strip lights
+                { shape: 'panel',   color: '#2a3545', colorAlt: 'rgba(0,229,255,0.12)', weight: 4 },
+                { shape: 'light',   color: '#00e5ff', weight: 3 },  // strip lights
+                { shape: 'conduit', color: '#2a3a4a', colorAlt: '#3a4a5a', weight: 2 },  // pipes/conduits
             ],
         },
 
