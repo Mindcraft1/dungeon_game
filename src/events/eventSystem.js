@@ -12,6 +12,7 @@ import {
     BOSS_STAGE_INTERVAL,
 } from '../constants.js';
 import * as UpgradeEngine from '../upgrades/upgradeEngine.js';
+import { drawRarityBadge } from '../ui/rarityBadge.js';
 
 // ── Event Definitions ──
 
@@ -132,6 +133,7 @@ export function createEventState(eventType, context) {
                     label: `${rareNodes[0].icon} ${rareNodes[0].name} (${rareNodes[0].desc}) — Curse: -10% Max HP`,
                     nodeId: rareNodes[0].id,
                     color: rareNodes[0].color,
+                    rarity: rareNodes[0].rarity,
                     curse: 'hp_reduce',
                     curseAmount: 0.10,
                 });
@@ -141,6 +143,7 @@ export function createEventState(eventType, context) {
                     label: `${commonNodes[0].icon} ${commonNodes[0].name} (${commonNodes[0].desc})`,
                     nodeId: commonNodes[0].id,
                     color: commonNodes[0].color,
+                    rarity: commonNodes[0].rarity,
                     curse: null,
                 });
             }
@@ -159,7 +162,7 @@ export function createEventState(eventType, context) {
             const applied = UpgradeEngine.getAppliedNodes();
             const appliedList = Object.keys(applied).map(id => {
                 const nodeDef = NODE_DEFINITIONS_LOOKUP(id);
-                return nodeDef ? { id, name: nodeDef.name, icon: nodeDef.icon, color: nodeDef.color, category: nodeDef.category } : null;
+                return nodeDef ? { id, name: nodeDef.name, icon: nodeDef.icon, color: nodeDef.color, category: nodeDef.category, rarity: nodeDef.rarity } : null;
             }).filter(Boolean);
 
             base.appliedNodes = appliedList;
@@ -182,6 +185,7 @@ export function createEventState(eventType, context) {
                     label: `🎲 Random: ${randomNode[0].icon} ${randomNode[0].name}`,
                     nodeId: randomNode[0].id,
                     color: randomNode[0].color,
+                    rarity: randomNode[0].rarity,
                     hpCost: 0,
                 });
             }
@@ -190,7 +194,7 @@ export function createEventState(eventType, context) {
                 nodeId: null,
                 color: '#e91e63',
                 hpCost: 0.15,
-                rareChoices: rareChoices.map(n => ({ id: n.id, name: n.name, icon: n.icon, color: n.color, desc: n.desc })),
+                rareChoices: rareChoices.map(n => ({ id: n.id, name: n.name, icon: n.icon, color: n.color, desc: n.desc, rarity: n.rarity })),
             });
             base.choices.push({
                 label: 'Skip',
@@ -334,6 +338,11 @@ export function renderEvent(ctx, eventState) {
 
             const label = choice.label || `${choice.icon} ${choice.name}: ${choice.desc}`;
             ctx.fillText(label, CANVAS_WIDTH / 2, y + 2);
+
+            // Rarity badge
+            if (choice.rarity) {
+                drawRarityBadge(ctx, choice.rarity, px + panelW - 50, y, !selected);
+            }
         });
     } else if (phase === 'select_remove') {
         // Library: show applied nodes to remove
@@ -357,6 +366,11 @@ export function renderEvent(ctx, eventState) {
             ctx.fillStyle = selected ? node.color : '#888';
             ctx.font = selected ? 'bold 13px monospace' : '12px monospace';
             ctx.fillText(`${node.icon} ${node.name}`, CANVAS_WIDTH / 2, y + 4);
+
+            // Rarity badge
+            if (node.rarity) {
+                drawRarityBadge(ctx, node.rarity, px + panelW - 50, y + 2, !selected);
+            }
         });
 
         // Skip option

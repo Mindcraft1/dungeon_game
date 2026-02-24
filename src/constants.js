@@ -301,6 +301,18 @@ export const NODE_RARITY_COMMON   = 'common';
 export const NODE_RARITY_UNCOMMON = 'uncommon';
 export const NODE_RARITY_RARE     = 'rare';
 
+// Rarity display colors and labels
+export const RARITY_COLORS = {
+    common:   '#9e9e9e',
+    uncommon: '#4caf50',
+    rare:     '#ffd740',
+};
+export const RARITY_LABELS = {
+    common:   'Common',
+    uncommon: 'Uncommon',
+    rare:     'Rare',
+};
+
 // ── Event System ──
 export const EVENT_MIN_STAGE       = 8;      // events appear from stage 8+
 export const EVENT_CHANCE           = 0.12;   // 12% per non-boss room

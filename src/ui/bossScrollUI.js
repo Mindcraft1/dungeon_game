@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { drawRarityBadge } from './rarityBadge.js';
 
 /**
  * Render the boss scroll choice overlay.
@@ -75,9 +76,22 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
             ctx.fillText(choice.desc, CANVAS_WIDTH / 2, y + 18);
         }
 
-        ctx.fillStyle = selected ? '#bbb' : '#555';
-        ctx.font = '10px monospace';
-        ctx.fillText(`[${typeLabel}]`, CANVAS_WIDTH / 2, y + 32);
+        // Type tag and rarity badge
+        if (choice.rarity) {
+            // Node with rarity — show rarity badge + type
+            drawRarityBadge(ctx, choice.rarity, px + panelW - 52, y, !selected);
+            ctx.fillStyle = selected ? '#bbb' : '#555';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`[${typeLabel}]`, CANVAS_WIDTH / 2, y + 32);
+        } else {
+            // Ability or Proc — show type label with special color
+            const typeColor = choice.type === 'ability' ? '#bb86fc' : choice.type === 'proc' ? '#4fc3f7' : '#bbb';
+            ctx.fillStyle = selected ? typeColor : '#555';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`[${typeLabel}]`, CANVAS_WIDTH / 2, y + 32);
+        }
     });
 
     // Controls

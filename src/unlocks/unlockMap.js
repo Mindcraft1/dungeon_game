@@ -191,7 +191,7 @@ export function generateBossScrollChoices(forceScroll = false) {
         if (!meta.unlockedNodes[id]) {
             const def = NODE_DEFINITIONS[id];
             if (def && def.rarity !== 'common') {
-                locked.push({ type: 'node', id, name: def.name, desc: def.desc || '', icon: def.icon, color: def.color });
+                locked.push({ type: 'node', id, name: def.name, desc: def.desc || '', icon: def.icon, color: def.color, rarity: def.rarity });
             }
         }
     }

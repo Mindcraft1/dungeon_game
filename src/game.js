@@ -2331,7 +2331,7 @@ export class Game {
             if (!cat) return;
             const context = this._getUpgradeContext();
             es.forgeNodeChoices = UpgradeEngine.buildForgeChoices(cat.id, context, 3).map(n => ({
-                id: n.id, label: `${n.icon} ${n.name}: ${n.desc}`, color: n.color, nodeId: n.id,
+                id: n.id, label: `${n.icon} ${n.name}: ${n.desc}`, color: n.color, nodeId: n.id, rarity: n.rarity,
             }));
             if (es.forgeNodeChoices.length === 0) {
                 es.phase = 'result';
@@ -2421,6 +2421,7 @@ export class Game {
                     label: `${n.icon} ${n.name}: ${n.desc}`,
                     nodeId: n.id,
                     color: n.color,
+                    rarity: n.rarity,
                     hpCost: 0,
                 }));
                 es.cursor = 0;
@@ -2451,6 +2452,7 @@ export class Game {
                 label: `${n.icon} ${n.name}: ${n.desc}`,
                 nodeId: n.id,
                 color: n.color,
+                rarity: n.rarity,
             }));
             es.choices.push({ label: 'Skip (keep removal)', nodeId: null, color: '#666' });
             es.phase = 'choosing';

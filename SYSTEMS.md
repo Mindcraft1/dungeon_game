@@ -693,7 +693,7 @@ Jede Klasse hat ein kleines Emblem, das semi-transparent im Spieler-Kreis gezeic
 - Berserker: Flamme / Faust
 
 ---
-
+mwdada
 ## 22. Waffen-Typen
 
 Drei Waffen ändern das Verhalten des Melee-Angriffs. Ausgewählt im **Loadout-Screen** vor dem Run.

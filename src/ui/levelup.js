@@ -1,4 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE } from '../constants.js';
+import { drawRarityBadge } from './rarityBadge.js';
 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
@@ -22,8 +23,11 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     ctx.font = 'bold 16px monospace';
     let maxTextW = 0;
     for (const t of opts0) maxTextW = Math.max(maxTextW, ctx.measureText(t).width);
-    // Add padding (arrow + margins on both sides)
-    const bw = Math.min(Math.max(Math.ceil(maxTextW) + 80, 380), CANVAS_WIDTH - 40);
+    // Reserve extra space for rarity badge if any choice has one
+    const hasAnyRarity = choices ? choices.some(c => c.rarity) : false;
+    const badgeReserve = hasAnyRarity ? 80 : 0;
+    // Add padding (arrow + margins on both sides + badge space)
+    const bw = Math.min(Math.max(Math.ceil(maxTextW) + 80 + badgeReserve, 380), CANVAS_WIDTH - 40);
 
     // Dynamic height: header (title+subtitle) + rows + footer (hint text)
     const rowH = 38;
@@ -53,7 +57,7 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
 
     // Options — use dynamic choices if provided, else base options
     const opts = choices
-        ? choices.map((c, i) => ({ key: `${i + 1}`, text: c.label, color: c.color }))
+        ? choices.map((c, i) => ({ key: `${i + 1}`, text: c.label, color: c.color, rarity: c.rarity }))
         : [
             { key: '1', text: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50' },
             { key: '2', text: `+${UPGRADE_SPEED} Speed`, color: '#2196f3' },
@@ -61,6 +65,11 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
         ];
 
     const startY = by + headerH;
+    // Text center offset: shift left when badges are present to avoid overlap
+    const textCenterX = hasAnyRarity ? CANVAS_WIDTH / 2 - badgeReserve / 2 : CANVAS_WIDTH / 2;
+    // Max text width before truncation (leave room for arrow, padding, and badge)
+    const maxLabelW = bw - 80 - badgeReserve;
+
     opts.forEach((o, i) => {
         const oy = startY + i * rowH;
         const selected = i === selectedIndex;
@@ -86,13 +95,27 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
             ctx.fillStyle = o.color;
             ctx.font = 'bold 16px monospace';
             ctx.textAlign = 'right';
-            ctx.fillText('▸', CANVAS_WIDTH / 2 - 130, oy + 4);
+            ctx.fillText('▸', textCenterX - maxLabelW / 2 - 8, oy + 4);
             ctx.textAlign = 'center';
         }
 
         ctx.fillStyle = selected ? o.color : '#666';
         ctx.font = selected ? 'bold 16px monospace' : '15px monospace';
-        ctx.fillText(`[${o.key}]  ${o.text}`, CANVAS_WIDTH / 2, oy + 2);
+
+        // Truncate label text if it would overflow into badge area
+        let displayText = `[${o.key}]  ${o.text}`;
+        if (ctx.measureText(displayText).width > maxLabelW) {
+            while (displayText.length > 4 && ctx.measureText(displayText + '…').width > maxLabelW) {
+                displayText = displayText.slice(0, -1);
+            }
+            displayText += '…';
+        }
+        ctx.fillText(displayText, textCenterX, oy + 2);
+
+        // Rarity badge (right side of the row, inside the box)
+        if (o.rarity) {
+            drawRarityBadge(ctx, o.rarity, bx + bw - 38, oy, !selected);
+        }
     });
 
     // Hint text — changes when Space-confirm is primed

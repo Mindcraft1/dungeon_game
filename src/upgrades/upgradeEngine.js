@@ -256,6 +256,7 @@ export function buildLevelUpChoices(context, player) {
             nodeId: def.id,
             label: `${def.icon} ${def.name}: ${def.desc}`,
             color: def.color,
+            rarity: def.rarity,
         });
     }
 
@@ -281,6 +282,7 @@ export function buildLevelUpChoices(context, player) {
                 nodeId: def.id,
                 label: `${def.icon} ${def.name}: ${def.desc}`,
                 color: def.color,
+                rarity: def.rarity,
             });
         }
     }
