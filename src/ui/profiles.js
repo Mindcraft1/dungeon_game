@@ -1,6 +1,7 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
-import { PLAYER_COLORS, getColorById } from '../cosmetics.js';
+import { PLAYER_COLORS, getColorById, PLAYER_HATS, getHatById, DEFAULT_HAT_ID } from '../cosmetics.js';
 import { CLASS_DEFINITIONS, getClassById, renderClassIcon } from '../classes.js';
+import * as AchievementStore from '../achievements/achievementStore.js';
 
 const MAX_PROFILES = 6;
 const MAX_NAME_LEN = 12;
@@ -19,7 +20,7 @@ const MAX_NAME_LEN = 12;
  * @param {boolean} isClassPicking – showing class picker overlay?
  * @param {number} classCursor – current cursor in class picker
  */
-export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting, isColorPicking, colorCursor, isClassPicking, classCursor) {
+export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreating, newName, isDeleting, isColorPicking, colorCursor, isClassPicking, classCursor, isHatPicking, hatCursor) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -90,6 +91,14 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
+        // Hat preview on swatch circle
+        const hatDef = getHatById(p.hatId);
+        if (hatDef && hatDef.render) {
+            ctx.save();
+            hatDef.render(ctx, swatchX, swatchY, 8, 0);
+            ctx.restore();
+        }
+
         // Class icon (next to color swatch)
         const classIconX = bx + 52;
         const classIconY = swatchY;
@@ -159,6 +168,12 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         return;
     }
 
+    // ── Hat picker overlay ──
+    if (isHatPicking && profiles[cursorIndex]) {
+        _renderHatPickerOverlay(ctx, profiles[cursorIndex], hatCursor);
+        return;
+    }
+
     // ── Arrow indicator ──
     if (!isCreating) {
         const cy = startY + cursorIndex * rowH + 22;
@@ -173,7 +188,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // ── Controls hint ──
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  C = Color  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  C = Color  ·  H = Hat  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
@@ -536,6 +551,167 @@ function _renderColorPickerOverlay(ctx, profile, cursor) {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 14px monospace';
     ctx.fillText(previewColor.name, pvx, pvy + 38);
+
+    // ── Hints ──
+    ctx.fillStyle = '#555';
+    ctx.font = '11px monospace';
+    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+
+    ctx.textAlign = 'left';
+}
+
+function _renderHatPickerOverlay(ctx, profile, cursor) {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    const bw = 460;
+    const bh = 470;
+    const bx = (CANVAS_WIDTH - bw) / 2;
+    const by = (CANVAS_HEIGHT - bh) / 2;
+
+    // Panel background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#ce93d8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.textAlign = 'center';
+
+    // Title
+    ctx.fillStyle = '#ce93d8';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('CHOOSE HAT', CANVAS_WIDTH / 2, by + 32);
+
+    ctx.fillStyle = '#666';
+    ctx.font = '11px monospace';
+    ctx.fillText(`for "${profile.name}"`, CANVAS_WIDTH / 2, by + 50);
+
+    // ── Hat swatch grid ──
+    const cols = 4;
+    const swatchSize = 80;
+    const gap = 12;
+    const rows = Math.ceil(PLAYER_HATS.length / cols);
+    const gridW = cols * swatchSize + (cols - 1) * gap;
+    const gridX = CANVAS_WIDTH / 2 - gridW / 2;
+    const gridY = by + 70;
+
+    const pColor = getColorById(profile.colorId);
+
+    for (let i = 0; i < PLAYER_HATS.length; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const sx = gridX + col * (swatchSize + gap);
+        const sy = gridY + row * (swatchSize + gap);
+        const hat = PLAYER_HATS[i];
+        const isSelected = i === cursor;
+        const isCurrent = hat.id === (profile.hatId || DEFAULT_HAT_ID);
+        const unlocked = hat.isUnlocked(profile, AchievementStore);
+
+        // Swatch background
+        ctx.fillStyle = isSelected ? 'rgba(206,147,216,0.15)' : 'rgba(255,255,255,0.03)';
+        ctx.fillRect(sx, sy, swatchSize, swatchSize);
+
+        // Selection highlight border
+        if (isSelected) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx - 1, sy - 1, swatchSize + 2, swatchSize + 2);
+        }
+
+        // Current hat check
+        if (isCurrent && !isSelected) {
+            ctx.strokeStyle = '#ce93d8';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx, sy, swatchSize, swatchSize);
+        }
+
+        ctx.save();
+        if (!unlocked) ctx.globalAlpha = 0.3;
+
+        // Draw player circle preview
+        const cx = sx + swatchSize / 2;
+        const cy = sy + swatchSize / 2 - 8;
+        ctx.fillStyle = pColor.body;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = pColor.outline;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Eye dot
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx + 8, cy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw hat on preview
+        if (hat.render) {
+            ctx.save();
+            hat.render(ctx, cx, cy, 14, 0);
+            ctx.restore();
+        }
+
+        ctx.restore();
+
+        // Hat name
+        ctx.fillStyle = !unlocked ? '#555' : (isSelected ? '#fff' : '#999');
+        ctx.font = '9px monospace';
+        ctx.fillText(hat.name, cx, sy + swatchSize - 3);
+
+        // Lock icon for locked hats
+        if (!unlocked) {
+            ctx.fillStyle = '#888';
+            ctx.font = '14px monospace';
+            ctx.fillText('🔒', cx, cy + 2);
+        }
+    }
+
+    // ── Info area: selected hat details ──
+    const infoY = gridY + rows * (swatchSize + gap) + 10;
+    const selectedHat = PLAYER_HATS[cursor] || PLAYER_HATS[0];
+    const selectedUnlocked = selectedHat.isUnlocked(profile, AchievementStore);
+
+    // Large preview
+    const pvx = CANVAS_WIDTH / 2;
+    const pvy = infoY + 10;
+
+    ctx.fillStyle = pColor.body;
+    ctx.beginPath();
+    ctx.arc(pvx, pvy, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pColor.outline;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(pvx + 12, pvy, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw hat on large preview
+    if (selectedHat.render) {
+        ctx.save();
+        if (!selectedUnlocked) ctx.globalAlpha = 0.35;
+        selectedHat.render(ctx, pvx, pvy, 22, 0);
+        ctx.restore();
+    }
+
+    // Hat name + unlock info
+    ctx.fillStyle = selectedUnlocked ? '#fff' : '#888';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(selectedHat.name, pvx, pvy + 40);
+
+    if (!selectedUnlocked && selectedHat.unlockDesc) {
+        ctx.fillStyle = '#ef5350';
+        ctx.font = '11px monospace';
+        ctx.fillText('🔒 ' + selectedHat.unlockDesc, pvx, pvy + 56);
+    } else if (selectedUnlocked && selectedHat.id !== 'none') {
+        ctx.fillStyle = '#4caf50';
+        ctx.font = '11px monospace';
+        ctx.fillText('✓ Unlocked', pvx, pvy + 56);
+    }
 
     // ── Hints ──
     ctx.fillStyle = '#555';

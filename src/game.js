@@ -55,7 +55,7 @@ import { renderSettings } from './ui/settings.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
 import { getBiomeForStage } from './biomes.js';
-import { getColorById, PLAYER_COLORS } from './cosmetics.js';
+import { getColorById, PLAYER_COLORS, getHatById, PLAYER_HATS, DEFAULT_HAT_ID } from './cosmetics.js';
 import { getClassById, CLASS_DEFINITIONS, DEFAULT_CLASS_ID, renderClassEmblem } from './classes.js';
 import { getWeaponById, WEAPON_ORDER, WEAPON_DEFINITIONS, DEFAULT_WEAPON_ID, isWeaponUnlocked } from './weapons.js';
 
@@ -141,6 +141,8 @@ export class Game {
         this.profileDeleting = false;
         this.profileColorPicking = false;
         this.colorPickerCursor = 0;
+        this.profileHatPicking = false;   // hat picker overlay
+        this.hatPickerCursor = 0;          // index into PLAYER_HATS
         this.profileClassPicking = false;  // class selection during profile creation
         this.classPickerCursor = 0;        // index into CLASS_DEFINITIONS
 
@@ -319,6 +321,7 @@ export class Game {
                 for (const p of this.profiles) {
                     if (!p.colorId) p.colorId = 'cyan';
                     if (!p.classId) p.classId = DEFAULT_CLASS_ID;
+                    if (!p.hatId) p.hatId = DEFAULT_HAT_ID;
                 }
             }
         } catch (e) {
@@ -541,6 +544,7 @@ export class Game {
                 this.profileCreating = false;
                 this.profileDeleting = false;
                 this.profileColorPicking = false;
+                this.profileHatPicking = false;
                 this.profileClassPicking = false;
                 this.state = STATE_PROFILES;
             } else if (this.menuIndex === 5) {
@@ -824,6 +828,10 @@ export class Game {
             this.player.outlineColor = colorDef.outline;
             this.player.dashColor = colorDef.dash;
             this.player.ghostColor = colorDef.ghost;
+
+            // Apply cosmetic hat from profile
+            const hatDef = getHatById(_profile.hatId);
+            this.player.hatRender = hatDef.render || null;
         }
         // Apply class definition (stat mults + passive) from profile
         if (_profile && _profile.classId) {
@@ -2625,6 +2633,12 @@ export class Game {
             return;
         }
 
+        // Hat picker overlay
+        if (this.profileHatPicking) {
+            this._updateHatPicker();
+            return;
+        }
+
         // Delete confirmation
         if (this.profileDeleting) {
             if (wasPressed('Enter') || wasMousePressed(0)) {
@@ -2678,6 +2692,14 @@ export class Game {
             const currentColorId = this.profiles[this.profileCursor].colorId || 'cyan';
             this.colorPickerCursor = Math.max(0, PLAYER_COLORS.findIndex(c => c.id === currentColorId));
             this.profileColorPicking = true;
+            Audio.playMenuSelect();
+        }
+
+        // Hat picker (H key)
+        if (wasPressed('KeyH') && this.profileCursor < this.profiles.length) {
+            const currentHatId = this.profiles[this.profileCursor].hatId || DEFAULT_HAT_ID;
+            this.hatPickerCursor = Math.max(0, PLAYER_HATS.findIndex(h => h.id === currentHatId));
+            this.profileHatPicking = true;
             Audio.playMenuSelect();
         }
 
@@ -2783,6 +2805,67 @@ export class Game {
         // Cancel
         if (wasPressed('Escape') || wasMousePressed(2)) {
             this.profileColorPicking = false;
+        }
+    }
+
+    _updateHatPicker() {
+        const cols = 4;
+        const total = PLAYER_HATS.length;
+
+        // Navigation
+        if (wasPressed('KeyA') || wasPressed('ArrowLeft')) {
+            this.hatPickerCursor = (this.hatPickerCursor - 1 + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyD') || wasPressed('ArrowRight')) {
+            this.hatPickerCursor = (this.hatPickerCursor + 1) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
+            this.hatPickerCursor = (this.hatPickerCursor - cols + total) % total;
+            Audio.playMenuNav();
+        }
+        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
+            this.hatPickerCursor = (this.hatPickerCursor + cols) % total;
+            Audio.playMenuNav();
+        }
+
+        // Mouse hover on hat swatches
+        const mp = getMousePos();
+        if (mp && isMouseActive()) {
+            const swatchSize = 80;
+            const gap = 12;
+            const gridW = cols * swatchSize + (cols - 1) * gap;
+            const gridX = 400 - gridW / 2;
+            const gridY = 130;
+            const col = Math.floor((mp.x - gridX) / (swatchSize + gap));
+            const row = Math.floor((mp.y - gridY) / (swatchSize + gap));
+            if (col >= 0 && col < cols && row >= 0) {
+                const idx = row * cols + col;
+                if (idx >= 0 && idx < total) {
+                    if (idx !== this.hatPickerCursor) {
+                        this.hatPickerCursor = idx;
+                        Audio.playMenuNav();
+                    }
+                }
+            }
+        }
+
+        // Confirm — only if hat is unlocked
+        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
+            const chosen = PLAYER_HATS[this.hatPickerCursor];
+            const profile = this.profiles[this.profileCursor];
+            if (chosen && chosen.isUnlocked(profile, AchievementStore)) {
+                profile.hatId = chosen.id;
+                this._saveProfiles();
+                Audio.playMenuSelect();
+                this.profileHatPicking = false;
+            }
+        }
+
+        // Cancel
+        if (wasPressed('Escape') || wasMousePressed(2)) {
+            this.profileHatPicking = false;
         }
     }
 
@@ -4642,7 +4725,8 @@ export class Game {
                            this.profileCursor, this.profileCreating,
                            this.profileNewName, this.profileDeleting,
                            this.profileColorPicking, this.colorPickerCursor,
-                           this.profileClassPicking, this.classPickerCursor);
+                           this.profileClassPicking, this.classPickerCursor,
+                           this.profileHatPicking, this.hatPickerCursor);
             this._renderCheatNotifications(ctx);
             return;
         }

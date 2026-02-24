@@ -98,6 +98,9 @@ export class Player {
         this.dashColor = '#b3e5fc';
         this.ghostColor = '#4fc3f7';
 
+        // ── Cosmetic hat (set by game.js from profile) ──
+        this.hatRender = null;  // function(ctx, x, y, radius, facingAngle) or null
+
         // ── Class system (set by game.js at run start) ──
         this.classId = null;                  // 'adventurer' | 'guardian' | 'rogue' | 'berserker'
         this.classPassive = null;             // passive definition from classes.js
@@ -796,6 +799,14 @@ export class Player {
         // Class emblem (drawn semi-transparent inside the circle)
         if (this.classId) {
             renderClassEmblem(ctx, this.classId, this.x, this.y, this.radius);
+        }
+
+        // Cosmetic hat/accessory (drawn on top of circle)
+        if (this.hatRender) {
+            ctx.save();
+            const hatFacing = Math.atan2(this.facingY, this.facingX);
+            this.hatRender(ctx, this.x, this.y, this.radius, hatFacing);
+            ctx.restore();
         }
 
         ctx.restore();
