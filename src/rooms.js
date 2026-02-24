@@ -1075,8 +1075,26 @@ export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = 
     // ── Place laser walls (spanning 2-3 floor tiles, blocking passages) ──
     if (laserWallCount > 0) {
         const wallCandidates = _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles);
-        for (let i = 0; i < laserWallCount && i < wallCandidates.length; i++) {
-            const wc = wallCandidates[i];
+        // Pick laser walls ensuring a minimum tile gap between any two,
+        // so the player can never get trapped between two adjacent doors.
+        const MIN_LASER_WALL_GAP = 4; // tiles
+        const chosen = [];
+        for (const wc of wallCandidates) {
+            if (chosen.length >= laserWallCount) break;
+            // Check distance to every already-chosen laser wall (centre-to-centre)
+            const cx = wc.axis === 'h' ? wc.col + wc.span / 2 : wc.col;
+            const cy = wc.axis === 'v' ? wc.row + wc.span / 2 : wc.row;
+            let tooClose = false;
+            for (const prev of chosen) {
+                const px = prev.axis === 'h' ? prev.col + prev.span / 2 : prev.col;
+                const py = prev.axis === 'v' ? prev.row + prev.span / 2 : prev.row;
+                const dist = Math.abs(cx - px) + Math.abs(cy - py); // Manhattan distance
+                if (dist < MIN_LASER_WALL_GAP) { tooClose = true; break; }
+            }
+            if (tooClose) continue;
+            chosen.push(wc);
+        }
+        for (const wc of chosen) {
             // Mark all tiles in the wall span as used
             for (let s = 0; s < wc.span; s++) {
                 const tc = wc.axis === 'h' ? wc.col + s : wc.col;
@@ -1327,7 +1345,7 @@ function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
     candidates.sort((a, b) => (b.sideScore * 10 + b.span) - (a.sideScore * 10 + a.span));
 
     // Shuffle top picks for variety
-    const top = candidates.slice(0, Math.min(6, candidates.length));
+    const top = candidates.slice(0, Math.min(12, candidates.length));
     for (let i = top.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [top[i], top[j]] = [top[j], top[i]];
