@@ -50,6 +50,7 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
     const wallDark   = biome ? biome.wallDark   : COLOR_WALL_DARK;
     const gridTint   = biome ? biome.gridTint   : 'rgba(255,255,255,0.03)';
     const isSpaceship = biome && biome.id === 'spaceship';
+    const isDepths    = biome && biome.id === 'depths';
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
@@ -60,6 +61,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
             if (cell === TILE_WALL) {
                 if (isSpaceship) {
                     _drawSpaceshipWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
+                } else if (isDepths) {
+                    _drawDepthsWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, floorColor, decorSeed, biome);
                 } else {
                     // Wall – base fill
                     ctx.fillStyle = wallColor;
@@ -589,6 +592,114 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
             ctx.fillRect(cx2 - 3, y + 22 + h1 * 8, 6, 2);
             ctx.globalAlpha = 1;
             break;
+        }
+    }
+}
+
+// ── Depths biome: glassy translucent wall tile ──────────────
+function _drawDepthsWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, floorColor, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 3000);
+    const h2 = _tileHash(col, row, seed + 3001);
+    const h3 = _tileHash(col, row, seed + 3002);
+    const exposed = _hasFloorNeighbour(grid, row, col);
+
+    // ── Draw the floor behind so transparency reads properly ──
+    ctx.fillStyle = floorColor;
+    ctx.fillRect(x, y, S, S);
+
+    // ── Glass body — smooth, translucent blue-teal ──
+    // Slightly vary the tint per tile for a natural glass look
+    const r = 25 + Math.floor(h * 15);
+    const g = 55 + Math.floor(h2 * 25);
+    const b = 110 + Math.floor(h3 * 30);
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.45)`;
+    ctx.fillRect(x, y, S, S);
+
+    // ── Glass gets more saturated/darker at the edges (like real glass) ──
+    // Edge-darkening gradient — thicker glass = more color at borders
+    const eg = ctx.createLinearGradient(x, y, x + S, y + S);
+    eg.addColorStop(0, 'rgba(15, 40, 80, 0.18)');
+    eg.addColorStop(0.35, 'rgba(15, 40, 80, 0.0)');
+    eg.addColorStop(0.65, 'rgba(15, 40, 80, 0.0)');
+    eg.addColorStop(1, 'rgba(15, 40, 80, 0.15)');
+    ctx.fillStyle = eg;
+    ctx.fillRect(x, y, S, S);
+
+    // ── Tile seams — thin dark lines to separate glass panes ──
+    ctx.strokeStyle = 'rgba(8, 18, 40, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, S - 1, S - 1);
+
+    // ── Inner seam highlight (thin bright line on top-left = light catch) ──
+    ctx.strokeStyle = 'rgba(130, 190, 240, 0.22)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 1.5, y + S - 1.5);
+    ctx.lineTo(x + 1.5, y + 1.5);
+    ctx.lineTo(x + S - 1.5, y + 1.5);
+    ctx.stroke();
+
+    // ── Sharp specular reflection — the key "glass" indicator ──
+    // A small bright rectangular highlight like light reflecting off a window
+    if (h < 0.7) {
+        const hx = x + 4 + h2 * 4;
+        const hy = y + 4 + h * 3;
+        const hw = 5 + h2 * 4;
+        const hh = 3 + h * 3;
+        // Soft white rectangle
+        ctx.fillStyle = 'rgba(180, 215, 255, 0.14)';
+        ctx.fillRect(hx, hy, hw, hh);
+        // Brighter inner core
+        ctx.fillStyle = 'rgba(220, 240, 255, 0.10)';
+        ctx.fillRect(hx + 1, hy + 1, hw - 2, hh - 2);
+    }
+
+    // ── Secondary smaller reflection (offset, like a double-pane) ──
+    if (h > 0.3 && h < 0.8) {
+        const rx = x + 14 + h2 * 10;
+        const ry = y + 16 + h * 8;
+        const rw = 3 + h * 3;
+        const rh = 2;
+        ctx.fillStyle = 'rgba(180, 215, 255, 0.08)';
+        ctx.fillRect(rx, ry, rw, rh);
+    }
+
+    // ── Subtle vertical caustic line (light refracting through glass) ──
+    if (h3 > 0.35) {
+        ctx.strokeStyle = 'rgba(100, 180, 240, 0.07)';
+        ctx.lineWidth = 1;
+        const lx = x + 8 + h * 22;
+        ctx.beginPath();
+        ctx.moveTo(lx, y + 2);
+        ctx.lineTo(lx + (h2 - 0.5) * 4, y + S - 2);
+        ctx.stroke();
+    }
+
+    // ── Green-blue tint at edges (glass edge color shift) ──
+    // Real glass shows a green/teal hue when viewed at the edge
+    // Top + left edges get a subtle teal tint
+    ctx.fillStyle = 'rgba(60, 180, 170, 0.10)';
+    ctx.fillRect(x, y, S, 1);
+    ctx.fillRect(x, y, 1, S);
+    // Bottom + right get a deeper blue
+    ctx.fillStyle = 'rgba(20, 50, 120, 0.18)';
+    ctx.fillRect(x, y + S - 1, S, 1);
+    ctx.fillRect(x + S - 1, y, 1, S);
+
+    // ── Exposed walls (facing the room) — subtle inner glow ──
+    if (exposed) {
+        // Very soft glow on the room-facing side
+        ctx.fillStyle = 'rgba(60, 140, 220, 0.05)';
+        ctx.fillRect(x, y, S, S);
+
+        // Wall decorations
+        if (biome.wallDecor) {
+            const rng = _tileHash(col, row, seed + 99);
+            if (rng < biome.wallDecor.chance) {
+                const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, seed + 200));
+                _drawWallDecor(ctx, x, y, type, col, row, seed);
+            }
         }
     }
 }

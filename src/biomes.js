@@ -114,11 +114,11 @@ const BIOMES = [
         name: 'Depths',
         nameColor: '#42a5f5',
 
-        floorColor: '#141a2e',
-        wallColor:  '#2e3a5a',
-        wallLight:  '#3a4a6a',
-        wallDark:   '#1e2a40',
-        gridTint:   'rgba(100,150,255,0.04)',
+        floorColor: '#0c1220',
+        wallColor:  '#2a4878',
+        wallLight:  '#4a80b8',
+        wallDark:   '#152040',
+        gridTint:   'rgba(80,150,220,0.04)',
 
         enemyWeights: {
             basic: 0.8, shooter: 1.5, dasher: 0.9, tank: 1.0,
