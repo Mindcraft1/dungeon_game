@@ -1,13 +1,18 @@
 import {
     TILE_SIZE,
     HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW, HAZARD_TYPE_TAR,
+    HAZARD_TYPE_LASER, HAZARD_TYPE_LASER_WALL,
     HAZARD_SPIKE_DAMAGE, HAZARD_SPIKE_CYCLE, HAZARD_SPIKE_ACTIVE, HAZARD_SPIKE_WARN,
     HAZARD_LAVA_DAMAGE, HAZARD_LAVA_TICK, HAZARD_LAVA_SLOW,
     HAZARD_ARROW_DAMAGE, HAZARD_ARROW_COOLDOWN, HAZARD_ARROW_SPEED, HAZARD_ARROW_RADIUS,
     HAZARD_TAR_SLOW, HAZARD_TAR_LINGER,
+    HAZARD_LASER_DAMAGE, HAZARD_LASER_TICK, HAZARD_LASER_CYCLE, HAZARD_LASER_ACTIVE, HAZARD_LASER_WARN, HAZARD_LASER_BEAM_WIDTH,
+    HAZARD_LASER_WALL_CYCLE, HAZARD_LASER_WALL_OPEN, HAZARD_LASER_WALL_WARN, HAZARD_LASER_WALL_DAMAGE,
     HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE, HAZARD_TAR_INTRO_STAGE,
+    HAZARD_LASER_INTRO_STAGE, HAZARD_LASER_WALL_INTRO_STAGE,
     HAZARD_SPIKE_COLOR, HAZARD_LAVA_COLOR, HAZARD_LAVA_COLOR2, HAZARD_ARROW_COLOR,
     HAZARD_TAR_COLOR, HAZARD_TAR_COLOR2, HAZARD_TAR_BUBBLE,
+    HAZARD_LASER_COLOR, HAZARD_LASER_COLOR2, HAZARD_LASER_WALL_COLOR, HAZARD_LASER_WALL_COLOR2,
     PROJECTILE_COLOR,
 } from '../constants.js';
 import { Projectile } from './projectile.js';
@@ -39,6 +44,8 @@ export class Hazard {
         const introStage = type === HAZARD_TYPE_SPIKES ? HAZARD_SPIKE_INTRO_STAGE
             : type === HAZARD_TYPE_LAVA ? HAZARD_LAVA_INTRO_STAGE
             : type === HAZARD_TYPE_ARROW ? HAZARD_ARROW_INTRO_STAGE
+            : type === HAZARD_TYPE_LASER ? HAZARD_LASER_INTRO_STAGE
+            : type === HAZARD_TYPE_LASER_WALL ? HAZARD_LASER_WALL_INTRO_STAGE
             : HAZARD_TAR_INTRO_STAGE;
         this.damageScale = Math.min(1 + (Math.max(0, stage - introStage)) * 0.1, 2.0);
 
@@ -76,6 +83,31 @@ export class Hazard {
             this._tarBubbleTimer = 0;
             this._tarBubbleInterval = 600 + Math.random() * 400; // ms between new bubbles
         }
+
+        // ── Laser beam state ──
+        if (type === HAZARD_TYPE_LASER) {
+            this.timer = options.timerOffset ?? (Math.random() * HAZARD_LASER_CYCLE);
+            this.active = false;
+            this.warning = false;
+            this.beamIntensity = 0;    // 0–1 for rendering
+            this.tickTimer = 0;
+            // Direction the laser fires across the room (horizontal or vertical)
+            this.laserDirX = options.dirX || 0;
+            this.laserDirY = options.dirY || 0;
+            // Length of beam in pixels (computed from grid)
+            this.laserLength = options.beamLength || (TILE_SIZE * 10);
+        }
+
+        // ── Laser wall state ──
+        if (type === HAZARD_TYPE_LASER_WALL) {
+            this.timer = options.timerOffset ?? (Math.random() * HAZARD_LASER_WALL_CYCLE);
+            this.wallActive = true;      // wall starts closed
+            this.wallWarning = false;
+            this.wallAlpha = 1;          // rendering intensity
+            // Which axis the wall blocks: 'h' = horizontal bar, 'v' = vertical bar
+            this.wallAxis = options.axis || 'h';
+            this.wallSpan = options.span || 3;  // how many tiles wide the wall is
+        }
     }
 
     // ── Update ──────────────────────────────────────────────
@@ -89,6 +121,8 @@ export class Hazard {
             case HAZARD_TYPE_LAVA:   this._updateLava(ms, player, noDamage); break;
             case HAZARD_TYPE_ARROW:  this._updateArrow(ms, projectiles, noDamage); break;
             case HAZARD_TYPE_TAR:    this._updateTar(ms, player); break;
+            case HAZARD_TYPE_LASER:      this._updateLaser(ms, player, noDamage); break;
+            case HAZARD_TYPE_LASER_WALL: this._updateLaserWall(ms, player, noDamage); break;
         }
     }
 
@@ -205,6 +239,8 @@ export class Hazard {
             case HAZARD_TYPE_LAVA:   this._renderLava(ctx); break;
             case HAZARD_TYPE_ARROW:  this._renderArrow(ctx); break;
             case HAZARD_TYPE_TAR:    this._renderTar(ctx); break;
+            case HAZARD_TYPE_LASER:      this._renderLaser(ctx); break;
+            case HAZARD_TYPE_LASER_WALL: this._renderLaserWall(ctx); break;
         }
     }
 
@@ -553,5 +589,289 @@ export class Hazard {
         // ── Subtle sticky glow ──
         ctx.fillStyle = 'rgba(40, 30, 20, 0.08)';
         ctx.fillRect(x - 2, y - 2, S + 4, S + 4);
+    }
+
+    // ── Laser Beam ─────────────────────────────────────────
+
+    _updateLaser(ms, player, noDamage) {
+        this.timer = (this.timer + ms) % HAZARD_LASER_CYCLE;
+
+        // Timeline: [inactive] → [warning] → [active] → loop
+        const inactiveTime = HAZARD_LASER_CYCLE - HAZARD_LASER_ACTIVE - HAZARD_LASER_WARN;
+
+        if (this.timer < inactiveTime) {
+            this.active = false;
+            this.warning = false;
+            this.beamIntensity = 0;
+        } else if (this.timer < inactiveTime + HAZARD_LASER_WARN) {
+            this.active = false;
+            this.warning = true;
+            this.beamIntensity = (this.timer - inactiveTime) / HAZARD_LASER_WARN * 0.3;
+        } else {
+            this.active = true;
+            this.warning = false;
+            const activeProgress = (this.timer - inactiveTime - HAZARD_LASER_WARN) / HAZARD_LASER_ACTIVE;
+            // Ramp up fast, sustain, then flicker near end
+            if (activeProgress < 0.1) {
+                this.beamIntensity = 0.3 + activeProgress * 7;
+            } else if (activeProgress > 0.85) {
+                this.beamIntensity = 1.0 - (activeProgress - 0.85) / 0.15 * 0.5;
+                // Flicker
+                if (Math.random() < 0.3) this.beamIntensity *= 0.7;
+            } else {
+                this.beamIntensity = 1.0;
+            }
+        }
+
+        // Damage check (continuous beam vs player circle)
+        if (this.active && !noDamage) {
+            this.tickTimer += ms;
+            if (this.tickTimer >= HAZARD_LASER_TICK && this._isPlayerInBeam(player)) {
+                this.tickTimer -= HAZARD_LASER_TICK;
+                let dmg = Math.floor(HAZARD_LASER_DAMAGE * this.damageScale);
+                if (player.shopTrapResistMult && player.shopTrapResistMult < 1) {
+                    dmg = Math.max(1, Math.floor(dmg * player.shopTrapResistMult));
+                }
+                player.takeDamage(dmg);
+            }
+        } else {
+            this.tickTimer = 0;
+        }
+    }
+
+    _isPlayerInBeam(player) {
+        // Line segment from emitter center traveling in laser direction for laserLength px
+        const ax = this.centerX;
+        const ay = this.centerY;
+        const bx = ax + this.laserDirX * this.laserLength;
+        const by = ay + this.laserDirY * this.laserLength;
+
+        // Closest point on segment to player center
+        const dx = bx - ax, dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return false;
+        let t = ((player.x - ax) * dx + (player.y - ay) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const cx = ax + t * dx;
+        const cy = ay + t * dy;
+        const pdx = player.x - cx;
+        const pdy = player.y - cy;
+        const distSq = pdx * pdx + pdy * pdy;
+        const hitR = player.radius + HAZARD_LASER_BEAM_WIDTH;
+        return distSq < hitR * hitR;
+    }
+
+    _renderLaser(ctx) {
+        const x = this.x;
+        const y = this.y;
+        const S = TILE_SIZE;
+        const cx = this.centerX;
+        const cy = this.centerY;
+
+        // Emitter base (small metallic tile)
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fillRect(x + 2, y + 2, S - 4, S - 4);
+        ctx.strokeStyle = '#4a4a5a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 3, y + 3, S - 6, S - 6);
+
+        // Emitter lens (small bright dot in firing direction)
+        const lensX = cx + this.laserDirX * (S * 0.3);
+        const lensY = cy + this.laserDirY * (S * 0.3);
+        const lensColor = this.active ? HAZARD_LASER_COLOR : (this.warning ? '#ff6666' : '#660000');
+        ctx.fillStyle = lensColor;
+        ctx.beginPath();
+        ctx.arc(lensX, lensY, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.beamIntensity <= 0) return;
+
+        const endX = cx + this.laserDirX * this.laserLength;
+        const endY = cy + this.laserDirY * this.laserLength;
+
+        ctx.save();
+
+        if (this.warning && !this.active) {
+            // Telegraph: thin dotted line
+            ctx.globalAlpha = this.beamIntensity;
+            ctx.strokeStyle = HAZARD_LASER_COLOR;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 6]);
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else if (this.active) {
+            // Outer glow
+            ctx.globalAlpha = this.beamIntensity * 0.25;
+            ctx.strokeStyle = HAZARD_LASER_COLOR2;
+            ctx.lineWidth = HAZARD_LASER_BEAM_WIDTH * 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            // Core beam
+            ctx.globalAlpha = this.beamIntensity * 0.9;
+            ctx.strokeStyle = HAZARD_LASER_COLOR;
+            ctx.lineWidth = HAZARD_LASER_BEAM_WIDTH;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            // Bright inner core
+            ctx.globalAlpha = this.beamIntensity;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // ── Laser Wall ─────────────────────────────────────────
+
+    _updateLaserWall(ms, player, noDamage) {
+        this.timer = (this.timer + ms) % HAZARD_LASER_WALL_CYCLE;
+
+        // Timeline: [closed/active] → [warning flicker] → [open/safe] → loop
+        const closedTime = HAZARD_LASER_WALL_CYCLE - HAZARD_LASER_WALL_OPEN - HAZARD_LASER_WALL_WARN;
+
+        if (this.timer < closedTime) {
+            // Wall is active (closed)
+            this.wallActive = true;
+            this.wallWarning = false;
+            this.wallAlpha = 1.0;
+        } else if (this.timer < closedTime + HAZARD_LASER_WALL_WARN) {
+            // Warning: wall about to open (flickering)
+            this.wallActive = true;
+            this.wallWarning = true;
+            const warnProgress = (this.timer - closedTime) / HAZARD_LASER_WALL_WARN;
+            this.wallAlpha = 1.0 - warnProgress * 0.5;
+            // Flicker effect
+            if (Math.sin(warnProgress * Math.PI * 8) > 0.3) {
+                this.wallAlpha *= 0.5;
+            }
+        } else {
+            // Wall is open (safe passage)
+            this.wallActive = false;
+            this.wallWarning = false;
+            this.wallAlpha = 0;
+        }
+
+        // Damage check (only when wall is active)
+        if (this.wallActive && !noDamage && this._isPlayerInWall(player)) {
+            let dmg = Math.floor(HAZARD_LASER_WALL_DAMAGE * this.damageScale);
+            if (player.shopTrapResistMult && player.shopTrapResistMult < 1) {
+                dmg = Math.max(1, Math.floor(dmg * player.shopTrapResistMult));
+            }
+            player.takeDamage(dmg);
+        }
+    }
+
+    _isPlayerInWall(player) {
+        // The wall covers `wallSpan` tiles starting from this tile
+        const S = TILE_SIZE;
+        let wallX, wallY, wallW, wallH;
+        if (this.wallAxis === 'h') {
+            wallX = this.x;
+            wallY = this.y + S * 0.35;
+            wallW = S * this.wallSpan;
+            wallH = S * 0.3;
+        } else {
+            wallX = this.x + S * 0.35;
+            wallY = this.y;
+            wallW = S * 0.3;
+            wallH = S * this.wallSpan;
+        }
+
+        // Circle vs AABB
+        const closestX = Math.max(wallX, Math.min(player.x, wallX + wallW));
+        const closestY = Math.max(wallY, Math.min(player.y, wallY + wallH));
+        const dx = player.x - closestX;
+        const dy = player.y - closestY;
+        return (dx * dx + dy * dy) < (player.radius * player.radius);
+    }
+
+    _renderLaserWall(ctx) {
+        if (this.wallAlpha <= 0) return;
+
+        const S = TILE_SIZE;
+        let wallX, wallY, wallW, wallH;
+        if (this.wallAxis === 'h') {
+            wallX = this.x;
+            wallY = this.y + S * 0.35;
+            wallW = S * this.wallSpan;
+            wallH = S * 0.3;
+        } else {
+            wallX = this.x + S * 0.35;
+            wallY = this.y;
+            wallW = S * 0.3;
+            wallH = S * this.wallSpan;
+        }
+
+        ctx.save();
+
+        // Outer glow
+        ctx.globalAlpha = this.wallAlpha * 0.2;
+        ctx.fillStyle = HAZARD_LASER_WALL_COLOR2;
+        const glow = 6;
+        ctx.fillRect(wallX - glow, wallY - glow, wallW + glow * 2, wallH + glow * 2);
+
+        // Main barrier
+        ctx.globalAlpha = this.wallAlpha * 0.7;
+        ctx.fillStyle = HAZARD_LASER_WALL_COLOR;
+        ctx.fillRect(wallX, wallY, wallW, wallH);
+
+        // Bright scanlines moving through the wall
+        const t = Date.now() * 0.003;
+        ctx.globalAlpha = this.wallAlpha * 0.5;
+        ctx.fillStyle = '#ffffff';
+        if (this.wallAxis === 'h') {
+            for (let i = 0; i < 3; i++) {
+                const scanX = wallX + ((t * 40 + i * wallW / 3) % wallW);
+                ctx.fillRect(scanX, wallY, 2, wallH);
+            }
+        } else {
+            for (let i = 0; i < 3; i++) {
+                const scanY = wallY + ((t * 40 + i * wallH / 3) % wallH);
+                ctx.fillRect(wallX, scanY, wallW, 2);
+            }
+        }
+
+        // Edge emitter nodes (small bright dots at each end)
+        ctx.globalAlpha = this.wallAlpha;
+        ctx.fillStyle = '#ffffff';
+        if (this.wallAxis === 'h') {
+            ctx.beginPath();
+            ctx.arc(wallX, wallY + wallH / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wallX + wallW, wallY + wallH / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+            ctx.arc(wallX + wallW / 2, wallY, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(wallX + wallW / 2, wallY + wallH, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Warning border when flickering
+        if (this.wallWarning) {
+            ctx.globalAlpha = this.wallAlpha * 0.4;
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(wallX - 1, wallY - 1, wallW + 2, wallH + 2);
+        }
+
+        ctx.restore();
     }
 }

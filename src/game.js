@@ -14,7 +14,7 @@ import {
     STATE_EVENT, STATE_BOSS_SCROLL,
     COMBO_TIMEOUT, COMBO_TIER_1, COMBO_TIER_2, COMBO_TIER_3, COMBO_TIER_4,
     COMBO_XP_MULT_1, COMBO_XP_MULT_2, COMBO_XP_MULT_3, COMBO_XP_MULT_4,
-    BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT,
+    BOSS_STAGE_INTERVAL, BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT, BOSS_TYPE_OVERLORD,
     BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
     COIN_REWARD_NORMAL_ENEMY, COIN_REWARD_ELITE_ENEMY, COIN_REWARD_BOSS,
     META_BOOSTERS, META_BOOSTER_IDS,
@@ -407,9 +407,21 @@ export class Game {
             case 'summon_brute':
             case 'summon_warlock':
             case 'summon_phantom':
-            case 'summon_juggernaut': {
+            case 'summon_juggernaut':
+            case 'summon_overlord': {
                 if (this.state === STATE_PLAYING) {
                     this._cheatSummonBoss(cheatId);
+                }
+                break;
+            }
+            case 'jumpbiome': {
+                if (this.state === STATE_PLAYING && !this.trainingMode) {
+                    const curBiomeIdx = Math.floor((this.stage - 1) / BOSS_STAGE_INTERVAL);
+                    const nextBiomeStart = (curBiomeIdx + 1) * BOSS_STAGE_INTERVAL + 1;
+                    this.stage = nextBiomeStart - 1; // nextRoom() will increment
+                    this.nextRoom();
+                    const name = this.currentBiome ? this.currentBiome.name : 'Unknown';
+                    this._cheatNotify(`JUMPED TO ${name.toUpperCase()}`, this.currentBiome?.nameColor ?? '#4fc3f7');
                 }
                 break;
             }
@@ -430,6 +442,7 @@ export class Game {
             summon_warlock:    BOSS_TYPE_WARLOCK,
             summon_phantom:    BOSS_TYPE_PHANTOM,
             summon_juggernaut: BOSS_TYPE_JUGGERNAUT,
+            summon_overlord:   BOSS_TYPE_OVERLORD,
         };
         const bossType = typeMap[cheatId];
         if (!bossType) return;
@@ -1117,7 +1130,7 @@ export class Game {
 
         // Determine boss type (rotates: Brute → Warlock → Phantom → Juggernaut)
         const encounter = Math.floor(this.stage / BOSS_STAGE_INTERVAL) - 1;
-        const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT];
+        const bossTypes = [BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT, BOSS_TYPE_OVERLORD];
         const bossType = bossTypes[encounter % bossTypes.length];
 
         this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage, this.currentBiome);

@@ -165,7 +165,9 @@ const _cheatCodes = [
     { code: 'warlock', id: 'summon_warlock' },
     { code: 'phantom', id: 'summon_phantom' },
     { code: 'jugger',  id: 'summon_juggernaut' },
+    { code: 'overlord', id: 'summon_overlord' },
     { code: 'devmod', id: 'devtools' },
+    { code: 'biome', id: 'jumpbiome' },
 ];
 
 window.addEventListener('keydown', (e) => {

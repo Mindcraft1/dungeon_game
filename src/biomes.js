@@ -13,6 +13,7 @@ export const BIOME_JUNGLE    = 'jungle';
 export const BIOME_DESERT    = 'desert';
 export const BIOME_WASTELAND = 'wasteland';
 export const BIOME_DEPTHS    = 'depths';
+export const BIOME_SPACESHIP = 'spaceship';
 
 // ── Biome definitions ──
 const BIOMES = [
@@ -355,6 +356,102 @@ const BIOMES = [
                 armorLight: '#ef5350',
                 viewport: '#ffab00',
                 viewportGlow: '#ffd740',
+            },
+        },
+    },
+
+    // ── 5. SPACESHIP (Stages 21–25, 41–45, …) ─────────────
+    {
+        id:   BIOME_SPACESHIP,
+        name: 'Spaceship',
+        nameColor: '#00e5ff',
+
+        floorColor: '#0d1117',
+        wallColor:  '#1c2533',
+        wallLight:  '#2a3545',
+        wallDark:   '#0f1922',
+        gridTint:   'rgba(0,229,255,0.04)',
+
+        enemyWeights: {
+            basic: 0.7, shooter: 1.5, dasher: 1.3, tank: 1.0,
+        },
+        hazardWeights: {
+            spikes: 0.4, lava: 0.3, arrow: 1.0, tar: 0.5,
+            laser: 1.8, laser_wall: 1.6,
+        },
+        playerSpeedMult: 1.0,
+
+        ambientParticles: {
+            // Floating data motes / holographic dust
+            dataMotes: { rate: 0.10, colors: ['rgba(0,229,255,0.4)', 'rgba(100,255,218,0.35)', 'rgba(130,177,255,0.3)'], sizeMin: 1, sizeMax: 3, glow: true },
+            // Sparking electricity
+            sparks: { rate: 0.06, colors: ['#00e5ff', '#18ffff', '#80d8ff'], sizeMin: 1, sizeMax: 2 },
+        },
+
+        floorDecor: {
+            chance: 0.14,
+            types: [
+                { shape: 'grid',    color: 'rgba(0,229,255,0.08)', weight: 4 },  // circuit traces
+                { shape: 'dot',     color: '#1a2a3a', weight: 2 },  // rivet
+                { shape: 'crack',   color: '#0f1922', weight: 1 },  // hull seam
+            ],
+        },
+
+        wallDecor: {
+            chance: 0.22,
+            types: [
+                { shape: 'panel',   color: '#2a3545', colorAlt: 'rgba(0,229,255,0.12)', weight: 3 },
+                { shape: 'light',   color: '#00e5ff', weight: 2 },  // strip lights
+            ],
+        },
+
+        atmosphere: {
+            tintColor: 'rgba(0,229,255,0.03)',
+            vignetteColor: 'rgba(0,5,15,0.45)',
+            vignetteSize: 0.35,
+        },
+
+        bossTheme: {
+            brute: {
+                body: '#37474f',
+                stroke: '#263238',
+                eyes: '#00e5ff',
+                eyesFlash: '#18ffff',
+                chargeAura: '#00bcd4',
+            },
+            warlock: {
+                body: '#1a237e',
+                stroke: '#0d1042',
+                innerEye: '#82b1ff',
+                innerEyeFlash: '#448aff',
+                pupil: '#000a12',
+                orbit: '#00e5ff',
+            },
+            phantom: {
+                body: '#00bfa5',
+                stroke: '#00695c',
+                glow: '#a7ffeb',
+                afterimage: '#00bfa5',
+            },
+            juggernaut: {
+                body: '#263238',
+                stroke: '#0f1922',
+                armor: '#37474f',
+                armorLight: '#455a64',
+                viewport: '#ff1744',
+                viewportGlow: '#ff5252',
+            },
+            overlord: {
+                body: '#0d47a1',
+                stroke: '#01579b',
+                innerEye: '#00e5ff',
+                innerEyeFlash: '#18ffff',
+                pupil: '#000a12',
+                orbit: '#82b1ff',
+                viewport: '#00e5ff',
+                viewportGlow: '#80d8ff',
+                shieldColor: '#00e5ff',
+                laserColor: '#ff1744',
             },
         },
     },

@@ -172,16 +172,20 @@ export const CANYON_COLOR_EDGE   = '#2a1a3a';   // purple-tinted edge
 export const CANYON_COLOR_RIM    = '#4a3060';   // visible rim highlight
 
 // ── Hazards ──
-export const HAZARD_TYPE_SPIKES = 'spikes';
-export const HAZARD_TYPE_LAVA   = 'lava';
-export const HAZARD_TYPE_ARROW  = 'arrow';
-export const HAZARD_TYPE_TAR    = 'tar';
+export const HAZARD_TYPE_SPIKES     = 'spikes';
+export const HAZARD_TYPE_LAVA       = 'lava';
+export const HAZARD_TYPE_ARROW      = 'arrow';
+export const HAZARD_TYPE_TAR        = 'tar';
+export const HAZARD_TYPE_LASER      = 'laser';
+export const HAZARD_TYPE_LASER_WALL = 'laser_wall';
 
 // Intro stages (progressive difficulty)
 export const HAZARD_SPIKE_INTRO_STAGE = 4;
 export const HAZARD_LAVA_INTRO_STAGE  = 6;
 export const HAZARD_ARROW_INTRO_STAGE = 8;
-export const HAZARD_TAR_INTRO_STAGE   = 10;
+export const HAZARD_TAR_INTRO_STAGE        = 10;
+export const HAZARD_LASER_INTRO_STAGE      = 21;   // spaceship biome only
+export const HAZARD_LASER_WALL_INTRO_STAGE = 21;   // spaceship biome only
 
 // Spike hazard
 export const HAZARD_SPIKE_DAMAGE   = 8;
@@ -204,6 +208,20 @@ export const HAZARD_ARROW_RADIUS   = 3;
 export const HAZARD_TAR_SLOW       = 0.45;   // speed multiplier while on tar
 export const HAZARD_TAR_LINGER     = 600;    // ms slow persists after leaving tar
 
+// Laser beam hazard (spaceship biome)
+export const HAZARD_LASER_DAMAGE       = 6;      // per tick while touching beam
+export const HAZARD_LASER_TICK         = 200;    // ms between damage ticks
+export const HAZARD_LASER_CYCLE        = 4000;   // full on/off cycle ms
+export const HAZARD_LASER_ACTIVE       = 1800;   // ms beam is active (damaging)
+export const HAZARD_LASER_WARN         = 800;    // ms telegraph before firing
+export const HAZARD_LASER_BEAM_WIDTH   = 6;      // px width of the beam
+
+// Laser wall hazard (spaceship biome)
+export const HAZARD_LASER_WALL_CYCLE   = 5000;   // full open/close cycle ms
+export const HAZARD_LASER_WALL_OPEN    = 2200;   // ms wall is open (safe)
+export const HAZARD_LASER_WALL_WARN    = 600;    // ms warning before closing
+export const HAZARD_LASER_WALL_DAMAGE  = 12;     // damage on contact
+
 // Hazard colors
 export const HAZARD_SPIKE_COLOR    = '#8e8e8e';
 export const HAZARD_LAVA_COLOR     = '#e25822';
@@ -212,6 +230,10 @@ export const HAZARD_ARROW_COLOR    = '#ff6b35';
 export const HAZARD_TAR_COLOR      = '#1a1a1a';
 export const HAZARD_TAR_COLOR2     = '#2c2418';
 export const HAZARD_TAR_BUBBLE     = '#3a3225';
+export const HAZARD_LASER_COLOR    = '#ff1744';   // bright red laser
+export const HAZARD_LASER_COLOR2   = '#ff5252';   // glow color
+export const HAZARD_LASER_WALL_COLOR  = '#00e5ff'; // cyan barrier
+export const HAZARD_LASER_WALL_COLOR2 = '#18ffff'; // cyan glow
 
 // Pickup type keys
 export const PICKUP_RAGE_SHARD = 'rage_shard';
@@ -317,6 +339,7 @@ export const BOSS_TYPE_BRUTE      = 'brute';
 export const BOSS_TYPE_WARLOCK    = 'warlock';
 export const BOSS_TYPE_PHANTOM    = 'phantom';
 export const BOSS_TYPE_JUGGERNAUT = 'juggernaut';
+export const BOSS_TYPE_OVERLORD   = 'overlord';
 
 // Boss base stats (scaled per encounter)
 export const BOSS_BASE_HP     = 400;
@@ -352,6 +375,11 @@ export const BOSS_JUGGERNAUT_SPD_MULT = 0.6;
 export const BOSS_JUGGERNAUT_DMG_MULT = 1.2;
 export const BOSS_JUGGERNAUT_RADIUS   = 30;
 
+export const BOSS_OVERLORD_HP_MULT  = 1.4;
+export const BOSS_OVERLORD_SPD_MULT = 0.75;
+export const BOSS_OVERLORD_DMG_MULT = 1.3;
+export const BOSS_OVERLORD_RADIUS   = 26;
+
 // Boss attack timings (ms)
 export const BOSS_ATTACK_COOLDOWN   = 2000;
 export const BOSS_SLAM_WINDUP       = 900;
@@ -386,6 +414,16 @@ export const BOSS_LEAP_RADIUS       = 75;
 export const BOSS_SHOCKWAVE_WINDUP  = 600;
 export const BOSS_SHOCKWAVE_COUNT   = 10;    // projectiles in the ring
 export const BOSS_SHOCKWAVE_SPEED   = 100;   // px/s — slow, dodgeable
+
+// Overlord attack timings
+export const BOSS_LASER_SWEEP_WINDUP  = 1000;
+export const BOSS_LASER_SWEEP_DURATION = 2200;
+export const BOSS_LASER_SWEEP_WIDTH   = 10;    // px beam width
+export const BOSS_DRONE_WINDUP        = 800;
+export const BOSS_EMP_WINDUP           = 900;
+export const BOSS_EMP_RADIUS           = 130;   // px EMP blast radius
+export const BOSS_PLASMA_FAN_WINDUP   = 600;
+
 export const BOSS_HIT_COOLDOWN      = 1000;
 
 // Boss rewards
@@ -399,12 +437,14 @@ export const BOSS_BRUTE_COLOR   = '#d35400';
 export const BOSS_WARLOCK_COLOR = '#8e44ad';
 export const BOSS_PHANTOM_COLOR    = '#00bcd4';
 export const BOSS_JUGGERNAUT_COLOR = '#e67e22';
+export const BOSS_OVERLORD_COLOR   = '#00e5ff';
 
 // Boss names
 export const BOSS_BRUTE_NAME      = 'The Brute';
 export const BOSS_WARLOCK_NAME    = 'The Warlock';
 export const BOSS_PHANTOM_NAME    = 'The Phantom';
 export const BOSS_JUGGERNAUT_NAME = 'The Juggernaut';
+export const BOSS_OVERLORD_NAME   = 'The Overlord';
 
 // Game state
 export const STATE_BOSS_VICTORY = 'BOSS_VICTORY';

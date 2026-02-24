@@ -2,7 +2,9 @@ import {
     TILE_SIZE, COLS, ROWS,
     TILE_FLOOR, TILE_WALL, TILE_CANYON,
     HAZARD_TYPE_SPIKES, HAZARD_TYPE_LAVA, HAZARD_TYPE_ARROW, HAZARD_TYPE_TAR,
+    HAZARD_TYPE_LASER, HAZARD_TYPE_LASER_WALL,
     HAZARD_SPIKE_INTRO_STAGE, HAZARD_LAVA_INTRO_STAGE, HAZARD_ARROW_INTRO_STAGE, HAZARD_TAR_INTRO_STAGE,
+    HAZARD_LASER_INTRO_STAGE, HAZARD_LASER_WALL_INTRO_STAGE,
     CANYON_INTRO_STAGE,
     CANYON_COUNT_STAGE_11_20, CANYON_COUNT_STAGE_21_30, CANYON_COUNT_STAGE_31,
 } from './constants.js';
@@ -894,12 +896,26 @@ export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = 
         ? Math.min(1 + Math.floor((stage - HAZARD_TAR_INTRO_STAGE) * 0.45), 4)
         : 0;
 
+    let laserCount = stage >= HAZARD_LASER_INTRO_STAGE
+        ? Math.min(1 + Math.floor((stage - HAZARD_LASER_INTRO_STAGE) * 0.4), 3)
+        : 0;
+
+    let laserWallCount = stage >= HAZARD_LASER_WALL_INTRO_STAGE
+        ? Math.min(1 + Math.floor((stage - HAZARD_LASER_WALL_INTRO_STAGE) * 0.3), 2)
+        : 0;
+
     // ── Apply biome hazard weight modifiers ──
     if (hazardWeights) {
         spikeCount = Math.max(0, Math.round(spikeCount * (hazardWeights.spikes || 1)));
         lavaCount  = Math.max(0, Math.round(lavaCount  * (hazardWeights.lava   || 1)));
         arrowCount = Math.max(0, Math.round(arrowCount * (hazardWeights.arrow  || 1)));
         tarCount   = Math.max(0, Math.round(tarCount   * (hazardWeights.tar    || 1)));
+        laserCount = Math.max(0, Math.round(laserCount * (hazardWeights.laser  || 0)));
+        laserWallCount = Math.max(0, Math.round(laserWallCount * (hazardWeights.laser_wall || 0)));
+    } else {
+        // No biome weights → laser hazards only appear in spaceship biome (weight defaults to 0)
+        laserCount = 0;
+        laserWallCount = 0;
     }
 
     // ── Collect valid floor tiles ──
@@ -1042,6 +1058,38 @@ export function generateHazards(grid, spawnPos, doorPos, stage, hazardWeights = 
         }
     }
 
+    // ── Place laser beams (on wall tiles adjacent to floor, fires beam across room) ──
+    if (laserCount > 0) {
+        const laserCandidates = _findLaserPositions(grid, spawnPos, doorPos, usedTiles);
+        for (let i = 0; i < laserCount && i < laserCandidates.length; i++) {
+            const lc = laserCandidates[i];
+            usedTiles.add(`${lc.col},${lc.row}`);
+            hazards.push(new Hazard(HAZARD_TYPE_LASER, lc.col, lc.row, stage, {
+                dirX: lc.dirX,
+                dirY: lc.dirY,
+                beamLength: lc.beamLength,
+            }));
+        }
+    }
+
+    // ── Place laser walls (spanning 2-3 floor tiles, blocking passages) ──
+    if (laserWallCount > 0) {
+        const wallCandidates = _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles);
+        for (let i = 0; i < laserWallCount && i < wallCandidates.length; i++) {
+            const wc = wallCandidates[i];
+            // Mark all tiles in the wall span as used
+            for (let s = 0; s < wc.span; s++) {
+                const tc = wc.axis === 'h' ? wc.col + s : wc.col;
+                const tr = wc.axis === 'h' ? wc.row : wc.row + s;
+                usedTiles.add(`${tc},${tr}`);
+            }
+            hazards.push(new Hazard(HAZARD_TYPE_LASER_WALL, wc.col, wc.row, stage, {
+                axis: wc.axis,
+                span: wc.span,
+            }));
+        }
+    }
+
     return hazards;
 }
 
@@ -1112,3 +1160,151 @@ function _findArrowTrapPositions(grid, spawnPos, doorPos, usedTiles) {
     return top;
 }
 
+/**
+ * Find wall tiles suitable for laser emitters — similar to arrow traps but prefers
+ * longer clear paths (laser beams are most interesting when they sweep across a room).
+ */
+function _findLaserPositions(grid, spawnPos, doorPos, usedTiles) {
+    const candidates = [];
+    const rows = grid.length;
+    const cols = grid[0].length;
+
+    for (let row = 1; row < rows - 1; row++) {
+        for (let col = 1; col < cols - 1; col++) {
+            if (grid[row][col] !== 1) continue; // must be wall
+            const key = `${col},${row}`;
+            if (usedTiles.has(key)) continue;
+
+            const dirs = [
+                { dr: 0, dc: 1, dirX: 1, dirY: 0 },
+                { dr: 0, dc: -1, dirX: -1, dirY: 0 },
+                { dr: 1, dc: 0, dirX: 0, dirY: 1 },
+                { dr: -1, dc: 0, dirX: 0, dirY: -1 },
+            ];
+
+            for (const d of dirs) {
+                const nr = row + d.dr;
+                const nc = col + d.dc;
+                if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+                if (grid[nr][nc]) continue; // adjacent must be floor
+
+                // Measure clear path length in pixels
+                let clearTiles = 0;
+                let cr = nr, cc = nc;
+                while (cr >= 0 && cr < rows && cc >= 0 && cc < cols && !grid[cr][cc]) {
+                    clearTiles++;
+                    cr += d.dr;
+                    cc += d.dc;
+                }
+                if (clearTiles < 4) continue; // need a decent beam length
+
+                // Safety: don't place if beam would start right at spawn
+                if (nc === spawnPos.col && nr === spawnPos.row) continue;
+                if (d.dirX !== 0 && nr === spawnPos.row && Math.abs(col - spawnPos.col) < 5) continue;
+                if (d.dirY !== 0 && nc === spawnPos.col && Math.abs(row - spawnPos.row) < 5) continue;
+
+                candidates.push({
+                    col, row,
+                    dirX: d.dirX,
+                    dirY: d.dirY,
+                    beamLength: clearTiles * TILE_SIZE,
+                });
+            }
+        }
+    }
+
+    // Prefer longer beams — more dramatic
+    candidates.sort((a, b) => b.beamLength - a.beamLength);
+
+    // Shuffle top picks for variety
+    const top = candidates.slice(0, Math.min(8, candidates.length));
+    for (let i = top.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [top[i], top[j]] = [top[j], top[i]];
+    }
+    return top;
+}
+
+/**
+ * Find positions for laser walls — horizontal or vertical barriers spanning 2-3 floor tiles.
+ * Prefers chokepoints / doorway-like gaps between walls.
+ */
+function _findLaserWallPositions(grid, spawnPos, doorPos, usedTiles) {
+    const candidates = [];
+    const rows = grid.length;
+    const cols = grid[0].length;
+
+    // Try horizontal walls (axis 'h')
+    for (let row = 2; row < rows - 2; row++) {
+        for (let col = 2; col < cols - 2; col++) {
+            if (grid[row][col]) continue; // must start on floor
+
+            // Try spans of 2 and 3
+            for (let span = 2; span <= 3; span++) {
+                if (col + span > cols - 1) continue;
+                let valid = true;
+                for (let s = 0; s < span; s++) {
+                    if (grid[row][col + s]) { valid = false; break; }
+                    const tk = `${col + s},${row}`;
+                    if (usedTiles.has(tk)) { valid = false; break; }
+                }
+                if (!valid) continue;
+
+                // Check there's a wall on at least one side (so it feels like a barrier in a passage)
+                const hasWallAbove = grid[row - 1] && grid[row - 1][col];
+                const hasWallBelow = grid[row + 1] && grid[row + 1][col];
+                const wallScore = (hasWallAbove ? 1 : 0) + (hasWallBelow ? 1 : 0);
+
+                // Safety distance from spawn and door
+                const midCol = col + span / 2;
+                const sdx = midCol - spawnPos.col, sdy = row - spawnPos.row;
+                if (Math.sqrt(sdx * sdx + sdy * sdy) < 4) continue;
+                const ddx = midCol - doorPos.col, ddy = row - doorPos.row;
+                if (Math.sqrt(ddx * ddx + ddy * ddy) < 3) continue;
+
+                candidates.push({ col, row, axis: 'h', span, wallScore });
+            }
+        }
+    }
+
+    // Try vertical walls (axis 'v')
+    for (let row = 2; row < rows - 2; row++) {
+        for (let col = 2; col < cols - 2; col++) {
+            if (grid[row][col]) continue;
+
+            for (let span = 2; span <= 3; span++) {
+                if (row + span > rows - 1) continue;
+                let valid = true;
+                for (let s = 0; s < span; s++) {
+                    if (grid[row + s][col]) { valid = false; break; }
+                    const tk = `${col},${row + s}`;
+                    if (usedTiles.has(tk)) { valid = false; break; }
+                }
+                if (!valid) continue;
+
+                const hasWallLeft  = grid[row][col - 1];
+                const hasWallRight = grid[row][col + 1];
+                const wallScore = (hasWallLeft ? 1 : 0) + (hasWallRight ? 1 : 0);
+
+                const midRow = row + span / 2;
+                const sdx = col - spawnPos.col, sdy = midRow - spawnPos.row;
+                if (Math.sqrt(sdx * sdx + sdy * sdy) < 4) continue;
+                const ddx = col - doorPos.col, ddy = midRow - doorPos.row;
+                if (Math.sqrt(ddx * ddx + ddy * ddy) < 3) continue;
+
+                candidates.push({ col, row, axis: 'v', span, wallScore });
+            }
+        }
+    }
+
+    // Prefer positions near walls (chokepoints) and larger spans
+    candidates.sort((a, b) => (b.wallScore * 10 + b.span) - (a.wallScore * 10 + a.span));
+
+    // Shuffle top picks
+    const top = candidates.slice(0, Math.min(6, candidates.length));
+    for (let i = top.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [top[i], top[j]] = [top[j], top[i]];
+    }
+    return top;
+}

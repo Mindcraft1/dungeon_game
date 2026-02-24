@@ -14,6 +14,8 @@ Type these codes on your keyboard at any time (menu, gameplay, pause).
 | `WARLOCK`| Summon The Warlock in the current room | One-shot (in-game) |
 | `PHANTOM`| Summon The Phantom in the current room | One-shot (in-game) |
 | `JUGGER` | Summon The Juggernaut in the current room | One-shot (in-game) |
+| `OVERLORD`| Summon The Overlord in the current room | One-shot (in-game) |
+| `BIOME`  | Jump Biome — skip to the start of the next biome | One-shot (in-game) |
 | `DEVMOD` | Toggle Dev Tools panel — tweak stats live | Toggle on/off |
 
 Active toggle cheats show badges in the top-right corner of the screen.

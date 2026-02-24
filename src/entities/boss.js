@@ -1,5 +1,5 @@
 import {
-    BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT,
+    BOSS_TYPE_BRUTE, BOSS_TYPE_WARLOCK, BOSS_TYPE_PHANTOM, BOSS_TYPE_JUGGERNAUT, BOSS_TYPE_OVERLORD,
     BOSS_BASE_HP, BOSS_BASE_SPEED, BOSS_BASE_DAMAGE,
     BOSS_HP_SCALE, BOSS_DMG_SCALE, BOSS_SPD_SCALE,
     BOSS_STAGE_HP_SCALE, BOSS_STAGE_DMG_SCALE, BOSS_STAGE_SPD_SCALE,
@@ -7,6 +7,7 @@ import {
     BOSS_WARLOCK_HP_MULT, BOSS_WARLOCK_SPD_MULT, BOSS_WARLOCK_DMG_MULT, BOSS_WARLOCK_RADIUS,
     BOSS_PHANTOM_HP_MULT, BOSS_PHANTOM_SPD_MULT, BOSS_PHANTOM_DMG_MULT, BOSS_PHANTOM_RADIUS,
     BOSS_JUGGERNAUT_HP_MULT, BOSS_JUGGERNAUT_SPD_MULT, BOSS_JUGGERNAUT_DMG_MULT, BOSS_JUGGERNAUT_RADIUS,
+    BOSS_OVERLORD_HP_MULT, BOSS_OVERLORD_SPD_MULT, BOSS_OVERLORD_DMG_MULT, BOSS_OVERLORD_RADIUS,
     BOSS_ATTACK_COOLDOWN,
     BOSS_SLAM_WINDUP, BOSS_SLAM_RADIUS,
     BOSS_CHARGE_WINDUP, BOSS_CHARGE_DURATION, BOSS_CHARGE_SPEED_MULT,
@@ -20,9 +21,11 @@ import {
     BOSS_STOMP_WINDUP, BOSS_STOMP_RADIUS,
     BOSS_LEAP_WINDUP, BOSS_LEAP_RADIUS,
     BOSS_SHOCKWAVE_WINDUP, BOSS_SHOCKWAVE_COUNT, BOSS_SHOCKWAVE_SPEED,
+    BOSS_LASER_SWEEP_WINDUP, BOSS_LASER_SWEEP_DURATION, BOSS_LASER_SWEEP_WIDTH,
+    BOSS_DRONE_WINDUP, BOSS_EMP_WINDUP, BOSS_EMP_RADIUS, BOSS_PLASMA_FAN_WINDUP,
     BOSS_HIT_COOLDOWN,
-    BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR, BOSS_JUGGERNAUT_COLOR,
-    BOSS_BRUTE_NAME, BOSS_WARLOCK_NAME, BOSS_PHANTOM_NAME, BOSS_JUGGERNAUT_NAME,
+    BOSS_BRUTE_COLOR, BOSS_WARLOCK_COLOR, BOSS_PHANTOM_COLOR, BOSS_JUGGERNAUT_COLOR, BOSS_OVERLORD_COLOR,
+    BOSS_BRUTE_NAME, BOSS_WARLOCK_NAME, BOSS_PHANTOM_NAME, BOSS_JUGGERNAUT_NAME, BOSS_OVERLORD_NAME,
     BOSS_XP_REWARD,
     ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_DASHER, ENEMY_TYPE_TANK,
     PROJECTILE_SPEED, PROJECTILE_RADIUS,
@@ -89,6 +92,14 @@ export class Boss {
                 this.color  = BOSS_JUGGERNAUT_COLOR;
                 this.name   = BOSS_JUGGERNAUT_NAME;
                 break;
+            case BOSS_TYPE_OVERLORD:
+                this.radius = BOSS_OVERLORD_RADIUS;
+                this.maxHp  = Math.floor(BOSS_BASE_HP * BOSS_OVERLORD_HP_MULT * hpScale);
+                this.speed  = BOSS_BASE_SPEED * BOSS_OVERLORD_SPD_MULT * spdScale;
+                this.damage = Math.floor(BOSS_BASE_DAMAGE * BOSS_OVERLORD_DMG_MULT * dmgScale);
+                this.color  = BOSS_OVERLORD_COLOR;
+                this.name   = BOSS_OVERLORD_NAME;
+                break;
         }
 
         this.hp = this.maxHp;
@@ -148,6 +159,15 @@ export class Boss {
 
         // Shockwave state (brute)
         this.shockwaveIndicatorRadius = 0;
+
+        // Laser sweep state (overlord)
+        this.laserSweepAngle = 0;
+        this.laserSweepStartAngle = 0;
+        this.laserSweepDir = 1;        // +1 or -1 sweep direction
+        this.laserSweepActive = false;
+
+        // EMP blast state (overlord)
+        this.empIndicatorRadius = 0;
 
         // ── Events (consumed by game.js each frame) ──
         this._events = [];
@@ -249,6 +269,8 @@ export class Boss {
                 if (atk.name === 'bombardment') this.bombardTargets = [];
                 if (atk.name === 'leap') { this.leapIndicatorRadius = 0; this.leapAirborne = false; }
                 if (atk.name === 'shockwave') this.shockwaveIndicatorRadius = 0;
+                if (atk.name === 'laser_sweep') { this.laserSweepActive = false; this.laserSweepAngle = 0; }
+                if (atk.name === 'emp_blast') this.empIndicatorRadius = 0;
                 return;
             }
         }
@@ -283,6 +305,14 @@ export class Boss {
                     { name: 'bombardment', weight: 3,   windup: BOSS_BOMBARDMENT_WINDUP },
                     { name: 'stomp',       weight: 2,   windup: BOSS_STOMP_WINDUP },
                     { name: 'summon',      weight: 1,   windup: BOSS_SUMMON_WINDUP },
+                ];
+            case BOSS_TYPE_OVERLORD:
+                return [
+                    { name: 'laser_sweep', weight: 3,   windup: BOSS_LASER_SWEEP_WINDUP },
+                    { name: 'plasma_fan',  weight: 2.5, windup: BOSS_PLASMA_FAN_WINDUP },
+                    { name: 'emp_blast',   weight: 2,   windup: BOSS_EMP_WINDUP },
+                    { name: 'ring',        weight: 2,   windup: BOSS_RING_WINDUP },
+                    { name: 'summon',      weight: 1.5, windup: BOSS_DRONE_WINDUP },
                 ];
             default:
                 return [{ name: 'slam', weight: 1, windup: BOSS_SLAM_WINDUP }];
@@ -366,6 +396,21 @@ export class Boss {
                 const windupTotal = BOSS_SHOCKWAVE_WINDUP * this.phaseMultiplier;
                 const progress = 1 - this.attackTimer / windupTotal;
                 this.shockwaveIndicatorRadius = this.radius * 1.5 * progress;
+                break;
+            }
+            case 'laser_sweep': {
+                // Lock sweep start angle toward player
+                const lsx = player.x - this.x;
+                const lsy = player.y - this.y;
+                this.laserSweepStartAngle = Math.atan2(lsy, lsx) - Math.PI / 3;
+                this.laserSweepDir = Math.random() < 0.5 ? 1 : -1;
+                break;
+            }
+            case 'emp_blast': {
+                const windupTotal = BOSS_EMP_WINDUP * this.phaseMultiplier;
+                const progress = 1 - this.attackTimer / windupTotal;
+                const targetR = this.phase === 2 ? BOSS_EMP_RADIUS * 1.3 : BOSS_EMP_RADIUS;
+                this.empIndicatorRadius = targetR * progress;
                 break;
             }
         }
@@ -508,6 +553,39 @@ export class Boss {
                 this.attackTimer = 500; // recovery
                 break;
             }
+            case 'laser_sweep': {
+                // Begin sweeping laser beam
+                this.laserSweepActive = true;
+                this.laserSweepAngle = this.laserSweepStartAngle;
+                this.attackTimer = BOSS_LASER_SWEEP_DURATION * this.phaseMultiplier;
+                this._events.push({ type: 'laser_sweep' });
+                break;
+            }
+            case 'plasma_fan': {
+                // Fire a wide fan of plasma projectiles
+                this._firePlasmaFan(player, projectiles);
+                this._events.push({ type: 'projectile' });
+                this.attackTimer = 500; // recovery
+                break;
+            }
+            case 'emp_blast': {
+                const empR = this.phase === 2 ? BOSS_EMP_RADIUS * 1.3 : BOSS_EMP_RADIUS;
+                const edx = player.x - this.x;
+                const edy = player.y - this.y;
+                const edist = Math.sqrt(edx * edx + edy * edy);
+                if (edist < empR + player.radius) {
+                    player.takeDamage(Math.floor(this.damage * 1.2));
+                    // EMP knockback
+                    if (edist > 0) {
+                        player.x += (edx / edist) * 35;
+                        player.y += (edy / edist) * 35;
+                    }
+                }
+                this.empIndicatorRadius = empR;
+                this._events.push({ type: 'emp_blast', x: this.x, y: this.y, radius: empR });
+                this.attackTimer = 600; // recovery
+                break;
+            }
         }
     }
 
@@ -597,6 +675,44 @@ export class Boss {
             case 'shockwave':
                 // Nothing to update during recovery
                 break;
+
+            case 'laser_sweep': {
+                // Sweep the laser beam across an arc
+                const sweepTotal = BOSS_LASER_SWEEP_DURATION * this.phaseMultiplier;
+                const sweepProgress = 1 - this.attackTimer / sweepTotal;
+                const sweepArc = this.phase === 2 ? Math.PI * 0.85 : Math.PI * 2 / 3;
+                this.laserSweepAngle = this.laserSweepStartAngle + this.laserSweepDir * sweepArc * sweepProgress;
+
+                // Check if player is in the beam path
+                const beamLen = 350;  // px beam length
+                const beamEndX = this.x + Math.cos(this.laserSweepAngle) * beamLen;
+                const beamEndY = this.y + Math.sin(this.laserSweepAngle) * beamLen;
+                // Line-circle test
+                const lax = beamEndX - this.x, lay = beamEndY - this.y;
+                const lenSq = lax * lax + lay * lay;
+                if (lenSq > 0) {
+                    let t = ((player.x - this.x) * lax + (player.y - this.y) * lay) / lenSq;
+                    t = Math.max(0, Math.min(1, t));
+                    const cx = this.x + t * lax;
+                    const cy = this.y + t * lay;
+                    const pdx = player.x - cx, pdy = player.y - cy;
+                    const hitR = player.radius + BOSS_LASER_SWEEP_WIDTH;
+                    if (pdx * pdx + pdy * pdy < hitR * hitR && this.hitCooldown <= 0) {
+                        player.takeDamage(Math.floor(this.damage * 0.8));
+                        this.hitCooldown = 400;  // shorter cooldown for laser ticks
+                    }
+                }
+                // End sweep
+                if (this.attackTimer <= 0) {
+                    this.laserSweepActive = false;
+                }
+                break;
+            }
+
+            case 'emp_blast':
+                // Indicator fading
+                this.empIndicatorRadius *= 0.92;
+                break;
         }
     }
 
@@ -612,6 +728,8 @@ export class Boss {
         this.leapTargetY = 0;
         this.shockwaveIndicatorRadius = 0;
         this.bombardTargets = [];
+        this.laserSweepActive = false;
+        this.empIndicatorRadius = 0;
     }
 
     // ── Projectile attacks ─────────────────────────────────
@@ -701,6 +819,36 @@ export class Boss {
                 Math.floor(this.damage * 0.5),
                 PROJECTILE_RADIUS + 3,     // fat, visible projectiles
                 this.color,
+            ));
+        }
+    }
+
+    // ── Plasma fan (overlord) ──────────────────────────────
+
+    _firePlasmaFan(player, projectiles) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist === 0) return;
+
+        const baseAngle = Math.atan2(dy, dx);
+        const count = this.phase === 2 ? 9 : 6;
+        const spread = this.phase === 2 ? Math.PI * 0.55 : Math.PI * 0.4;
+
+        for (let i = 0; i < count; i++) {
+            const angle = baseAngle - spread / 2 + (spread / (count - 1)) * i;
+            const dirX = Math.cos(angle);
+            const dirY = Math.sin(angle);
+            // Alternate slow/fast for a staggered wave feel
+            const speed = (i % 2 === 0) ? PROJECTILE_SPEED * 0.75 : PROJECTILE_SPEED * 0.55;
+            projectiles.push(new Projectile(
+                this.x + dirX * (this.radius + PROJECTILE_RADIUS + 4),
+                this.y + dirY * (this.radius + PROJECTILE_RADIUS + 4),
+                dirX, dirY,
+                speed,
+                Math.floor(this.damage * 0.55),
+                PROJECTILE_RADIUS + 1,
+                '#00e5ff',  // cyan plasma
             ));
         }
     }
@@ -829,6 +977,7 @@ export class Boss {
         let addType = ENEMY_TYPE_BASIC;
         if (this.type === BOSS_TYPE_WARLOCK) addType = ENEMY_TYPE_SHOOTER;
         if (this.type === BOSS_TYPE_JUGGERNAUT) addType = ENEMY_TYPE_TANK;
+        if (this.type === BOSS_TYPE_OVERLORD) addType = ENEMY_TYPE_SHOOTER;  // drones
 
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
@@ -902,6 +1051,7 @@ export class Boss {
             case BOSS_TYPE_WARLOCK:    this._renderWarlock(ctx, flash);    break;
             case BOSS_TYPE_PHANTOM:    this._renderPhantom(ctx, flash);    break;
             case BOSS_TYPE_JUGGERNAUT: this._renderJuggernaut(ctx, flash); break;
+            case BOSS_TYPE_OVERLORD:   this._renderOverlord(ctx, flash);   break;
         }
 
         // Phase 2 red aura
@@ -1219,6 +1369,7 @@ export class Boss {
             warlock:    { body: BOSS_WARLOCK_COLOR,     stroke: '#6c3483', innerEye: '#e0b0ff', innerEyeFlash: '#bb86fc', pupil: '#2a0134', orbit: BOSS_WARLOCK_COLOR },
             phantom:    { body: BOSS_PHANTOM_COLOR,     stroke: '#00838f', glow: '#e0f7fa', afterimage: BOSS_PHANTOM_COLOR },
             juggernaut: { body: BOSS_JUGGERNAUT_COLOR,  stroke: '#bf6516', armor: '#c68a17', armorLight: '#e8a838', viewport: '#ff4400', viewportGlow: '#ff6600' },
+            overlord:   { body: BOSS_OVERLORD_COLOR,    stroke: '#01579b', innerEye: '#00e5ff', innerEyeFlash: '#18ffff', pupil: '#000a12', orbit: '#82b1ff', viewport: '#00e5ff', viewportGlow: '#80d8ff', shieldColor: '#00e5ff', laserColor: '#ff1744' },
         };
 
         const theme = biome && biome.bossTheme ? biome.bossTheme[this.type] : null;
@@ -1241,6 +1392,10 @@ export class Boss {
         this.themeArmorLight   = (theme && theme.armorLight)   || fallback.armorLight;
         this.themeViewport     = (theme && theme.viewport)     || fallback.viewport;
         this.themeViewportGlow = (theme && theme.viewportGlow) || fallback.viewportGlow;
+
+        // Overlord-specific
+        this.themeShieldColor = (theme && theme.shieldColor) || fallback.shieldColor || '#00e5ff';
+        this.themeLaserColor  = (theme && theme.laserColor)  || fallback.laserColor  || '#ff1744';
 
         // Override base color used by projectiles & attack indicators
         if (theme) this.color = theme.body;
@@ -1488,6 +1643,113 @@ export class Boss {
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    _renderOverlord(ctx, flash) {
+        const t = Date.now();
+
+        // Diamond / rhombus body shape (rotated square, sci-fi feel)
+        ctx.fillStyle = flash ? '#ffffff' : this.themeBody;
+        ctx.beginPath();
+        const r = this.radius;
+        ctx.moveTo(this.x, this.y - r);              // top
+        ctx.lineTo(this.x + r * 0.85, this.y);       // right
+        ctx.lineTo(this.x, this.y + r);               // bottom
+        ctx.lineTo(this.x - r * 0.85, this.y);        // left
+        ctx.closePath();
+        ctx.fill();
+
+        // Heavy outer border
+        ctx.strokeStyle = this.themeStroke;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Inner panel lines (tech look)
+        ctx.save();
+        ctx.strokeStyle = this.themeShieldColor;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y - r * 0.5);
+        ctx.lineTo(this.x + r * 0.42, this.y);
+        ctx.lineTo(this.x, this.y + r * 0.5);
+        ctx.lineTo(this.x - r * 0.42, this.y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // Central eye / core (large, glowing, tracks player)
+        const coreR = r * 0.25;
+        const coreOffX = Math.cos(this.facingAngle) * r * 0.15;
+        const coreOffY = Math.sin(this.facingAngle) * r * 0.15;
+
+        // Eye glow ring
+        ctx.save();
+        ctx.globalAlpha = 0.4 + Math.sin(t * 0.008) * 0.2;
+        ctx.fillStyle = this.themeShieldColor;
+        ctx.beginPath();
+        ctx.arc(this.x + coreOffX, this.y + coreOffY, coreR + 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Eye inner
+        ctx.fillStyle = flash ? this.themeInnerEyeFlash : this.themeInnerEye;
+        ctx.beginPath();
+        ctx.arc(this.x + coreOffX, this.y + coreOffY, coreR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupil
+        const pupilDist = r * 0.08;
+        ctx.fillStyle = this.themePupil;
+        ctx.beginPath();
+        ctx.arc(
+            this.x + coreOffX + Math.cos(this.facingAngle) * pupilDist,
+            this.y + coreOffY + Math.sin(this.facingAngle) * pupilDist,
+            coreR * 0.45, 0, Math.PI * 2,
+        );
+        ctx.fill();
+
+        // Orbiting data fragments (small rotating squares)
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        const orbitR = r + 12;
+        const orbitCount = this.phase === 2 ? 5 : 4;
+        for (let i = 0; i < orbitCount; i++) {
+            const angle = t * 0.003 + (Math.PI * 2 / orbitCount) * i;
+            const ox = this.x + Math.cos(angle) * orbitR;
+            const oy = this.y + Math.sin(angle) * orbitR;
+            ctx.save();
+            ctx.translate(ox, oy);
+            ctx.rotate(angle * 2);
+            ctx.fillStyle = this.themeOrbit;
+            ctx.fillRect(-2.5, -2.5, 5, 5);
+            ctx.restore();
+        }
+        ctx.restore();
+
+        // Shield shimmer in phase 2
+        if (this.phase === 2) {
+            ctx.save();
+            ctx.globalAlpha = 0.12 + Math.sin(t * 0.006) * 0.08;
+            ctx.strokeStyle = this.themeShieldColor;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r + 8, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // EMP visual: expanding pulse ring after blast
+        if (this.currentAttack === 'emp_blast' && this.attackPhase === 2) {
+            ctx.save();
+            ctx.globalAlpha = 0.4 + Math.sin(t * 0.025) * 0.2;
+            ctx.strokeStyle = '#18ffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
             ctx.stroke();
             ctx.restore();
         }
