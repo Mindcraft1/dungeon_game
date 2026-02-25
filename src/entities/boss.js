@@ -33,6 +33,7 @@ import {
 } from '../constants.js';
 import { resolveWalls, isWall } from '../collision.js';
 import { Projectile, RocketProjectile } from './projectile.js';
+import { playHit } from '../audio.js';
 
 export class Boss {
     /**
@@ -1009,6 +1010,7 @@ export class Boss {
         if (this.dead) return;
         this.hp -= amount;
         this.damageFlashTimer = 120;
+        playHit();
 
         // Push damage event for floating damage numbers
         Boss.damageEvents.push({ x: this.x, y: this.y - this.radius - 4, amount, isCrit });

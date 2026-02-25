@@ -3098,8 +3098,8 @@ export class Game {
             return;
         }
 
-        // Talent tree (Tab key)
-        if (wasPressed('Tab')) {
+        // Talent tree (T key)
+        if (wasPressed('KeyT')) {
             this.talentCursorBranch = 0;
             this.talentCursorTier = 0;
             this._talentReturnState = STATE_PLAYING;
@@ -3271,6 +3271,21 @@ export class Game {
                     this._spawnFireZone(this.player.x, this.player.y, _dashMods.fireTrailDps || 6, _dashMods.fireTrailDuration || 800, 14);
                 }
             }
+            // Stunning Rush (stunOnHit node): stun enemies the player collides with DURING the dash
+            if (_dashMods.stunOnHit) {
+                if (!this._dashStunnedEnemies) this._dashStunnedEnemies = new Set();
+                const stunDur = _dashMods.stunDuration || 400;
+                const stunTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of stunTargets) {
+                    if (e.dead || this._dashStunnedEnemies.has(e)) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (Math.sqrt(dx * dx + dy * dy) <= this.player.radius + (e.radius || 12) + 4) {
+                        applyFreezeStatus(e, stunDur);
+                        this._dashStunnedEnemies.add(e);
+                    }
+                }
+            }
         }
 
         // Dash just ended — check for end-of-dash effects
@@ -3293,13 +3308,15 @@ export class Game {
                 Impact.shake(6, 0.88);
                 this.particles.abilityShockwave(this.player.x, this.player.y, swRadius);
             }
-            // Stunning Rush (stunOnHit node): stun nearby enemies at dash end
+            // Stunning Rush (stunOnHit node): also catch enemies near dash end position
+            // (enemies hit during the dash were already stunned per-frame above)
             if (_dashMods.stunOnHit) {
                 const stunRadius = 40;
                 const stunDur = _dashMods.stunDuration || 400;
                 const stunTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                const alreadyHit = this._dashStunnedEnemies || new Set();
                 for (const e of stunTargets) {
-                    if (e.dead) continue;
+                    if (e.dead || alreadyHit.has(e)) continue;
                     const dx = e.x - this.player.x;
                     const dy = e.y - this.player.y;
                     if (Math.sqrt(dx * dx + dy * dy) <= stunRadius + (e.radius || 12)) {
@@ -3307,6 +3324,8 @@ export class Game {
                     }
                 }
             }
+            // Clear dash collision tracking
+            if (this._dashStunnedEnemies) this._dashStunnedEnemies.clear();
         }
 
         // ── Ability Q/E input ──
@@ -3379,7 +3398,6 @@ export class Game {
                     this.player.weaponColor || '#ffffff',
                 );
                 if (hitCount > 0) {
-                    Audio.playHit();
                     // Run upgrade: lifesteal — heal 1% of damage dealt per hit
                     if (this.runUpgradesActive.upgrade_lifesteal && hitCount > 0) {
                         const healAmt = Math.max(1, Math.floor(this.player.damage * 0.01 * hitCount));
@@ -4408,8 +4426,8 @@ export class Game {
         const branchCount = BRANCH_ORDER.length;  // 3
         const tierCount = 5;
 
-        // Close with Tab or Escape
-        if (wasPressed('Tab') || wasPressed('Escape')) {
+        // Close with T or Escape
+        if (wasPressed('KeyT') || wasPressed('Escape')) {
             Audio.playMenuSelect();
             this.state = this._talentReturnState;
             return;
@@ -4498,7 +4516,7 @@ export class Game {
 
     _updateLevelUp() {
         // Allow opening talent tree from level-up screen
-        if (wasPressed('Tab') && this.talentState && this.talentState.points > 0) {
+        if (wasPressed('KeyT') && this.talentState && this.talentState.points > 0) {
             this.talentCursorBranch = 0;
             this.talentCursorTier = 0;
             this._talentReturnState = STATE_LEVEL_UP;
@@ -5320,7 +5338,7 @@ export class Game {
                 ctx.font = 'bold 13px monospace';
                 const pulse = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
                 ctx.globalAlpha = pulse;
-                ctx.fillText(`🌟 ${this.talentState.points} Talent point${this.talentState.points > 1 ? 's' : ''} available! (Tab)`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 130);
+                ctx.fillText(`🌟 ${this.talentState.points} Talent point${this.talentState.points > 1 ? 's' : ''} available! (T)`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 130);
                 ctx.restore();
             }
         } else if (this.state === STATE_GAME_OVER) {

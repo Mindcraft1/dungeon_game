@@ -425,69 +425,14 @@ export function playEnemyDeath() {
     }
 }
 
-/** Player takes damage — heavy distorted crunch with dissonant buzz */
+/** Player takes damage — alternates between pain1 and pain2, only every 3rd hit */
+let _painCount = 0;
 export function playPlayerHurt() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
-
-    // ── Layer 1: Heavy sine thud ──
-    const thudG = _gain(0.25);
-    if (!thudG) return;
-    const thudO = ctx.createOscillator();
-    thudO.type = 'sine';
-    thudO.frequency.setValueAtTime(160, t);
-    thudO.frequency.exponentialRampToValueAtTime(35, t + 0.15);
-    thudO.connect(thudG);
-    _adsr(thudG, t, 0.25, 0.003, 0.06, 0.35, 0.02, 0.1);
-    thudO.start(t);
-    thudO.stop(t + 0.24);
-
-    // ── Layer 2: Distorted dissonant buzz (layered) ──
-    const buzz = _layeredOsc('sawtooth', 170, 3, 40, t, t + 0.18, 0.1);
-    if (buzz) {
-        const dist = _distort(25);
-        const buzzEnv = ctx.createGain();
-        _adsr(buzzEnv, t, 1.0, 0.005, 0.04, 0.3, 0.02, 0.08);
-        buzz.connect(dist);
-        dist.connect(buzzEnv);
-        buzzEnv.connect(_master);
-    }
-
-    // ── Layer 3: Noise crunch with reverb tail ──
-    const buf = _noiseBuffer(0.1);
-    if (buf) {
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        const filt = ctx.createBiquadFilter();
-        filt.type = 'lowpass';
-        filt.frequency.setValueAtTime(2000, t);
-        filt.frequency.exponentialRampToValueAtTime(400, t + 0.08);
-        filt.Q.value = 2;
-        const nEnv = ctx.createGain();
-        nEnv.gain.setValueAtTime(0.18, t);
-        nEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-        src.connect(filt);
-        filt.connect(nEnv);
-        nEnv.connect(_master);
-        _sendReverb(nEnv, 0.25);
-        src.start(t);
-        src.stop(t + 0.12);
-    }
-
-    // ── Layer 4: Dissonant tritone sting ──
-    const stingG = _gain(0.05);
-    if (stingG) {
-        const stingO = ctx.createOscillator();
-        stingO.type = 'square';
-        stingO.frequency.setValueAtTime(233, t); // Bb3 — tritone with E
-        stingO.connect(stingG);
-        stingG.gain.setValueAtTime(0.05, t);
-        stingG.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-        stingO.start(t);
-        stingO.stop(t + 0.12);
-    }
+    _painCount++;
+    if (_painCount % 3 !== 1) return; // only play on every 3rd hit
+    const rate = 0.95 + Math.random() * 0.1;
+    const sample = (_painCount % 6 < 3) ? 'assets/sfx/pain1.mp3' : 'assets/sfx/pain2.mp3';
+    _playSample(sample, 0.75, rate);
 }
 
 /** Phase Shield blocks a hit — metallic ping */
@@ -820,58 +765,9 @@ export function playMenuSelect() {
     });
 }
 
-/** Game over — haunting descending tones with delay and reverb */
+/** Game over — plays death.mp3 */
 export function playGameOver() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
-
-    // Three descending notes (G4 → E4 → C4) with layered richness
-    const notes = [392, 330, 262];
-    const pans = [-0.3, 0, 0.3];
-    notes.forEach((freq, i) => {
-        const start = t + i * 0.28;
-
-        // Layered main tone
-        const layer = _layeredOsc('sine', freq, 3, 12, start, start + 0.5, 0.18);
-        if (!layer) return;
-        const env = ctx.createGain();
-        _adsr(env, start, 1.0, 0.01, 0.08, 0.5, 0.12, 0.2);
-        const pan = _pan(pans[i]);
-        layer.connect(env);
-        env.connect(pan);
-        pan.connect(_master);
-        _sendReverb(env, 0.5);
-        _sendDelay(env, 0.25);
-
-        // Dark sub-octave
-        const subG = ctx.createGain();
-        subG.gain.setValueAtTime(0.1, start);
-        subG.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
-        const subO = ctx.createOscillator();
-        subO.type = 'sine';
-        subO.frequency.value = freq / 2;
-        subO.connect(subG);
-        subG.connect(pan);
-        subO.start(start);
-        subO.stop(start + 0.42);
-    });
-
-    // Final low rumble for weight
-    const rumbleG = _gain(0.06);
-    if (rumbleG) {
-        const rumbleO = ctx.createOscillator();
-        rumbleO.type = 'sawtooth';
-        rumbleO.frequency.value = 50;
-        rumbleO.connect(rumbleG);
-        rumbleG.gain.setValueAtTime(0.001, t + 0.6);
-        rumbleG.gain.linearRampToValueAtTime(0.06, t + 0.75);
-        rumbleG.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
-        _sendReverb(rumbleG, 0.5);
-        rumbleO.start(t + 0.6);
-        rumbleO.stop(t + 1.22);
-    }
+    _playSample('assets/sfx/death.mp3', 0.8, 1.0);
 }
 
 /** Tank charge warning — rumble */
@@ -1537,7 +1433,7 @@ export function playShockwave() {
     _playSample('assets/sfx/simpleexplosion.mp3', 0.8, rate, 0.9);
 }
 
-/** Blade Storm — looping simpleswingingblades.mp3 while active. */
+/** Blade Storm — looping simpleswing.mp3 while active. */
 let _bladeStormSrc = null;
 let _bladeStormGain = null;
 
@@ -1548,7 +1444,7 @@ export function playBladeStorm() {
     _resume();
     // Stop any existing loop first
     stopBladeStorm();
-    const buf = _sampleCache['assets/sfx/simpleswingingblades.mp3'];
+    const buf = _sampleCache['assets/sfx/simpleswing.mp3'];
     if (!buf) return;
     const src = ctx.createBufferSource();
     src.buffer = buf;
@@ -1768,7 +1664,10 @@ export function init() {
     _loadSample('assets/sfx/simplewhoosh.mp3');
     _loadSample('assets/sfx/simplepunch.mp3');
     _loadSample('assets/sfx/simpleexplosion.mp3');
-    _loadSample('assets/sfx/simpleswingingblades.mp3');
+    _loadSample('assets/sfx/simpleswing.mp3');
+    _loadSample('assets/sfx/pain1.mp3');
+    _loadSample('assets/sfx/pain2.mp3');
+    _loadSample('assets/sfx/death.mp3');
 }
 
 /** Return the shared AudioContext (for music engine). Null if not yet created. */

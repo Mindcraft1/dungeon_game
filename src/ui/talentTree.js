@@ -191,7 +191,7 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
     // ── Controls hint ──
     ctx.fillStyle = '#555';
     ctx.font = '10px monospace';
-    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER = Upgrade  ·  TAB/ESC = Close', CANVAS_WIDTH / 2, py + ph - 8);
+    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER = Upgrade  ·  T/ESC = Close', CANVAS_WIDTH / 2, py + ph - 8);
 
     ctx.textAlign = 'left';
 }
