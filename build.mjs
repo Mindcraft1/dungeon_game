@@ -104,8 +104,15 @@ writeFileSync(resolve(DIST, 'index.html'), html, 'utf-8');
 // ── Step 4: Copy style.css ──
 cpSync(resolve(__dirname, 'style.css'), resolve(DIST, 'style.css'));
 
+// ── Step 5: Copy assets/ ──
+const ASSETS_SRC = resolve(__dirname, 'assets');
+if (existsSync(ASSETS_SRC)) {
+    cpSync(ASSETS_SRC, resolve(DIST, 'assets'), { recursive: true });
+    console.log('📂 Copied assets/ → dist/assets/');
+}
+
 // ── Done ──
 console.log('');
 console.log(`✅ Build complete → dist/`);
-console.log(`   Files: index.html, style.css, game.js`);
+console.log(`   Files: index.html, style.css, game.js, assets/`);
 console.log(`   Serve with: npx serve dist -l 6969`);
