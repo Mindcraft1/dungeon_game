@@ -130,56 +130,99 @@ export class ParticleSystem {
     // ── Preset effects ──────────────────────────────────────
 
     /**
-     * Enemy death explosion — burst of colored fragments.
+     * Enemy death explosion — big burst of colored fragments + debris.
      */
     enemyDeath(x, y, color, radius = 12) {
-        const count = 14 + Math.floor(Math.random() * 6);
+        // Main colored fragments (more + faster)
+        const count = 20 + Math.floor(Math.random() * 8);
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 60 + Math.random() * 160;
-            const size = 1.5 + Math.random() * 3;
+            const speed = 80 + Math.random() * 220;
+            const size = 2 + Math.random() * 3.5;
             this.particles.push(new Particle(
                 x + (Math.random() - 0.5) * radius,
                 y + (Math.random() - 0.5) * radius,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
                 size, color,
-                300 + Math.random() * 400,
-                { friction: 0.93, glow: true, glowColor: color, shape: Math.random() > 0.5 ? 'spark' : 'circle' },
+                250 + Math.random() * 400,
+                { friction: 0.91, glow: true, glowColor: color, shape: Math.random() > 0.4 ? 'spark' : 'circle' },
             ));
         }
-        // White core flash
-        for (let i = 0; i < 5; i++) {
+        // White core flash (brighter, bigger)
+        for (let i = 0; i < 8; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 30 + Math.random() * 60;
+            const speed = 40 + Math.random() * 80;
             this.particles.push(new Particle(
                 x, y,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                2 + Math.random() * 2, '#ffffff',
-                150 + Math.random() * 200,
-                { friction: 0.9, glow: true, glowColor: '#ffffff' },
+                2.5 + Math.random() * 2.5, '#ffffff',
+                120 + Math.random() * 180,
+                { friction: 0.88, glow: true, glowColor: '#ffffff' },
             ));
         }
+        // Debris chunks flung outward with gravity
+        for (let i = 0; i < 6; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 60 + Math.random() * 120;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 6,
+                y + (Math.random() - 0.5) * 6,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 2, '#555555',
+                350 + Math.random() * 300,
+                { friction: 0.93, gravity: 100, glow: false, shape: 'square' },
+            ));
+        }
+        // Big central pop flash
+        this.particles.push(new Particle(
+            x, y, 0, 0,
+            radius * 1.2, '#ffffff',
+            100,
+            { shrink: true, glow: true, glowColor: color },
+        ));
     }
 
     /**
-     * Hit sparks — small burst when player melee hits an enemy.
+     * Hit sparks — punchy directional burst when player melee hits an enemy.
      */
     hitSparks(x, y, dirX, dirY) {
-        const count = 6 + Math.floor(Math.random() * 4);
+        // Main directional sparks — biased in the hit direction
+        const count = 10 + Math.floor(Math.random() * 5);
         for (let i = 0; i < count; i++) {
-            const spread = (Math.random() - 0.5) * 1.5;
-            const speed = 80 + Math.random() * 120;
-            const vx = (dirX + spread) * speed;
-            const vy = (dirY + spread) * speed;
+            const spread = (Math.random() - 0.5) * 1.2;
+            const speed = 120 + Math.random() * 180;
+            const vx = (dirX * 0.7 + spread) * speed;
+            const vy = (dirY * 0.7 + spread) * speed;
             this.particles.push(new Particle(
                 x, y, vx, vy,
-                1 + Math.random() * 2, '#ffd700',
-                150 + Math.random() * 200,
-                { friction: 0.92, shape: 'spark', glow: true, glowColor: '#ffab40' },
+                1.5 + Math.random() * 2.5, '#ffd700',
+                120 + Math.random() * 180,
+                { friction: 0.89, shape: 'spark', glow: true, glowColor: '#ffab40' },
             ));
         }
+        // White-hot core sparks (fewer, brighter)
+        for (let i = 0; i < 4; i++) {
+            const spread = (Math.random() - 0.5) * 0.8;
+            const speed = 60 + Math.random() * 100;
+            this.particles.push(new Particle(
+                x, y,
+                (dirX + spread) * speed,
+                (dirY + spread) * speed,
+                2 + Math.random() * 2, '#ffffff',
+                80 + Math.random() * 100,
+                { friction: 0.88, shape: 'circle', glow: true, glowColor: '#ffd700' },
+            ));
+        }
+        // Impact flash at hit point
+        this.particles.push(new Particle(
+            x, y, 0, 0,
+            8, '#ffffff',
+            80,
+            { shrink: true, glow: true, glowColor: '#ffd700' },
+        ));
     }
 
     /**
@@ -1142,6 +1185,98 @@ export class ParticleSystem {
                 2 + Math.random() * 1.5, '#4fc3f7',
                 100 + Math.random() * 80,
                 { friction: 0.88, shrink: true, glow: true, glowColor: '#03a9f4' },
+            ));
+        }
+    }
+
+    /**
+     * Impact ring — expanding ring of particles at the point of impact.
+     * Gives hits a satisfying radial burst at contact point.
+     */
+    impactRing(x, y, color = '#ffd700', radius = 20) {
+        const count = 14;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+            const speed = 100 + Math.random() * 80;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 1.5, color,
+                120 + Math.random() * 100,
+                { friction: 0.88, glow: true, glowColor: color, shape: 'spark' },
+            ));
+        }
+        // Central flash
+        this.particles.push(new Particle(
+            x, y, 0, 0,
+            10, '#ffffff',
+            90,
+            { shrink: true, glow: true, glowColor: color },
+        ));
+    }
+
+    /**
+     * Slash trail — arc of particles that follow the melee attack sweep.
+     * Creates a visible slash smear for attack weight.
+     */
+    slashTrail(playerX, playerY, facingX, facingY, range, color = '#ffffff') {
+        const angle = Math.atan2(facingY, facingX);
+        const arcSpread = 1.4; // wider than the actual arc for visual
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+            const t = (i / count) - 0.5; // -0.5 to 0.5
+            const a = angle + t * arcSpread;
+            const dist = range * (0.5 + Math.random() * 0.5);
+            const px = playerX + Math.cos(a) * dist;
+            const py = playerY + Math.sin(a) * dist;
+            // Velocity: tangential to arc (sweep direction) + outward
+            const tangentX = -Math.sin(a);
+            const tangentY = Math.cos(a);
+            const outX = Math.cos(a);
+            const outY = Math.sin(a);
+            const speed = 40 + Math.random() * 60;
+            this.particles.push(new Particle(
+                px, py,
+                (tangentX * 0.6 + outX * 0.4) * speed,
+                (tangentY * 0.6 + outY * 0.4) * speed,
+                1.5 + Math.random() * 2, color,
+                80 + Math.random() * 100,
+                { friction: 0.85, shrink: true, glow: true, glowColor: color },
+            ));
+        }
+    }
+
+    /**
+     * Kill burst — extra satisfying pop on enemy death (called in addition to enemyDeath).
+     * Ring of white-hot sparks + upward celebratory particles.
+     */
+    killBurst(x, y, color) {
+        // Outward white ring
+        const count = 10;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 80 + Math.random() * 60;
+            this.particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 1.5, '#ffffff',
+                150 + Math.random() * 100,
+                { friction: 0.9, glow: true, glowColor: color || '#ffd700', shape: 'spark' },
+            ));
+        }
+        // Upward celebratory sparks
+        for (let i = 0; i < 5; i++) {
+            const spread = (Math.random() - 0.5) * 60;
+            this.particles.push(new Particle(
+                x + spread, y,
+                (Math.random() - 0.5) * 40,
+                -(100 + Math.random() * 80),
+                1.5 + Math.random() * 2,
+                Math.random() > 0.5 ? color || '#ffd700' : '#ffffff',
+                300 + Math.random() * 200,
+                { friction: 0.96, gravity: 60, glow: true, glowColor: color || '#ffd700' },
             ));
         }
     }

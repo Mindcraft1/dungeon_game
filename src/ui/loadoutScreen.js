@@ -24,7 +24,7 @@ import { WEAPON_ORDER, WEAPON_DEFINITIONS, isWeaponUnlocked } from '../weapons.j
  * @param {string}   selectedWeaponId   – currently selected weapon ID
  * @param {number}   profileHighscore   – active profile highscore (for unlock checks)
  */
-export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, meta, rejectFlash, selectedWeaponId, profileHighscore) {
+export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProcs, meta, rejectFlash, selectedWeaponId, profileHighscore, forTraining = false) {
     // ── Background ──
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -54,7 +54,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
 
     ctx.fillStyle = '#666';
     ctx.font = '11px monospace';
-    ctx.fillText('Choose abilities & passives for your run', CANVAS_WIDTH / 2, 56);
+    ctx.fillText(forTraining ? 'Choose abilities & passives for training' : 'Choose abilities & passives for your run', CANVAS_WIDTH / 2, 56);
 
     // ── Current loadout summary strip ──
     _renderSummaryStrip(ctx, selectedAbilities, selectedProcs, selectedWeaponId);
@@ -131,7 +131,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = isStartCursor ? (canStart ? '#4caf50' : '#ef5350') : '#555';
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('▶  START RUN', CANVAS_WIDTH / 2, startY + 6);
+    ctx.fillText(forTraining ? '▶  START TRAINING' : '▶  START RUN', CANVAS_WIDTH / 2, startY + 6);
 
     if (!canStart) {
         ctx.fillStyle = '#ef5350';

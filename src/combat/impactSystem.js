@@ -3,7 +3,7 @@
 // and trail spawning for game-feel / "juice".
 // ────────────────────────────────────────────────────────────
 
-import { triggerShake } from '../shake.js';
+import { triggerShake, triggerDirectionalShake } from '../shake.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 
 // ── Hit-Stop (global time-scale freeze) ──
@@ -17,10 +17,13 @@ let _flashDecay = 0.06;   // alpha removed per ms
 // ── Trail queue (consumed by game.js to spawn particles) ──
 let _trailQueue = [];
 
+// ── Impact ring queue (consumed by game.js to spawn impact ring particles) ──
+let _impactRingQueue = [];
+
 /**
  * Trigger a short global freeze (hit-stop).
  * During hit-stop, `getTimeScale()` returns ~0.
- * @param {number} durationMs – freeze time in milliseconds (60–90ms typical)
+ * @param {number} durationMs – freeze time in milliseconds (30–100ms typical)
  */
 export function hitStop(durationMs) {
     _hitStopRemaining = Math.max(_hitStopRemaining, durationMs);
@@ -33,6 +36,17 @@ export function hitStop(durationMs) {
  */
 export function shake(intensity, decay = 0.88) {
     triggerShake(intensity, decay);
+}
+
+/**
+ * Trigger directional screen shake — punches the screen in the hit direction.
+ * @param {number} intensity – pixel offset magnitude
+ * @param {number} dirX – direction x
+ * @param {number} dirY – direction y
+ * @param {number} [decay] – per-frame multiplier
+ */
+export function directionalShake(intensity, dirX, dirY, decay = 0.86) {
+    triggerDirectionalShake(intensity, dirX, dirY, decay);
 }
 
 /**
@@ -138,10 +152,96 @@ export function bigImpact(hitStopMs = 100, shakeIntensity = 10, shakeDuration = 
 }
 
 /**
- * Convenience: trigger a "small impact" package.
- * Used for normal melee hits.
+ * Convenience: normal melee hit — brief freeze + directional shake + entity flash.
+ * @param {object} entity — the hit entity
+ * @param {number} [dirX] — hit direction x (from attacker to target)
+ * @param {number} [dirY] — hit direction y
  */
-export function smallImpact(entity) {
-    flashEntity(entity, 60);
-    shake(2, 0.85);
+export function smallImpact(entity, dirX, dirY) {
+    flashEntity(entity, 80);
+    hitStop(35);
+    if (dirX !== undefined && dirY !== undefined) {
+        directionalShake(3.5, dirX, dirY, 0.82);
+    } else {
+        shake(3, 0.83);
+    }
+}
+
+/**
+ * Convenience: multi-hit melee — slightly stronger freeze + shake for hitting multiple enemies.
+ * @param {number} hitCount — number of enemies hit
+ * @param {number} [dirX] — hit direction x
+ * @param {number} [dirY] — hit direction y
+ */
+export function multiHitImpact(hitCount, dirX, dirY) {
+    const intensity = Math.min(3 + hitCount * 1.5, 10);
+    const freezeMs = Math.min(30 + hitCount * 15, 80);
+    hitStop(freezeMs);
+    if (dirX !== undefined && dirY !== undefined) {
+        directionalShake(intensity, dirX, dirY, 0.84);
+    } else {
+        shake(intensity, 0.84);
+    }
+}
+
+/**
+ * Convenience: enemy kill impact — longer freeze + bigger shake + screen flash.
+ * @param {number} [dirX] — hit direction x
+ * @param {number} [dirY] — hit direction y
+ */
+export function killImpact(dirX, dirY) {
+    hitStop(55);
+    if (dirX !== undefined && dirY !== undefined) {
+        directionalShake(5, dirX, dirY, 0.85);
+    } else {
+        shake(5, 0.85);
+    }
+    screenFlash('#ffffff', 0.12, 0.006);
+}
+
+/**
+ * Convenience: critical hit impact — dramatic freeze + big directional shake + flash.
+ * @param {number} [dirX] — hit direction x
+ * @param {number} [dirY] — hit direction y
+ */
+export function critImpact(dirX, dirY) {
+    hitStop(75);
+    if (dirX !== undefined && dirY !== undefined) {
+        directionalShake(7, dirX, dirY, 0.87);
+    } else {
+        shake(7, 0.87);
+    }
+    screenFlash('#ffffff', 0.18, 0.005);
+}
+
+/**
+ * Convenience: player takes damage — screen punch toward player + red flash.
+ * @param {number} dirX — direction from damage source to player
+ * @param {number} dirY
+ */
+export function playerHitImpact(dirX, dirY) {
+    hitStop(45);
+    if (dirX !== undefined && dirY !== undefined) {
+        directionalShake(6, dirX, dirY, 0.84);
+    } else {
+        shake(6, 0.84);
+    }
+    screenFlash('#ff0000', 0.15, 0.004);
+}
+
+/**
+ * Queue an impact ring at the given position.
+ * Consumed by game.js to spawn impact ring particles.
+ */
+export function queueImpactRing(x, y, color = '#ffd700', radius = 20) {
+    _impactRingQueue.push({ x, y, color, radius });
+}
+
+/**
+ * Consume and return all queued impact rings.
+ */
+export function consumeImpactRings() {
+    const rings = _impactRingQueue;
+    _impactRingQueue = [];
+    return rings;
 }

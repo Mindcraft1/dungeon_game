@@ -185,6 +185,7 @@ export class Game {
         this.trainingEnemyCount = 3;
         this.trainingDamage = false;    // false = no damage (default), true = take damage
         this.trainingDrops = false;     // false = no drops in training (default), true = drops enabled
+        this._loadoutForTraining = false; // true when loadout screen is opened for training
 
         // ── Second Wave ──
         this.secondWaveTriggered = false;  // true after wave 2 has been rolled for this room
@@ -534,6 +535,7 @@ export class Game {
         if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
             Audio.playMenuSelect();
             if (this.menuIndex === 0) {
+                this._loadoutForTraining = false;
                 this._openLoadout();
             } else if (this.menuIndex === 1) {
                 this._openMetaMenu(false);
@@ -1057,7 +1059,7 @@ export class Game {
             // Sound & particles
             Audio.playComboTier(this.comboTier);
             this.particles.comboBurst(this.player.x, this.player.y, this.comboTier);
-            triggerShake(2 + this.comboTier * 1.5, 0.88);
+            Impact.bigImpact(40 + this.comboTier * 15, 3 + this.comboTier * 2, 0.88);
 
             // Screen flash
             this.comboFlash = 200 + this.comboTier * 50;
@@ -1376,10 +1378,15 @@ export class Game {
         const _lomh = getMenuHover(_loAbStartY, totalItems, _loSpacing, 30, 400);
         if (_lomh >= 0 && _lomh !== this.loadoutCursor) { this.loadoutCursor = _lomh; Audio.playMenuNav(); }
 
-        // Escape or RMB → back to menu
+        // Escape or RMB → back to menu (or training config)
         if (wasPressed('Escape') || wasMousePressed(2)) {
             Audio.playMenuNav();
-            this.state = STATE_MENU;
+            if (this._loadoutForTraining) {
+                this._loadoutForTraining = false;
+                this.state = STATE_TRAINING_CONFIG;
+            } else {
+                this.state = STATE_MENU;
+            }
             return;
         }
 
@@ -1409,7 +1416,12 @@ export class Game {
                 };
                 MetaStore.save();
                 Audio.playMenuSelect();
-                this._startGame();
+                if (this._loadoutForTraining) {
+                    this._loadoutForTraining = false;
+                    this._startTraining();
+                } else {
+                    this._startGame();
+                }
             } else {
                 this.loadoutRejectFlash = 400;
             }
@@ -3135,6 +3147,12 @@ export class Game {
             this.particles.dashImpactTrail(t.x, t.y, t.vx, t.vy, t.color);
         }
 
+        // Consume impact ring spawns from impact system
+        const impactRings = Impact.consumeImpactRings();
+        for (const r of impactRings) {
+            this.particles.impactRing(r.x, r.y, r.color, r.radius);
+        }
+
         // ── Cheat: God Mode — keep player invulnerable ──
         if (this.cheats.godmode && this.player) {
             this.player.invulnTimer = 999;
@@ -3347,11 +3365,17 @@ export class Game {
 
             if (hitCount >= 0) {
                 Audio.playAttack();
-                // Attack arc particles
+                // Attack arc particles + slash trail for visual weight
                 this.particles.attackArc(
                     this.player.x, this.player.y,
                     this.player.facingX, this.player.facingY,
                     ATTACK_RANGE,
+                );
+                this.particles.slashTrail(
+                    this.player.x, this.player.y,
+                    this.player.facingX, this.player.facingY,
+                    ATTACK_RANGE * this.player.weaponRangeMult,
+                    this.player.weaponColor || '#ffffff',
                 );
                 if (hitCount > 0) {
                     Audio.playHit();
@@ -3360,15 +3384,34 @@ export class Game {
                         const healAmt = Math.max(1, Math.floor(this.player.damage * 0.01 * hitCount));
                         this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
                     }
-                    // Hit sparks on each hit enemy
+
+                    // Compute average hit direction for directional shake
+                    let avgDirX = 0, avgDirY = 0;
+
+                    // Hit sparks + impact rings on each hit enemy
                     for (const e of hitEnemies) {
+                        const dx = e.x - this.player.x;
+                        const dy = e.y - this.player.y;
+                        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const ndx = dx / d;
+                        const ndy = dy / d;
+                        avgDirX += ndx;
+                        avgDirY += ndy;
                         if (!e.dead) {
-                            const dx = e.x - this.player.x;
-                            const dy = e.y - this.player.y;
-                            const d = Math.sqrt(dx * dx + dy * dy) || 1;
-                            this.particles.hitSparks(e.x, e.y, dx / d, dy / d);
+                            this.particles.hitSparks(e.x, e.y, ndx, ndy);
+                            // Impact ring at contact point between player and enemy
+                            const contactX = this.player.x + ndx * (this.player.radius + e.radius * 0.5);
+                            const contactY = this.player.y + ndy * (this.player.radius + e.radius * 0.5);
+                            this.particles.impactRing(contactX, contactY, this.player.weaponColor || '#ffd700', 15);
+                            // Flash the hit enemy
+                            Impact.flashEntity(e, 100);
                         }
                     }
+
+                    // Normalize average direction
+                    const avgLen = Math.sqrt(avgDirX * avgDirX + avgDirY * avgDirY) || 1;
+                    avgDirX /= avgLen;
+                    avgDirY /= avgLen;
 
                     // ── Proc dispatch on melee hits ──
                     const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus);
@@ -3410,13 +3453,27 @@ export class Game {
                                 e.takeDamage(novaDmg, (dx / d) * 8, (dy / d) * 8);
                             }
                             this.particles.abilityShockwave(novaTarget.x, novaTarget.y, novaRadius);
-                            Impact.shake(5, 0.88);
+                            Impact.bigImpact(80, 6, 0.88);
                             this._killNovaCooldown = _meleeMods.killNovaCooldown || 1000;
                         }
                     }
 
-                    // Small impact on melee hits (screen shake + flash)
-                    Impact.shake(1.5, 0.85);
+                    // ── Impact feedback: scale with number of hits + crits ──
+                    if (isCrit) {
+                        Impact.critImpact(avgDirX, avgDirY);
+                    } else if (killedEnemies.length > 0) {
+                        Impact.killImpact(avgDirX, avgDirY);
+                    } else if (hitCount > 1) {
+                        Impact.multiHitImpact(hitCount, avgDirX, avgDirY);
+                    } else {
+                        Impact.smallImpact(hitEnemies[0], avgDirX, avgDirY);
+                    }
+
+                    // Kill burst particles for each killed enemy
+                    for (const e of killedEnemies) {
+                        const eColor = e.type ? (ENEMY_COLORS[e.type] || ENEMY_COLOR) : ENEMY_COLOR;
+                        this.particles.killBurst(e.x, e.y, eColor);
+                    }
                 }
             }
         }
@@ -3950,7 +4007,18 @@ export class Game {
         if (this.player.hp < hpBefore) {
             Audio.playPlayerHurt();
             this.particles.playerDamage(this.player.x, this.player.y);
-            triggerShake(6, 0.86);
+            // Directional screen punch from nearest enemy toward player
+            let nearDx = 0, nearDy = 0;
+            let minDist = Infinity;
+            for (const e of this.enemies) {
+                if (e.dead) continue;
+                const edx = this.player.x - e.x;
+                const edy = this.player.y - e.y;
+                const ed = edx * edx + edy * edy;
+                if (ed < minDist) { minDist = ed; nearDx = edx; nearDy = edy; }
+            }
+            const nLen = Math.sqrt(nearDx * nearDx + nearDy * nearDy) || 1;
+            Impact.playerHitImpact(nearDx / nLen, nearDy / nLen);
 
             // ── Achievement event: player took damage (blocked by cheats) ──
             if (!this.cheatsUsedThisRun) {
@@ -4659,10 +4727,11 @@ export class Game {
         // Play nav sound for A/D value changes
         if (left || right) Audio.playMenuNav();
 
-        // Confirm (Enter / Space / Click) — start training from any row
+        // Confirm (Enter / Space / Click) — open loadout screen for training
         if (wasPressed('Enter') || wasPressed('Space') || (wasMousePressed(0) && this.trainingConfigCursor === 5)) {
             Audio.playMenuSelect();
-            this._startTraining();
+            this._loadoutForTraining = true;
+            this._openLoadout();
             return;
         }
 
@@ -4908,11 +4977,12 @@ export class Game {
 
         if (this.state === STATE_MENU) {
             const profileName = this.activeProfile ? this.activeProfile.name : null;
+            const profileClassId = this.activeProfile ? this.activeProfile.classId : null;
             const shards = getAvailableShards(MetaStore.getState());
             const boosterName = this.purchasedMetaBoosterId
                 ? (META_BOOSTERS[this.purchasedMetaBoosterId]?.name || null)
                 : null;
-            renderMenu(ctx, this.menuIndex, this.highscore, profileName, shards, boosterName);
+            renderMenu(ctx, this.menuIndex, this.highscore, profileName, shards, boosterName, profileClassId);
             this._renderCheatNotifications(ctx);
             return;
         }
@@ -4979,7 +5049,7 @@ export class Game {
         if (this.state === STATE_LOADOUT) {
             const meta = MetaStore.getState();
             const hs = this.activeProfile ? this.activeProfile.highscore : 0;
-            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, meta, this.loadoutRejectFlash, this.selectedWeaponId, hs);
+            renderLoadoutScreen(ctx, this.loadoutCursor, this.loadoutAbilities, this.loadoutProcs, meta, this.loadoutRejectFlash, this.selectedWeaponId, hs, this._loadoutForTraining);
             this._renderCheatNotifications(ctx);
             return;
         }

@@ -1,4 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { getClassById } from '../classes.js';
 
 /**
  * Draw the main menu screen.
@@ -7,7 +8,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
  * @param {number} coreShards – available core shards
  * @param {string|null} selectedBooster – selected meta booster name for display
  */
-export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null, coreShards = 0, selectedBooster = null) {
+export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null, coreShards = 0, selectedBooster = null, classId = null) {
     // Background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -47,6 +48,14 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
         ctx.font = 'bold 13px monospace';
         const hsText = highscore > 0 ? `  ·  ★ Best: Stage ${highscore}` : '';
         ctx.fillText(`♦ ${profileName}${hsText}`, CANVAS_WIDTH / 2, 250);
+
+        // Class indicator
+        if (classId) {
+            const cls = getClassById(classId);
+            ctx.fillStyle = cls.color;
+            ctx.font = '11px monospace';
+            ctx.fillText(`⬟ ${cls.name}`, CANVAS_WIDTH / 2, 267);
+        }
     } else if (highscore > 0) {
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 14px monospace';
@@ -65,7 +74,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
         { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
     ];
 
-    const startY = 270;
+    const startY = 290;
     const spacing = 43;
 
     options.forEach((opt, i) => {

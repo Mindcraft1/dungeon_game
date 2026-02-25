@@ -758,21 +758,63 @@ export class Player {
 
     _renderAttackArc(ctx) {
         if (this.attackVisualTimer <= 0) return;
-        const alpha = this.attackVisualTimer / getVal('attackDuration', ATTACK_DURATION);
+        const progress = this.attackVisualTimer / getVal('attackDuration', ATTACK_DURATION);
         const angle = Math.atan2(this.facingY, this.facingX);
 
-        ctx.save();
-        ctx.globalAlpha = alpha * 0.35;
-        ctx.fillStyle = this.weaponColor || '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
         const arcMult = this._currentArcMult || 1;
         const effectiveArc = ATTACK_ARC * arcMult;
         const effectiveRange = getVal('attackRange', ATTACK_RANGE) * this.weaponRangeMult;
-        ctx.arc(this.x, this.y, effectiveRange, angle - effectiveArc / 2, angle + effectiveArc / 2);
+
+        // Phase 1 (first 60%): fast expand outward, Phase 2: fade out
+        const expandPhase = Math.min(1, (1 - progress) / 0.4); // 0→1 during first 40% of duration
+        const scaleRange = effectiveRange * (0.6 + expandPhase * 0.5); // starts at 60%, expands to 110%
+
+        // Main arc fill — punchy opacity curve
+        ctx.save();
+        const alpha = progress > 0.5
+            ? 0.45  // bright during attack
+            : progress * 0.9; // fade out
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = this.weaponColor || '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.arc(this.x, this.y, scaleRange, angle - effectiveArc / 2, angle + effectiveArc / 2);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
+
+        // Edge glow line — bright leading edge of the slash
+        ctx.save();
+        ctx.globalAlpha = progress * 0.7;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5 * progress;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, scaleRange, angle - effectiveArc / 2, angle + effectiveArc / 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Slash smear — bright line at the leading edge
+        if (progress > 0.3) {
+            ctx.save();
+            const smearAlpha = (progress - 0.3) * 1.4;
+            ctx.globalAlpha = Math.min(smearAlpha, 0.6);
+            ctx.strokeStyle = this.weaponColor || '#ffffff';
+            ctx.lineWidth = 4 * progress;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            const smearAngle = angle + effectiveArc / 2 * (1 - expandPhase * 0.5);
+            const innerR = this.radius + 4;
+            ctx.moveTo(
+                this.x + Math.cos(smearAngle) * innerR,
+                this.y + Math.sin(smearAngle) * innerR,
+            );
+            ctx.lineTo(
+                this.x + Math.cos(smearAngle) * scaleRange,
+                this.y + Math.sin(smearAngle) * scaleRange,
+            );
+            ctx.stroke();
+            ctx.restore();
+        }
     }
 
     _renderBody(ctx) {

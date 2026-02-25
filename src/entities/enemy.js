@@ -99,6 +99,19 @@ export class Enemy {
         this._cachedPath = null;
         this._pathIndex = 0;
         this._pathRecalcTimer = 0;
+
+        // ── Hit reaction: squash/stretch + velocity knockback ──
+        this.scaleX = 1;
+        this.scaleY = 1;
+        this._targetScaleX = 1;
+        this._targetScaleY = 1;
+        this._scaleSpring = 12;     // spring stiffness (higher = snappier)
+        this._scaleDamping = 0.75;  // damping (lower = bouncier)
+        this._scaleVelX = 0;
+        this._scaleVelY = 0;
+        this.knockVelX = 0;         // velocity-based knockback
+        this.knockVelY = 0;
+        this._hitRecoilTimer = 0;   // ms of recoil stretch animation
     }
 
     // ── Update ─────────────────────────────────────────────
@@ -167,6 +180,35 @@ export class Enemy {
         }
 
         if (this.damageFlashTimer > 0) this.damageFlashTimer -= ms;
+
+        // ── Velocity knockback: apply + decay ──
+        if (Math.abs(this.knockVelX) > 0.5 || Math.abs(this.knockVelY) > 0.5) {
+            this.x += this.knockVelX * dt;
+            this.y += this.knockVelY * dt;
+            this.knockVelX *= Math.pow(0.04, dt);  // exponential decay
+            this.knockVelY *= Math.pow(0.04, dt);
+        } else {
+            this.knockVelX = 0;
+            this.knockVelY = 0;
+        }
+
+        // ── Squash/stretch spring recovery ──
+        if (this._hitRecoilTimer > 0) {
+            this._hitRecoilTimer -= ms;
+            if (this._hitRecoilTimer <= 0) {
+                this._targetScaleX = 1;
+                this._targetScaleY = 1;
+            }
+        }
+        // Spring physics for scale
+        const springX = (this._targetScaleX - this.scaleX) * this._scaleSpring;
+        const springY = (this._targetScaleY - this.scaleY) * this._scaleSpring;
+        this._scaleVelX += springX * dt;
+        this._scaleVelY += springY * dt;
+        this._scaleVelX *= this._scaleDamping;
+        this._scaleVelY *= this._scaleDamping;
+        this.scaleX += this._scaleVelX;
+        this.scaleY += this._scaleVelY;
 
         // Restore original speed after status-effect slowdown
         this.speed = savedSpeed;
@@ -393,8 +435,22 @@ export class Enemy {
 
         // Tank resists knockback while charging
         const kbMult = (this.type === ENEMY_TYPE_TANK && this.charging) ? 0.2 : 1;
-        this.x += kbX * kbMult;
-        this.y += kbY * kbMult;
+
+        // Velocity-based knockback (smooth deceleration instead of instant teleport)
+        this.knockVelX += kbX * kbMult * 3.5;
+        this.knockVelY += kbY * kbMult * 3.5;
+
+        // Squash/stretch: compress along hit direction, stretch perpendicular
+        const kbLen = Math.sqrt(kbX * kbX + kbY * kbY);
+        if (kbLen > 0.1) {
+            // Squash in hit direction, stretch perpendicular
+            const squashAmount = isCrit ? 0.45 : 0.3;
+            this._targetScaleX = 1 - squashAmount;  // squash
+            this._targetScaleY = 1 + squashAmount * 0.6;  // stretch
+            this._scaleVelX = 0;
+            this._scaleVelY = 0;
+            this._hitRecoilTimer = 150;
+        }
 
         if (this.hp <= 0) {
             this.hp = 0;
@@ -409,11 +465,30 @@ export class Enemy {
 
         const flash = this.damageFlashTimer > 0;
 
+        // Apply squash/stretch transform
+        const hasDeform = Math.abs(this.scaleX - 1) > 0.01 || Math.abs(this.scaleY - 1) > 0.01;
+        if (hasDeform) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+
+            // Rotate deformation to align with last knockback direction
+            const kbAngle = Math.atan2(this.knockVelY, this.knockVelX);
+            ctx.rotate(kbAngle);
+            ctx.scale(this.scaleX, this.scaleY);
+            ctx.rotate(-kbAngle);
+
+            ctx.translate(-this.x, -this.y);
+        }
+
         switch (this.type) {
             case ENEMY_TYPE_SHOOTER: this._renderShooter(ctx, flash); break;
             case ENEMY_TYPE_TANK:    this._renderTank(ctx, flash);    break;
             case ENEMY_TYPE_DASHER:  this._renderDasher(ctx, flash);  break;
             default:                 this._renderBasic(ctx, flash);   break;
+        }
+
+        if (hasDeform) {
+            ctx.restore();
         }
 
         this._renderHpBar(ctx);

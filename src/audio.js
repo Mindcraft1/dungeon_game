@@ -343,76 +343,76 @@ export function playAttack() {
     dist.connect(bodyEnv);
     bodyEnv.connect(_master);
 
-    // ── Layer 3: Sub-thump for weight ──
-    const subG = _gain(0.12);
+    // ── Layer 3: Sub-thump for weight (heavier) ──
+    const subG = _gain(0.18);
     if (!subG) return;
     const subO = ctx.createOscillator();
     subO.type = 'sine';
-    subO.frequency.setValueAtTime(180, t);
-    subO.frequency.exponentialRampToValueAtTime(60, t + 0.06);
+    subO.frequency.setValueAtTime(200, t);
+    subO.frequency.exponentialRampToValueAtTime(50, t + 0.07);
     subO.connect(subG);
-    subG.gain.setValueAtTime(0.12, t);
-    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    subG.gain.setValueAtTime(0.18, t);
+    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     subO.start(t);
-    subO.stop(t + 0.1);
+    subO.stop(t + 0.12);
 }
 
-/** Enemy hit by melee — punchy layered impact with reverb tail */
+/** Enemy hit by melee — punchy layered impact with reverb tail and chest-thump bass */
 export function playHit() {
     const ctx = _ensureCtx();
     if (!ctx) return;
     _resume();
     const t = ctx.currentTime;
 
-    // ── Layer 1: Sine thump with fast pitch drop ──
-    const thumpG = _gain(0.22);
+    // ── Layer 1: Heavy sine thump with fast pitch drop (THE PUNCH) ──
+    const thumpG = _gain(0.28);
     if (!thumpG) return;
     const thumpO = ctx.createOscillator();
     thumpO.type = 'sine';
-    thumpO.frequency.setValueAtTime(250, t);
-    thumpO.frequency.exponentialRampToValueAtTime(50, t + 0.07);
+    thumpO.frequency.setValueAtTime(300, t);
+    thumpO.frequency.exponentialRampToValueAtTime(40, t + 0.08);
     thumpO.connect(thumpG);
-    _adsr(thumpG, t, 0.22, 0.003, 0.04, 0.3, 0.0, 0.06);
+    _adsr(thumpG, t, 0.28, 0.002, 0.03, 0.35, 0.0, 0.06);
     thumpO.start(t);
     thumpO.stop(t + 0.14);
 
-    // ── Layer 2: Distorted transient crack ──
+    // ── Layer 2: Distorted transient crack (sharper) ──
     const crackG = ctx.createGain();
-    crackG.gain.setValueAtTime(0.18, t);
-    crackG.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-    const dist = _distort(30);
+    crackG.gain.setValueAtTime(0.22, t);
+    crackG.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    const dist = _distort(40);
     const crackO = ctx.createOscillator();
     crackO.type = 'square';
-    crackO.frequency.setValueAtTime(400, t);
-    crackO.frequency.exponentialRampToValueAtTime(80, t + 0.03);
+    crackO.frequency.setValueAtTime(500, t);
+    crackO.frequency.exponentialRampToValueAtTime(60, t + 0.025);
     crackO.connect(dist);
     dist.connect(crackG);
     crackG.connect(_master);
     crackO.start(t);
-    crackO.stop(t + 0.05);
+    crackO.stop(t + 0.04);
 
-    // ── Layer 3: Noise crack with reverb ──
-    const buf = _noiseBuffer(0.06);
+    // ── Layer 3: Noise crack with reverb (meatier) ──
+    const buf = _noiseBuffer(0.07);
     if (buf) {
         const src = ctx.createBufferSource();
         src.buffer = buf;
         const filt = ctx.createBiquadFilter();
         filt.type = 'bandpass';
-        filt.frequency.value = 2000;
-        filt.Q.value = 1.5;
+        filt.frequency.value = 2200;
+        filt.Q.value = 1.8;
         const nEnv = ctx.createGain();
-        nEnv.gain.setValueAtTime(0.2, t);
+        nEnv.gain.setValueAtTime(0.24, t);
         nEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
         src.connect(filt);
         filt.connect(nEnv);
         nEnv.connect(_master);
-        _sendReverb(nEnv, 0.2);
+        _sendReverb(nEnv, 0.25);
         src.start(t);
-        src.stop(t + 0.07);
+        src.stop(t + 0.08);
     }
 
     // ── Layer 4: Stereo-panned mid click ──
-    const clickG = _gain(0.06);
+    const clickG = _gain(0.08);
     if (clickG) {
         const clickPan = _pan((Math.random() - 0.5) * 0.8);
         const clickO = ctx.createOscillator();
@@ -423,10 +423,24 @@ export function playHit() {
         clickG.disconnect();
         clickG.connect(clickPan);
         clickPan.connect(_master);
-        clickG.gain.setValueAtTime(0.06, t);
+        clickG.gain.setValueAtTime(0.08, t);
         clickG.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
         clickO.start(t);
         clickO.stop(t + 0.04);
+    }
+
+    // ── Layer 5: Sub-bass chest thump (weight) ──
+    const subG = _gain(0.14);
+    if (subG) {
+        const subO = ctx.createOscillator();
+        subO.type = 'sine';
+        subO.frequency.setValueAtTime(80, t);
+        subO.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+        subO.connect(subG);
+        subG.gain.setValueAtTime(0.14, t);
+        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        subO.start(t);
+        subO.stop(t + 0.14);
     }
 }
 
