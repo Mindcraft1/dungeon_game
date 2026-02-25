@@ -409,10 +409,15 @@ export class Player {
             if (dist > effectiveRange + enemy.radius) continue;
 
             // Angle check with node-widened arc
+            // Account for enemy's angular radius so hits register when any
+            // part of the enemy circle overlaps the arc, not just its center.
+            const angularRadius = dist > enemy.radius
+                ? Math.asin(Math.min(1, enemy.radius / dist))
+                : Math.PI; // enemy overlapping player → always in arc
             let diff = Math.atan2(dy, dx) - facingAngle;
             while (diff > Math.PI)  diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
-            if (Math.abs(diff) > effectiveArc / 2) continue;
+            if (Math.abs(diff) > effectiveArc / 2 + angularRadius) continue;
 
             const kbVal = getVal('attackKnockback', ATTACK_KNOCKBACK) * this.weaponKnockbackMult;
             const kbX = dist > 0 ? (dx / dist) * kbVal * kbMult : 0;
@@ -763,11 +768,14 @@ export class Player {
 
         const arcMult = this._currentArcMult || 1;
         const effectiveArc = ATTACK_ARC * arcMult;
-        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * this.weaponRangeMult;
+        // Match the same range calculation used in attack() so the visual
+        // never extends beyond the actual hit zone.
+        const rangeBuff = this.hasBuff(PICKUP_PIERCING_SHOT) ? BUFF_PIERCING_RANGE_MULT : 1;
+        const effectiveRange = getVal('attackRange', ATTACK_RANGE) * rangeBuff * (this.attackRangeMultiplier || 1) * this.weaponRangeMult;
 
         // Phase 1 (first 60%): fast expand outward, Phase 2: fade out
         const expandPhase = Math.min(1, (1 - progress) / 0.4); // 0→1 during first 40% of duration
-        const scaleRange = effectiveRange * (0.6 + expandPhase * 0.5); // starts at 60%, expands to 110%
+        const scaleRange = effectiveRange * (0.6 + expandPhase * 0.4); // starts at 60%, expands to 100%
 
         // Main arc fill — punchy opacity curve
         ctx.save();

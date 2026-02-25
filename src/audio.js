@@ -507,47 +507,9 @@ export function playPickup() {
     _noiseBurst(8000, 3, 0.04, 0.04, t);
 }
 
-/** Heal — warm layered rising tone with reverb glow */
+/** Heal — plays health.mp3 sample */
 export function playHeal() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
-
-    // ── Warm layered rising tone ──
-    const body = _layeredOsc('sine', 400, 3, 15, t, t + 0.42, 0.14);
-    if (!body) return;
-    // Sweep frequency up across all oscs via a connected gain
-    const bodyEnv = ctx.createGain();
-    _adsr(bodyEnv, t, 1.0, 0.02, 0.05, 0.7, 0.15, 0.15);
-    body.connect(bodyEnv);
-    bodyEnv.connect(_master);
-    _sendReverb(bodyEnv, 0.4); // generous reverb for warm feel
-
-    // Manual freq sweep on a separate osc for the rising feel
-    const riseG = _gain(0.1);
-    if (!riseG) return;
-    const riseO = ctx.createOscillator();
-    riseO.type = 'sine';
-    riseO.frequency.setValueAtTime(400, t);
-    riseO.frequency.linearRampToValueAtTime(800, t + 0.25);
-    riseO.connect(riseG);
-    _adsr(riseG, t, 0.1, 0.02, 0.05, 0.6, 0.12, 0.12);
-    riseO.start(t);
-    riseO.stop(t + 0.42);
-
-    // ── Gentle high shimmer ──
-    const shimG = ctx.createGain();
-    shimG.gain.setValueAtTime(0.04, t + 0.08);
-    shimG.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    const shimO = ctx.createOscillator();
-    shimO.type = 'sine';
-    shimO.frequency.setValueAtTime(1200, t + 0.08);
-    shimO.frequency.linearRampToValueAtTime(1600, t + 0.3);
-    shimO.connect(shimG);
-    shimG.connect(_master);
-    shimO.start(t + 0.08);
-    shimO.stop(t + 0.37);
+    _playSample('assets/sfx/health.mp3', 0.75, 1.0);
 }
 
 /** Level up — triumphant layered arpeggio with delay echo and stereo */
@@ -703,24 +665,16 @@ export function playDoorEnter() {
     }
 }
 
-/** Shooter enemy fires a projectile — quick zap */
+/** Shooter enemy fires a projectile — plays lazershoot.mp3 */
 export function playProjectile() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
+    const rate = 0.9 + Math.random() * 0.2;
+    _playSample('assets/sfx/lazershoot.mp3', 0.5, rate);
+}
 
-    const g = _gain(0.1);
-    if (!g) return;
-    const o = ctx.createOscillator();
-    o.type = 'square';
-    o.frequency.setValueAtTime(900, t);
-    o.frequency.exponentialRampToValueAtTime(200, t + 0.08);
-    o.connect(g);
-    g.gain.setValueAtTime(0.1, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-    o.start(t);
-    o.stop(t + 0.12);
+/** Dasher enemy starts a dash — plays enemywhoosh.mp3 */
+export function playEnemyDash() {
+    const rate = 0.9 + Math.random() * 0.2;
+    _playSample('assets/sfx/enemywhoosh.mp3', 0.6, rate);
 }
 
 /** Menu navigation blip */
@@ -1668,6 +1622,9 @@ export function init() {
     _loadSample('assets/sfx/pain1.mp3');
     _loadSample('assets/sfx/pain2.mp3');
     _loadSample('assets/sfx/death.mp3');
+    _loadSample('assets/sfx/lazershoot.mp3');
+    _loadSample('assets/sfx/enemywhoosh.mp3');
+    _loadSample('assets/sfx/health.mp3');
 }
 
 /** Return the shared AudioContext (for music engine). Null if not yet created. */

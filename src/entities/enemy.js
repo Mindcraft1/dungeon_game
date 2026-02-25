@@ -17,7 +17,7 @@ import { hasLineOfSight, findPath } from '../pathfinding.js';
 import { Projectile } from './projectile.js';
 import { updateStatus, initStatus, renderStatusEffects } from '../combat/statusEffects.js';
 import { getVal } from '../ui/devTools.js';
-import { playHit } from '../audio.js';
+import { playHit, playEnemyDash } from '../audio.js';
 
 export class Enemy {
     /**
@@ -347,6 +347,7 @@ export class Enemy {
                     this.dashTimeLeft = DASHER_DASH_DURATION;
                     this.dashDirX = dx / dist;
                     this.dashDirY = dy / dist;
+                    playEnemyDash();
                 }
             }
         }
