@@ -143,12 +143,13 @@ async function _loadSample(path) {
     }
 }
 
-function _playSample(path, volume = 1.0, playbackRate = 1.0) {
+function _playSample(path, volume = 1.0, playbackRate = 1.0, maxDuration = 0) {
     const ctx = _ensureCtx();
     if (!ctx) return;
     _resume();
     const buf = _sampleCache[path];
     if (!buf) return;
+    const t = ctx.currentTime;
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = playbackRate;
@@ -156,7 +157,14 @@ function _playSample(path, volume = 1.0, playbackRate = 1.0) {
     g.gain.value = volume;
     src.connect(g);
     g.connect(_master);
-    src.start(ctx.currentTime);
+    src.start(t);
+    if (maxDuration > 0) {
+        // Fade out over last 50ms to avoid click, then stop
+        const fadeStart = t + Math.max(0, maxDuration - 0.05);
+        g.gain.setValueAtTime(volume, fadeStart);
+        g.gain.linearRampToValueAtTime(0, t + maxDuration);
+        src.stop(t + maxDuration + 0.01);
+    }
 }
 
 // Resume suspended context (required after first user gesture in some browsers)
@@ -338,104 +346,16 @@ function _noiseBurst(filterFreq, filterQ, duration, vol, startTime) {
 
 // ── Sound Effects ────────────────────────────────────────────
 
-let _attackCount = 0;
-
-/** Player melee attack — simplepunch normally, simplewhoosh every 3rd hit */
+/** Player melee attack — plays simplewhoosh.mp3 with slight random pitch variation */
 export function playAttack() {
-    _attackCount++;
     const rate = 0.95 + Math.random() * 0.1;
-    if (_attackCount % 3 === 0) {
-        _playSample('assets/sfx/simplewhoosh.mp3', 0.7, rate);
-    } else {
-        _playSample('assets/sfx/simplepunch.mp3', 0.7, rate);
-    }
+    _playSample('assets/sfx/simplewhoosh.mp3', 0.7, rate);
 }
 
-/** Enemy hit by melee — punchy layered impact with reverb tail and chest-thump bass */
+/** Enemy hit by melee — plays simplepunch.mp3 with slight random pitch variation */
 export function playHit() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
-
-    // ── Layer 1: Heavy sine thump with fast pitch drop (THE PUNCH) ──
-    const thumpG = _gain(0.28);
-    if (!thumpG) return;
-    const thumpO = ctx.createOscillator();
-    thumpO.type = 'sine';
-    thumpO.frequency.setValueAtTime(300, t);
-    thumpO.frequency.exponentialRampToValueAtTime(40, t + 0.08);
-    thumpO.connect(thumpG);
-    _adsr(thumpG, t, 0.28, 0.002, 0.03, 0.35, 0.0, 0.06);
-    thumpO.start(t);
-    thumpO.stop(t + 0.14);
-
-    // ── Layer 2: Distorted transient crack (sharper) ──
-    const crackG = ctx.createGain();
-    crackG.gain.setValueAtTime(0.22, t);
-    crackG.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
-    const dist = _distort(40);
-    const crackO = ctx.createOscillator();
-    crackO.type = 'square';
-    crackO.frequency.setValueAtTime(500, t);
-    crackO.frequency.exponentialRampToValueAtTime(60, t + 0.025);
-    crackO.connect(dist);
-    dist.connect(crackG);
-    crackG.connect(_master);
-    crackO.start(t);
-    crackO.stop(t + 0.04);
-
-    // ── Layer 3: Noise crack with reverb (meatier) ──
-    const buf = _noiseBuffer(0.07);
-    if (buf) {
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        const filt = ctx.createBiquadFilter();
-        filt.type = 'bandpass';
-        filt.frequency.value = 2200;
-        filt.Q.value = 1.8;
-        const nEnv = ctx.createGain();
-        nEnv.gain.setValueAtTime(0.24, t);
-        nEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-        src.connect(filt);
-        filt.connect(nEnv);
-        nEnv.connect(_master);
-        _sendReverb(nEnv, 0.25);
-        src.start(t);
-        src.stop(t + 0.08);
-    }
-
-    // ── Layer 4: Stereo-panned mid click ──
-    const clickG = _gain(0.08);
-    if (clickG) {
-        const clickPan = _pan((Math.random() - 0.5) * 0.8);
-        const clickO = ctx.createOscillator();
-        clickO.type = 'triangle';
-        clickO.frequency.setValueAtTime(1200, t);
-        clickO.frequency.exponentialRampToValueAtTime(300, t + 0.02);
-        clickO.connect(clickG);
-        clickG.disconnect();
-        clickG.connect(clickPan);
-        clickPan.connect(_master);
-        clickG.gain.setValueAtTime(0.08, t);
-        clickG.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-        clickO.start(t);
-        clickO.stop(t + 0.04);
-    }
-
-    // ── Layer 5: Sub-bass chest thump (weight) ──
-    const subG = _gain(0.14);
-    if (subG) {
-        const subO = ctx.createOscillator();
-        subO.type = 'sine';
-        subO.frequency.setValueAtTime(80, t);
-        subO.frequency.exponentialRampToValueAtTime(30, t + 0.1);
-        subO.connect(subG);
-        subG.gain.setValueAtTime(0.14, t);
-        subG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-        subO.start(t);
-        subO.stop(t + 0.14);
-    }
+    const rate = 0.93 + Math.random() * 0.14;
+    _playSample('assets/sfx/simplepunch.mp3', 0.7, rate);
 }
 
 /** Enemy killed — satisfying layered pop with delay echo */
@@ -1611,10 +1531,10 @@ export function playAchievementUnlock() {
 
 // ── Combat Ability SFX ──────────────────────────────────────
 
-/** Shockwave — plays simpleexplosion.mp3 with slight pitch variation */
+/** Shockwave — plays simpleexplosion.mp3, shortened to 0.5s */
 export function playShockwave() {
     const rate = 0.9 + Math.random() * 0.2;
-    _playSample('assets/sfx/simpleexplosion.mp3', 0.8, rate);
+    _playSample('assets/sfx/simpleexplosion.mp3', 0.8, rate, 0.9);
 }
 
 /** Blade Storm — looping simpleswingingblades.mp3 while active. */
