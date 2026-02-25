@@ -91,8 +91,8 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         },
     ];
 
-    const startY = 190;
-    const spacing = 52;
+    const startY = 185;
+    const spacing = 48;
 
     items.forEach((item, i) => {
         const y = startY + i * spacing;
@@ -101,12 +101,12 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         // Selection box
         if (selected) {
             const boxW = 400;
-            const boxH = 54;
+            const boxH = 48;
             ctx.fillStyle = 'rgba(79,195,247,0.08)';
-            ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+            ctx.fillRect(CANVAS_WIDTH / 2 - boxW / 2, y - 24, boxW, boxH);
             ctx.strokeStyle = item.color;
             ctx.lineWidth = 2;
-            ctx.strokeRect(CANVAS_WIDTH / 2 - boxW / 2, y - 28, boxW, boxH);
+            ctx.strokeRect(CANVAS_WIDTH / 2 - boxW / 2, y - 24, boxW, boxH);
 
             // Arrow indicator
             ctx.fillStyle = item.color;
@@ -138,52 +138,70 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
         ctx.fillText(item.desc, CANVAS_WIDTH / 2, y + 18);
     });
 
-    // ── Key bindings reference ──
-    const keysY = startY + items.length * spacing + 12;
+    // ── Key bindings reference (two-column layout) ──
+    const keysY = startY + items.length * spacing + 8;
 
     ctx.fillStyle = '#555';
-    ctx.font = 'bold 13px monospace';
+    ctx.font = 'bold 12px monospace';
     ctx.fillText('─── KEY BINDINGS ───', CANVAS_WIDTH / 2, keysY);
 
-    const bindings = [
+    const bindingsLeft = [
         ['WASD / Arrows', 'Move'],
         ['SPACE / LMB', 'Melee Attack'],
-        ['M / RMB', 'Dash / Dodge Roll'],
-        ['N / MMB', 'Ranged Attack (Dagger)'],
-        ['Q', 'Ability Slot 1'],
-        ['E', 'Ability Slot 2'],
+        ['M / RMB', 'Dash / Roll'],
+        ['N / MMB', 'Throw Dagger'],
+        ['Q / E', 'Abilities 1 & 2'],
         ['B', 'Use Bomb'],
-        ['P / ESC', 'Pause'],
     ];
 
-    ctx.font = '11px monospace';
-    const bindStartY = keysY + 16;
-    const bindSpacing = 15;
+    const bindingsRight = [
+        ['T', 'Talent Tree'],
+        ['P / ESC', 'Pause'],
+        ['R', 'Reroll (Level-Up)'],
+        ['G', 'Meta Menu (Game Over)'],
+        ['1-3', 'Quick Pick (Level-Up)'],
+        ['X', 'Delete (Profiles)'],
+    ];
 
-    bindings.forEach(([key, action], i) => {
+    ctx.font = '10px monospace';
+    const bindStartY = keysY + 14;
+    const bindSpacing = 14;
+
+    // Left column
+    const leftColCenter = CANVAS_WIDTH / 2 - 190;
+    bindingsLeft.forEach(([key, action], i) => {
         const by = bindStartY + i * bindSpacing;
-
-        // Key
         ctx.textAlign = 'right';
         ctx.fillStyle = '#4fc3f7';
-        ctx.fillText(key, CANVAS_WIDTH / 2 - 20, by);
-
-        // Separator
+        ctx.fillText(key, leftColCenter + 70, by);
         ctx.textAlign = 'center';
         ctx.fillStyle = '#444';
-        ctx.fillText('—', CANVAS_WIDTH / 2, by);
-
-        // Action
+        ctx.fillText('—', leftColCenter + 82, by);
         ctx.textAlign = 'left';
         ctx.fillStyle = '#aaa';
-        ctx.fillText(action, CANVAS_WIDTH / 2 + 20, by);
+        ctx.fillText(action, leftColCenter + 94, by);
+    });
+
+    // Right column
+    const rightColCenter = CANVAS_WIDTH / 2 + 100;
+    bindingsRight.forEach(([key, action], i) => {
+        const by = bindStartY + i * bindSpacing;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillText(key, rightColCenter + 10, by);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#444';
+        ctx.fillText('—', rightColCenter + 22, by);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(action, rightColCenter + 34, by);
     });
 
     // Bottom hint
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
-    ctx.font = '12px monospace';
-    ctx.fillText('W/S to navigate  ·  ENTER/Click to toggle  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 14);
+    ctx.font = '11px monospace';
+    ctx.fillText('W/S to navigate  ·  ENTER/Click to toggle  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 12);
 
     ctx.textAlign = 'left';
 }
