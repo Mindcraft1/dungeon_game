@@ -17,7 +17,7 @@ import { hasLineOfSight, findPath } from '../pathfinding.js';
 import { Projectile } from './projectile.js';
 import { updateStatus, initStatus, renderStatusEffects } from '../combat/statusEffects.js';
 import { getVal } from '../ui/devTools.js';
-import { playHit, playEnemyDash } from '../audio.js';
+import { playHit, playEnemyDash, playEnemyMeleeHit } from '../audio.js';
 
 export class Enemy {
     /**
@@ -176,6 +176,7 @@ export class Enemy {
             const pDist = Math.sqrt((player.x - this.x) ** 2 + (player.y - this.y) ** 2);
             if (pDist < this.radius + player.radius && this.hitCooldown <= 0) {
                 player.takeDamage(this.damage);
+                if (this.type === ENEMY_TYPE_BASIC) playEnemyMeleeHit();
                 this.hitCooldown = ENEMY_HIT_COOLDOWN;
             }
         }

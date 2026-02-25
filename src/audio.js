@@ -435,6 +435,18 @@ export function playPlayerHurt() {
     _playSample(sample, 0.75, rate);
 }
 
+/** Basic melee enemy lands a hit on the player */
+export function playEnemyMeleeHit() {
+    const rate = 0.95 + Math.random() * 0.1;
+    _playSample('assets/sfx/enemylightpunch.mp3', 0.7, rate);
+}
+
+/** Player falls into a canyon / pit */
+export function playFall() {
+    const rate = 0.95 + Math.random() * 0.1;
+    _playSample('assets/sfx/fall.mp3', 0.8, rate);
+}
+
 /** Phase Shield blocks a hit — metallic ping */
 export function playShieldBlock() {
     const ctx = _ensureCtx();
@@ -505,6 +517,12 @@ export function playPickup() {
 
     // Tiny noise shimmer on top
     _noiseBurst(8000, 3, 0.04, 0.04, t);
+}
+
+/** Coin collected — plays coin.mp3 sample */
+export function playCoin() {
+    const rate = 0.95 + Math.random() * 0.1;
+    _playSample('assets/sfx/coin.mp3', 0.7, rate);
 }
 
 /** Heal — plays health.mp3 sample */
@@ -1625,6 +1643,9 @@ export function init() {
     _loadSample('assets/sfx/lazershoot.mp3');
     _loadSample('assets/sfx/enemywhoosh.mp3');
     _loadSample('assets/sfx/health.mp3');
+    _loadSample('assets/sfx/enemylightpunch.mp3');
+    _loadSample('assets/sfx/fall.mp3');
+    _loadSample('assets/sfx/coin.mp3');
 }
 
 /** Return the shared AudioContext (for music engine). Null if not yet created. */

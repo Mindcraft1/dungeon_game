@@ -2586,7 +2586,7 @@ export class Game {
 
         // Visual / audio feedback
         triggerShake(4, 0.85);
-        Audio.playHit();
+        Audio.playFall();
         this.particles.hitSparks(p.x, p.y, 0, -1);
 
         // Floating text popup
@@ -4095,7 +4095,7 @@ export class Game {
             coin.update(dt, this.player);
             if (!coin.dead && coin.checkCollection(this.player)) {
                 this.runCoins += coin.value;
-                Audio.playPickup();
+                Audio.playCoin();
                 this.particles.pickupCollect(coin.x, coin.y, '#ffd700', '#ffe082');
                 coin.dead = true;
 
