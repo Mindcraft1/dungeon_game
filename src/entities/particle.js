@@ -102,6 +102,8 @@ class Particle {
 export class ParticleSystem {
     constructor() {
         this.particles = [];
+        /** @type {Array<{segments: Array<{x:number,y:number}[]>, timer: number, maxTimer: number, color: string, width: number}>} */
+        this._lightningBolts = [];
     }
 
     get count() {
@@ -115,9 +117,70 @@ export class ParticleSystem {
                 this.particles.splice(i, 1);
             }
         }
+        // Update lightning bolts
+        const dtMs = dt * 1000;
+        for (let i = this._lightningBolts.length - 1; i >= 0; i--) {
+            this._lightningBolts[i].timer -= dtMs;
+            if (this._lightningBolts[i].timer <= 0) {
+                this._lightningBolts.splice(i, 1);
+            }
+        }
     }
 
     render(ctx) {
+        // Draw lightning bolts first (behind particles)
+        for (const bolt of this._lightningBolts) {
+            const progress = 1 - bolt.timer / bolt.maxTimer;
+            // Fade: full brightness for first 30%, then fade out
+            let alpha;
+            if (progress < 0.3) {
+                alpha = 1;
+            } else {
+                alpha = 1 - (progress - 0.3) / 0.7;
+            }
+            if (alpha <= 0) continue;
+
+            const w = bolt.width * (1 - progress * 0.5); // thin out over time
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Glow layer (wide, soft)
+            ctx.shadowColor = bolt.color;
+            ctx.shadowBlur = 18;
+            ctx.strokeStyle = bolt.color;
+            ctx.lineWidth = w * 2.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.globalAlpha = alpha * 0.35;
+            for (const seg of bolt.segments) {
+                if (seg.length < 2) continue;
+                ctx.beginPath();
+                ctx.moveTo(seg[0].x, seg[0].y);
+                for (let j = 1; j < seg.length; j++) {
+                    ctx.lineTo(seg[j].x, seg[j].y);
+                }
+                ctx.stroke();
+            }
+
+            // Core layer (bright white/yellow)
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = w;
+            ctx.globalAlpha = alpha * 0.9;
+            for (const seg of bolt.segments) {
+                if (seg.length < 2) continue;
+                ctx.beginPath();
+                ctx.moveTo(seg[0].x, seg[0].y);
+                for (let j = 1; j < seg.length; j++) {
+                    ctx.lineTo(seg[j].x, seg[j].y);
+                }
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
         for (const p of this.particles) {
             p.render(ctx);
         }
@@ -125,6 +188,36 @@ export class ParticleSystem {
 
     clear() {
         this.particles = [];
+        this._lightningBolts = [];
+    }
+
+    /**
+     * Generate a jagged lightning bolt path between two points.
+     * @param {{x:number,y:number}} a – start
+     * @param {{x:number,y:number}} b – end
+     * @param {number} [jag=20] – max perpendicular offset
+     * @param {number} [subdivisions=6] – number of midpoints
+     * @returns {Array<{x:number,y:number}>}
+     */
+    _generateBoltPath(a, b, jag = 20, subdivisions = 6) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Perpendicular direction
+        const nx = -dy / (dist || 1);
+        const ny = dx / (dist || 1);
+
+        const points = [{ x: a.x, y: a.y }];
+        for (let i = 1; i < subdivisions; i++) {
+            const t = i / subdivisions;
+            const offset = (Math.random() - 0.5) * 2 * jag;
+            points.push({
+                x: a.x + dx * t + nx * offset,
+                y: a.y + dy * t + ny * offset,
+            });
+        }
+        points.push({ x: b.x, y: b.y });
+        return points;
     }
 
     // ── Preset effects ──────────────────────────────────────
@@ -1088,47 +1181,84 @@ export class ParticleSystem {
      * @param {Array<{x,y}>} positions
      */
     procChainLightning(positions) {
+        // ── 1. Lightning bolt lines (jagged, glowing) ──
+        const boltSegments = [];
         for (let i = 0; i < positions.length - 1; i++) {
             const a = positions[i];
             const b = positions[i + 1];
-            // Main chain sparks
-            const count = 10;
+            // Main bolt + 1-2 branch bolts for a thicker look
+            boltSegments.push(this._generateBoltPath(a, b, 18, 7));
+            boltSegments.push(this._generateBoltPath(a, b, 12, 5)); // secondary thinner bolt
+        }
+        this._lightningBolts.push({
+            segments: boltSegments,
+            timer: 400,
+            maxTimer: 400,
+            color: '#ffeb3b',
+            width: 3,
+        });
+
+        // ── 2. Spark particles along each segment ──
+        for (let i = 0; i < positions.length - 1; i++) {
+            const a = positions[i];
+            const b = positions[i + 1];
+            const count = 14;
             for (let j = 0; j < count; j++) {
                 const t = j / count;
-                const px = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 16;
-                const py = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 16;
+                const px = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 20;
+                const py = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 20;
                 this.particles.push(new Particle(
                     px, py,
-                    (Math.random() - 0.5) * 50,
-                    (Math.random() - 0.5) * 50,
-                    2 + Math.random() * 2,
+                    (Math.random() - 0.5) * 80,
+                    (Math.random() - 0.5) * 80,
+                    3 + Math.random() * 3,
                     Math.random() > 0.3 ? '#ffeb3b' : '#ffffff',
-                    160 + Math.random() * 120,
+                    250 + Math.random() * 200,
+                    { friction: 0.86, glow: true, glowColor: '#fdd835', shape: 'spark' },
+                ));
+            }
+            // Big impact flash at each target position
+            this.particles.push(new Particle(
+                b.x, b.y, 0, 0, 14, '#ffffff', 200,
+                { shrink: true, glow: true, glowColor: '#ffeb3b' },
+            ));
+            // Impact ring burst at target
+            for (let j = 0; j < 8; j++) {
+                const angle = (Math.PI * 2 / 8) * j;
+                const speed = 60 + Math.random() * 50;
+                this.particles.push(new Particle(
+                    b.x, b.y,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    2.5 + Math.random() * 2,
+                    '#ffeb3b',
+                    200 + Math.random() * 100,
                     { friction: 0.88, glow: true, glowColor: '#fdd835', shape: 'spark' },
                 ));
             }
-            // Impact flash at each target
-            this.particles.push(new Particle(
-                b.x, b.y, 0, 0, 8, '#ffffff', 120,
-                { shrink: true, glow: true, glowColor: '#ffeb3b' },
-            ));
             // Branch sparks — stray bolts
-            for (let j = 0; j < 4; j++) {
+            for (let j = 0; j < 6; j++) {
                 const t = Math.random();
                 const px = a.x + (b.x - a.x) * t;
                 const py = a.y + (b.y - a.y) * t;
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 40 + Math.random() * 60;
+                const speed = 50 + Math.random() * 80;
                 this.particles.push(new Particle(
                     px, py,
                     Math.cos(angle) * speed,
                     Math.sin(angle) * speed,
-                    1.5 + Math.random() * 1.5, '#fff9c4',
-                    100 + Math.random() * 80,
-                    { friction: 0.85, glow: true, glowColor: '#ffeb3b', shape: 'spark' },
+                    2 + Math.random() * 2, '#fff9c4',
+                    150 + Math.random() * 120,
+                    { friction: 0.84, glow: true, glowColor: '#ffeb3b', shape: 'spark' },
                 ));
             }
         }
+
+        // ── 3. Flash at origin (first target) ──
+        this.particles.push(new Particle(
+            positions[0].x, positions[0].y, 0, 0, 16, '#fff9c4', 180,
+            { shrink: true, glow: true, glowColor: '#ffeb3b' },
+        ));
     }
 
     /**

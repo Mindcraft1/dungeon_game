@@ -176,7 +176,7 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
     if (_procNotifs.length > 0) {
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = 'bold 13px monospace';
+        ctx.font = 'bold 16px monospace';
 
         for (let i = _procNotifs.length - 1; i >= 0; i--) {
             const n = _procNotifs[i];
@@ -193,18 +193,22 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
             }
 
             // Float upward
-            const floatY = baseY - 20 - progress * 40 - ((_procNotifs.length - 1 - i) * 22);
+            const floatY = baseY - 28 - progress * 50 - ((_procNotifs.length - 1 - i) * 26);
             // Scale pop on entry
-            const scale = progress < 0.1 ? 0.8 + progress / 0.1 * 0.2 : 1;
+            const scale = progress < 0.1 ? 0.7 + progress / 0.1 * 0.3 : 1;
 
             ctx.save();
             ctx.globalAlpha = Math.max(0, alpha);
-            ctx.translate(centerX + 90, floatY);
+            ctx.translate(centerX, floatY);
             ctx.scale(scale, scale);
 
+            // Outer glow for readability
+            ctx.shadowColor = n.color;
+            ctx.shadowBlur = 12;
+
             // Drop shadow for readability
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.fillText(n.text, 1, 1);
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillText(n.text, 2, 2);
 
             // Main text
             ctx.fillStyle = n.color;
