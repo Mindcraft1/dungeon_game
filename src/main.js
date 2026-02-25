@@ -2,7 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from './constants.js';
 import { clearFrameInput, initMouse } from './input.js';
 import { Game } from './game.js';
 import { updateShake } from './shake.js';
-import { renderFlash } from './combat/impactSystem.js';
+import { renderFlash, update as updateImpact } from './combat/impactSystem.js';
 
 // ── Canvas setup (DPI-aware for Retina displays) ──
 const canvas = document.getElementById('game');
@@ -29,6 +29,9 @@ function loop(now) {
     lastTime = now;
 
     game.update(dt);
+
+    // Always tick the impact system so screen flash decays in every state
+    updateImpact(dt * 1000);
 
     // Apply screen shake
     const shake = updateShake();

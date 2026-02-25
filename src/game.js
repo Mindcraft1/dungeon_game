@@ -90,6 +90,7 @@ import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
 import * as DevTools from './ui/devTools.js';
+import { setMenuBiome, updateMenuParticles } from './ui/menuParticles.js';
 
 // ── Upgrade Node System ──
 import * as UpgradeEngine from './upgrades/upgradeEngine.js';
@@ -228,6 +229,7 @@ export class Game {
         // ── Biome system ──
         this.currentBiome = null;          // biome object for current stage
         this.biomeAnnounceTimer = 0;       // ms remaining for biome banner
+        this.lastDeathBiomeId = null;      // biome id where player last died (menu easter egg)
 
         // ── Meta Progression ──
         this.metaModifiers = null;         // combined perk+relic modifiers for current run
@@ -594,6 +596,7 @@ export class Game {
         this.bossVictoryDelay = 0;
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
+        setMenuBiome(null);  // clear menu particles for new run
         this.loadRoom(0);
 
         // ── Meta Progression: apply modifiers at run start ──
@@ -1266,12 +1269,14 @@ export class Game {
         this.state = STATE_MENU;
         this.menuIndex = 0;
         this.trainingMode = false;
+        Audio.stopBladeStorm();
     }
 
     restart() {
         this.state = STATE_MENU;
         this.menuIndex = 0;
         this.trainingMode = false;
+        Audio.stopBladeStorm();
         this.projectiles = [];
         this.explosions = [];
         this.playerProjectiles = [];
@@ -2615,6 +2620,8 @@ export class Game {
         if (p.hp <= 0 && !this.trainingMode) {
             this._gameOverEffects = this._getAllActiveEffects();
             Audio.stopBladeStorm();
+            this.lastDeathBiomeId = this.currentBiome ? this.currentBiome.id : null;
+            setMenuBiome(this.lastDeathBiomeId);
             this.state = STATE_GAME_OVER;
         }
     }
@@ -2670,6 +2677,9 @@ export class Game {
 
         // Always update particles (they should animate even on overlays)
         this.particles.update(dt);
+
+        // Update menu background particles (biome easter egg)
+        updateMenuParticles(dt);
 
         // Always update toasts
         updateToasts(dt);
@@ -3147,8 +3157,7 @@ export class Game {
             this._applyCanyonFall();
         }
 
-        // ── Impact System: update hit-stop + time scale ──
-        Impact.update(dt * 1000);
+        // ── Impact System: hit-stop + time scale (update is in main.js) ──
         updateProcNotifs(dt * 1000);
         const timeScale = Impact.getTimeScale();
         const effectiveDt = dt * timeScale;
@@ -4257,6 +4266,8 @@ export class Game {
                     RewardSystem.onRunEnd(this.stage);
                     achEmit('run_end', { stage: this.stage });
                 }
+                this.lastDeathBiomeId = this.currentBiome ? this.currentBiome.id : null;
+                setMenuBiome(this.lastDeathBiomeId);
                 this.state = STATE_GAME_OVER;
             }
         }

@@ -1,5 +1,6 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { getClassById } from '../classes.js';
+import { renderMenuParticles } from './menuParticles.js';
 
 /**
  * Draw the main menu screen.
@@ -22,6 +23,9 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     for (let y = 0; y < CANVAS_HEIGHT; y += 40) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke();
     }
+
+    // Biome-themed background particles (easter egg from last death)
+    renderMenuParticles(ctx);
 
     ctx.textAlign = 'center';
 
