@@ -124,6 +124,41 @@ function _ensureCtx() {
     return _ctx;
 }
 
+// ── Sample (MP3) buffer cache & loader ───────────────────────
+const _sampleCache = {};   // path → AudioBuffer
+
+async function _loadSample(path) {
+    if (_sampleCache[path]) return _sampleCache[path];
+    const ctx = _ensureCtx();
+    if (!ctx) return null;
+    try {
+        const resp = await fetch(path);
+        const arr  = await resp.arrayBuffer();
+        const buf  = await ctx.decodeAudioData(arr);
+        _sampleCache[path] = buf;
+        return buf;
+    } catch (e) {
+        console.warn('[Audio] Failed to load sample:', path, e);
+        return null;
+    }
+}
+
+function _playSample(path, volume = 1.0, playbackRate = 1.0) {
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    const buf = _sampleCache[path];
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = playbackRate;
+    const g = ctx.createGain();
+    g.gain.value = volume;
+    src.connect(g);
+    g.connect(_master);
+    src.start(ctx.currentTime);
+}
+
 // Resume suspended context (required after first user gesture in some browsers)
 function _resume() {
     if (_ctx && _ctx.state === 'suspended') {
@@ -303,58 +338,17 @@ function _noiseBurst(filterFreq, filterQ, duration, vol, startTime) {
 
 // ── Sound Effects ────────────────────────────────────────────
 
-/** Player melee attack — layered swoosh with grit and stereo spread */
+let _attackCount = 0;
+
+/** Player melee attack — simplepunch normally, simplewhoosh every 3rd hit */
 export function playAttack() {
-    const ctx = _ensureCtx();
-    if (!ctx) return;
-    _resume();
-    const t = ctx.currentTime;
-
-    // ── Layer 1: Wide filtered noise swoosh (stereo) ──
-    const buf = _noiseBuffer(0.18);
-    if (!buf) return;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const swooshFilter = ctx.createBiquadFilter();
-    swooshFilter.type = 'bandpass';
-    swooshFilter.frequency.setValueAtTime(1500, t);
-    swooshFilter.frequency.exponentialRampToValueAtTime(5000, t + 0.04);
-    swooshFilter.frequency.exponentialRampToValueAtTime(1000, t + 0.14);
-    swooshFilter.Q.value = 1.2;
-    const swooshEnv = ctx.createGain();
-    _adsr(swooshEnv, t, 0.28, 0.01, 0.04, 0.4, 0.02, 0.08);
-    const swooshPan = _pan((Math.random() - 0.5) * 0.6);
-    src.connect(swooshFilter);
-    swooshFilter.connect(swooshEnv);
-    swooshEnv.connect(swooshPan);
-    swooshPan.connect(_master);
-    _sendReverb(swooshEnv, 0.12);
-    src.start(t);
-    src.stop(t + 0.18);
-
-    // ── Layer 2: Layered detuned sawtooth sweep (body) ──
-    const body = _layeredOsc('sawtooth', 400, 3, 30, t, t + 0.14, 0.1);
-    if (!body) return;
-    const bodyEnv = ctx.createGain();
-    _adsr(bodyEnv, t, 1.0, 0.005, 0.03, 0.3, 0.01, 0.06);
-    // Waveshape for grit
-    const dist = _distort(15);
-    body.connect(dist);
-    dist.connect(bodyEnv);
-    bodyEnv.connect(_master);
-
-    // ── Layer 3: Sub-thump for weight (heavier) ──
-    const subG = _gain(0.18);
-    if (!subG) return;
-    const subO = ctx.createOscillator();
-    subO.type = 'sine';
-    subO.frequency.setValueAtTime(200, t);
-    subO.frequency.exponentialRampToValueAtTime(50, t + 0.07);
-    subO.connect(subG);
-    subG.gain.setValueAtTime(0.18, t);
-    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-    subO.start(t);
-    subO.stop(t + 0.12);
+    _attackCount++;
+    const rate = 0.95 + Math.random() * 0.1;
+    if (_attackCount % 3 === 0) {
+        _playSample('assets/sfx/simplewhoosh.mp3', 0.7, rate);
+    } else {
+        _playSample('assets/sfx/simplepunch.mp3', 0.7, rate);
+    }
 }
 
 /** Enemy hit by melee — punchy layered impact with reverb tail and chest-thump bass */
@@ -1617,74 +1611,54 @@ export function playAchievementUnlock() {
 
 // ── Combat Ability SFX ──────────────────────────────────────
 
-/** Shockwave — massive distorted bass explosion with reverb. */
+/** Shockwave — plays simpleexplosion.mp3 with slight pitch variation */
 export function playShockwave() {
-    const ctx = _ensureCtx(); if (!ctx) return; _resume();
-    const t = ctx.currentTime;
-
-    // Deep sine sub-drop
-    const subG = _gain(0.28);
-    if (!subG) return;
-    const subO = ctx.createOscillator();
-    subO.type = 'sine';
-    subO.frequency.setValueAtTime(110, t);
-    subO.frequency.exponentialRampToValueAtTime(25, t + 0.35);
-    subO.connect(subG);
-    _adsr(subG, t, 0.28, 0.003, 0.1, 0.4, 0.05, 0.2);
-    subO.start(t);
-    subO.stop(t + 0.45);
-
-    // Distorted mid crack
-    const dist = _distort(35);
-    const crackG = ctx.createGain();
-    crackG.gain.setValueAtTime(0.2, t);
-    crackG.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-    const crackO = ctx.createOscillator();
-    crackO.type = 'sawtooth';
-    crackO.frequency.setValueAtTime(200, t);
-    crackO.frequency.exponentialRampToValueAtTime(50, t + 0.06);
-    crackO.connect(dist);
-    dist.connect(crackG);
-    crackG.connect(_master);
-    crackO.start(t);
-    crackO.stop(t + 0.1);
-
-    // Noise burst with reverb
-    const buf = _noiseBuffer(0.18);
-    if (buf) {
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        const filt = ctx.createBiquadFilter();
-        filt.type = 'bandpass';
-        filt.frequency.value = 3000;
-        filt.Q.value = 3;
-        const nEnv = ctx.createGain();
-        nEnv.gain.setValueAtTime(0.3, t);
-        nEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-        src.connect(filt);
-        filt.connect(nEnv);
-        nEnv.connect(_master);
-        _sendReverb(nEnv, 0.5);
-        src.start(t);
-        src.stop(t + 0.2);
-    }
+    const rate = 0.9 + Math.random() * 0.2;
+    _playSample('assets/sfx/simpleexplosion.mp3', 0.8, rate);
 }
 
-/** Blade Storm — whirring spin. */
+/** Blade Storm — looping simpleswingingblades.mp3 while active. */
+let _bladeStormSrc = null;
+let _bladeStormGain = null;
+
 export function playBladeStorm() {
-    const ctx = _ensureCtx(); if (!ctx) return; _resume();
-    const t = ctx.currentTime;
-    const g = _gain(0.18);
-    if (!g) return;
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(250, t);
-    o.frequency.linearRampToValueAtTime(400, t + 0.15);
-    o.frequency.linearRampToValueAtTime(250, t + 0.3);
-    o.connect(g);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    o.start(t);
-    o.stop(t + 0.35);
+    // Start looping the swinging blades sample
+    const ctx = _ensureCtx();
+    if (!ctx) return;
+    _resume();
+    // Stop any existing loop first
+    stopBladeStorm();
+    const buf = _sampleCache['assets/sfx/simpleswingingblades.mp3'];
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.playbackRate.value = 1.0;
+    const g = ctx.createGain();
+    g.gain.value = 0.55;
+    src.connect(g);
+    g.connect(_master);
+    src.start(ctx.currentTime);
+    _bladeStormSrc = src;
+    _bladeStormGain = g;
+}
+
+export function stopBladeStorm() {
+    if (_bladeStormSrc) {
+        try {
+            // Quick fade-out to avoid click
+            if (_bladeStormGain && _ctx) {
+                _bladeStormGain.gain.setValueAtTime(_bladeStormGain.gain.value, _ctx.currentTime);
+                _bladeStormGain.gain.exponentialRampToValueAtTime(0.001, _ctx.currentTime + 0.1);
+                const src = _bladeStormSrc;
+                setTimeout(() => { try { src.stop(); } catch(e){} }, 120);
+            } else {
+                _bladeStormSrc.stop();
+            }
+        } catch(e) {}
+        _bladeStormSrc = null;
+        _bladeStormGain = null;
+    }
 }
 
 /** Gravity Pull — low rumble sucking. */
@@ -1870,6 +1844,11 @@ export function setVolume(v) {
 export function init() {
     _ensureCtx();
     _resume();
+    // Preload MP3 samples
+    _loadSample('assets/sfx/simplewhoosh.mp3');
+    _loadSample('assets/sfx/simplepunch.mp3');
+    _loadSample('assets/sfx/simpleexplosion.mp3');
+    _loadSample('assets/sfx/simpleswingingblades.mp3');
 }
 
 /** Return the shared AudioContext (for music engine). Null if not yet created. */

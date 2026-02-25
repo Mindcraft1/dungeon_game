@@ -2603,6 +2603,7 @@ export class Game {
         // Check for game over (shouldn't happen since min 1 HP, but safety check)
         if (p.hp <= 0 && !this.trainingMode) {
             this._gameOverEffects = this._getAllActiveEffects();
+            Audio.stopBladeStorm();
             this.state = STATE_GAME_OVER;
         }
     }
@@ -4216,6 +4217,7 @@ export class Game {
                 this.player.clearBuffs();
                 this._comboReset();
                 Audio.playGameOver();
+                Audio.stopBladeStorm();
                 triggerShake(10, 0.9);
                 // Meta: finalize run (blocked by cheats)
                 if (!this.cheatsUsedThisRun) {

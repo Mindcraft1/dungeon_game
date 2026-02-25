@@ -13,6 +13,7 @@ import {
 } from '../constants.js';
 import { applyFreeze, applySlow } from './statusEffects.js';
 import * as Impact from './impactSystem.js';
+import { stopBladeStorm } from '../audio.js';
 
 // ── Ability Registry ──
 
@@ -132,6 +133,8 @@ export const ABILITY_DEFINITIONS = {
 
             if (state.remaining <= 0) {
                 state.active = false;
+                // Stop the looping blade storm sound
+                stopBladeStorm();
                 return state;
             }
 
