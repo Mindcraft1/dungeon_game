@@ -7,7 +7,13 @@
 import { getContext as _getSharedCtx } from './audio.js';
 
 const MUSIC_STORAGE_KEY = 'dungeon_music_enabled';
-const MUSIC_PATH = 'assets/sfx/actionadventure.mp3';
+
+// ── Track library ──
+const TRACKS = {
+    jungle:         'assets/sfx/jungle.mp3',
+    actionadventure:'assets/sfx/actionadventure.mp3',
+};
+const DEFAULT_TRACK = 'jungle';
 
 // ── State ──
 let _ctx         = null;
@@ -16,6 +22,7 @@ let _muted       = false;
 let _enabled     = true;
 let _initialized = false;
 let _isPlaying   = false;
+let _currentTrack = DEFAULT_TRACK;   // key into TRACKS
 
 // ── Danger-based volume ──
 let _danger       = 0;     // current interpolated danger 0–1
@@ -25,7 +32,7 @@ const _VOL_HIGH   = 0.30;  // full volume during intense combat
 
 // ── Audio nodes ──
 let _source      = null;   // AudioBufferSourceNode (looping)
-let _buffer      = null;   // Decoded AudioBuffer
+const _buffers   = {};     // path → AudioBuffer cache
 
 // ═════════════════════════════════════════════════════════════════════
 //  Internal Helpers
@@ -44,25 +51,27 @@ function _ensureCtx() {
     return _ctx;
 }
 
-/** Fetch + decode MP3 into AudioBuffer (cached) */
-async function _loadBuffer() {
-    if (_buffer) return _buffer;
+/** Fetch + decode an MP3 into AudioBuffer (cached by path) */
+async function _loadBuffer(path) {
+    if (_buffers[path]) return _buffers[path];
     const ctx = _ensureCtx();
     if (!ctx) return null;
     try {
-        const resp = await fetch(MUSIC_PATH);
+        const resp = await fetch(path);
         const arr  = await resp.arrayBuffer();
-        _buffer    = await ctx.decodeAudioData(arr);
-        return _buffer;
+        _buffers[path] = await ctx.decodeAudioData(arr);
+        return _buffers[path];
     } catch (e) {
-        console.warn('[Music] Failed to load:', MUSIC_PATH, e);
+        console.warn('[Music] Failed to load:', path, e);
         return null;
     }
 }
 
 /** Create a looping AudioBufferSourceNode and start playback */
 async function _playLoop() {
-    const buf = await _loadBuffer();
+    const path = TRACKS[_currentTrack];
+    if (!path) return;
+    const buf = await _loadBuffer(path);
     if (!buf || !_isPlaying) return;          // stopped while loading
 
     _source        = _ctx.createBufferSource();
@@ -88,8 +97,8 @@ export function initMusic() {
         if (s !== null) _enabled = s !== '0';
     } catch (e) { /* noop */ }
 
-    // Pre-load the MP3 in the background
-    _loadBuffer();
+    // Pre-load all tracks in the background
+    for (const path of Object.values(TRACKS)) _loadBuffer(path);
 
     _initialized = true;
 }
@@ -129,6 +138,29 @@ export function stopMusic() {
             _master.gain.value = _muted ? 0 : _VOL_LOW;
         }
     }, 400);
+}
+
+/** Switch to a different music track (crossfades). Key must exist in TRACKS. */
+export function setTrack(key) {
+    if (!TRACKS[key] || key === _currentTrack) return;
+    _currentTrack = key;
+    if (_isPlaying) {
+        // Quick crossfade: stop current source, start new one
+        if (_source && _ctx) {
+            try {
+                const t = _ctx.currentTime;
+                const fadeGain = _ctx.createGain();
+                fadeGain.gain.setValueAtTime(1, t);
+                fadeGain.gain.linearRampToValueAtTime(0, t + 0.4);
+                _source.disconnect();
+                _source.connect(fadeGain);
+                fadeGain.connect(_master);
+                _source.stop(t + 0.45);
+            } catch (e) { /* already stopped */ }
+            _source = null;
+        }
+        _playLoop();
+    }
 }
 
 /** Set target danger level 0–1 (scales music volume) */

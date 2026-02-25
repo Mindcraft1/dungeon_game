@@ -54,7 +54,7 @@ import { renderTrainingConfig } from './ui/training-config.js';
 import { renderSettings } from './ui/settings.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
-import { getBiomeForStage } from './biomes.js';
+import { getBiomeForStage, BIOME_JUNGLE } from './biomes.js';
 import { getColorById, PLAYER_COLORS, getHatById, PLAYER_HATS, DEFAULT_HAT_ID } from './cosmetics.js';
 import { getClassById, CLASS_DEFINITIONS, DEFAULT_CLASS_ID, renderClassEmblem } from './classes.js';
 import { getWeaponById, WEAPON_ORDER, WEAPON_DEFINITIONS, DEFAULT_WEAPON_ID, isWeaponUnlocked } from './weapons.js';
@@ -677,6 +677,12 @@ export class Game {
                 ? this.currentBiome.playerSpeedMult
                 : 1.0;
         }
+        // Switch music track based on biome (boss rooms override this)
+        if (this.currentBiome && this.currentBiome.id === BIOME_JUNGLE) {
+            Music.setTrack('jungle');
+        } else {
+            Music.setTrack('actionadventure');
+        }
     }
 
     _openTrainingConfig() {
@@ -1241,6 +1247,7 @@ export class Game {
         const bossType = bossTypes[encounter % bossTypes.length];
 
         this.boss = new Boss(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, bossType, encounter, this.stage, this.currentBiome);
+        Music.setTrack('actionadventure');
         Audio.playBossRoar();
         this.controlsHintTimer = 3000;
 
@@ -2563,7 +2570,7 @@ export class Game {
         const noDamage = this.trainingMode && !this.trainingDamage;
         if (!noDamage && !this.cheats.godmode) {
             const dmg = Math.max(1, Math.floor(p.maxHp * CANYON_FALL_HP_PENALTY));
-            p.hp = Math.max(1, p.hp - dmg);  // can't kill from fall (min 1 HP)
+            p.hp = Math.max(0, p.hp - dmg);
             p.damageFlashTimer = 300;
             p.invulnTimer = Math.max(p.invulnTimer, PLAYER_INVULN_TIME);
         }
@@ -2600,7 +2607,7 @@ export class Game {
             size: 16,
         });
 
-        // Check for game over (shouldn't happen since min 1 HP, but safety check)
+        // Check for game over after fall damage
         if (p.hp <= 0 && !this.trainingMode) {
             this._gameOverEffects = this._getAllActiveEffects();
             Audio.stopBladeStorm();
