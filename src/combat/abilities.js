@@ -58,8 +58,9 @@ export const ABILITY_DEFINITIONS = {
 
                 // Trigger proc on each hit
                 if (procSystem) {
+                    const abilityCrit = Math.random() < (player.critChance + (player.talentCritBonus || 0));
                     procSystem.handleHit(
-                        { source: player, target: e, damage: baseDmg, isCrit: false, attackType: 'shockwave' },
+                        { source: player, target: e, damage: baseDmg, isCrit: abilityCrit, attackType: 'shockwave' },
                         { enemies, boss, particles },
                     );
                 }
@@ -159,8 +160,9 @@ export const ABILITY_DEFINITIONS = {
                     tickHits++;
 
                     if (procSystem) {
+                        const abilityCrit = Math.random() < (player.critChance + (player.talentCritBonus || 0));
                         procSystem.handleHit(
-                            { source: player, target: e, damage: tickDmg, isCrit: false, attackType: 'blade_storm' },
+                            { source: player, target: e, damage: tickDmg, isCrit: abilityCrit, attackType: 'blade_storm' },
                             { enemies, boss, particles },
                         );
                     }

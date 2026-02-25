@@ -54,7 +54,7 @@ import { renderTrainingConfig } from './ui/training-config.js';
 import { renderSettings } from './ui/settings.js';
 import * as Audio from './audio.js';
 import * as Music from './music.js';
-import { getBiomeForStage, BIOME_JUNGLE } from './biomes.js';
+import { getBiomeForStage, BIOME_JUNGLE, BIOME_DESERT, BIOME_WASTELAND, BIOME_DEPTHS, BIOME_SPACESHIP } from './biomes.js';
 import { getColorById, PLAYER_COLORS, getHatById, PLAYER_HATS, DEFAULT_HAT_ID } from './cosmetics.js';
 import { getClassById, CLASS_DEFINITIONS, DEFAULT_CLASS_ID, renderClassEmblem } from './classes.js';
 import { getWeaponById, WEAPON_ORDER, WEAPON_DEFINITIONS, DEFAULT_WEAPON_ID, isWeaponUnlocked } from './weapons.js';
@@ -678,11 +678,15 @@ export class Game {
                 : 1.0;
         }
         // Switch music track based on biome (boss rooms override this)
-        if (this.currentBiome && this.currentBiome.id === BIOME_JUNGLE) {
-            Music.setTrack('jungle');
-        } else {
-            Music.setTrack('actionadventure');
-        }
+        const biomeTrack = {
+            [BIOME_JUNGLE]:    'jungle',
+            [BIOME_DESERT]:    'desert',
+            [BIOME_WASTELAND]: 'wasteland',
+            [BIOME_DEPTHS]:    'depth',
+            [BIOME_SPACESHIP]: 'space',
+        };
+        const track = this.currentBiome ? biomeTrack[this.currentBiome.id] : null;
+        Music.setTrack(track || 'actionadventure');
     }
 
     _openTrainingConfig() {
@@ -3440,7 +3444,9 @@ export class Game {
                     avgDirY /= avgLen;
 
                     // ── Proc dispatch on melee hits ──
-                    const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus);
+                    const _procMods = _cmods.procs || {};
+                    const _keenEyeBonus = (_procMods.heavy_crit && _procMods.heavy_crit.globalCritBonus) || 0;
+                    const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus + _keenEyeBonus);
 
                     // Rogue passive: crit bonus damage (applied before procs)
                     if (isCrit && this.player.rogueCritMult > 0) {
@@ -3958,8 +3964,10 @@ export class Game {
                     d.hitTarget.x, d.hitTarget.y,
                     d.hitTarget.dirX, d.hitTarget.dirY,
                 );
-                // Proc dispatch on dagger hit (include dagger crit bonus from nodes)
-                const daggerCritChance = this.player.critChance + this.player.talentCritBonus + (d.critBonus || 0);
+                // Proc dispatch on dagger hit (include dagger crit bonus + Keen Eye bonus from nodes)
+                const _dProcMods = (_cmods.procs || {});
+                const _dKeenEye = (_dProcMods.heavy_crit && _dProcMods.heavy_crit.globalCritBonus) || 0;
+                const daggerCritChance = this.player.critChance + this.player.talentCritBonus + (d.critBonus || 0) + _dKeenEye;
                 const daggerCrit = Math.random() < daggerCritChance;
                 const hitEntity = d.hitTarget.entity || d.hitTarget;
 
@@ -4923,6 +4931,19 @@ export class Game {
     // ── Adaptive Music ───────────────────────────────────
 
     _updateMusicDanger() {
+        // ── Boss teaser: on the stage right before a boss, blend in
+        //    actionadventure.mp3 based on how many enemies have been killed ──
+        if (this.state === STATE_PLAYING && !this.trainingMode
+            && this._isBossStage(this.stage + 1)) {
+            // Calculate kill progress (0 = all alive, 1 = all dead)
+            const total = this.enemies.length;
+            const alive = this.enemies.filter(e => !e.dead).length;
+            const progress = total > 0 ? 1 - alive / total : 0;
+            Music.setBossTeaser(progress);
+        } else {
+            Music.setBossTeaser(0);
+        }
+
         switch (this.state) {
             case STATE_PLAYING:
                 Music.setDanger(this._calculateDanger());

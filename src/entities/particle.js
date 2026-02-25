@@ -104,6 +104,10 @@ export class ParticleSystem {
         this.particles = [];
         /** @type {Array<{segments: Array<{x:number,y:number}[]>, timer: number, maxTimer: number, color: string, width: number}>} */
         this._lightningBolts = [];
+        /** @type {Array<{x:number,y:number,radius:number,maxRadius:number,timer:number,maxTimer:number,color:string,width:number}>} */
+        this._shockwaves = [];
+        /** @type {Array<{x:number,y:number,angle:number,length:number,timer:number,maxTimer:number,color:string,width:number}>} */
+        this._impactSlashes = [];
     }
 
     get count() {
@@ -123,6 +127,20 @@ export class ParticleSystem {
             this._lightningBolts[i].timer -= dtMs;
             if (this._lightningBolts[i].timer <= 0) {
                 this._lightningBolts.splice(i, 1);
+            }
+        }
+        // Update shockwave rings
+        for (let i = this._shockwaves.length - 1; i >= 0; i--) {
+            this._shockwaves[i].timer -= dtMs;
+            if (this._shockwaves[i].timer <= 0) {
+                this._shockwaves.splice(i, 1);
+            }
+        }
+        // Update impact slashes
+        for (let i = this._impactSlashes.length - 1; i >= 0; i--) {
+            this._impactSlashes[i].timer -= dtMs;
+            if (this._impactSlashes[i].timer <= 0) {
+                this._impactSlashes.splice(i, 1);
             }
         }
     }
@@ -181,6 +199,89 @@ export class ParticleSystem {
             ctx.restore();
         }
 
+        // Draw shockwave rings
+        for (const sw of this._shockwaves) {
+            const progress = 1 - sw.timer / sw.maxTimer;
+            const currentRadius = sw.maxRadius * progress;
+            // Fade out over life
+            const alpha = Math.max(0, 1 - progress);
+            const w = sw.width * (1 - progress * 0.7);
+
+            if (alpha <= 0 || w <= 0) continue;
+
+            ctx.save();
+
+            // Outer glow ring
+            ctx.globalAlpha = alpha * 0.3;
+            ctx.shadowColor = sw.color;
+            ctx.shadowBlur = 16;
+            ctx.strokeStyle = sw.color;
+            ctx.lineWidth = w * 3;
+            ctx.beginPath();
+            ctx.arc(sw.x, sw.y, currentRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Core ring (white-hot)
+            ctx.globalAlpha = alpha * 0.8;
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = w;
+            ctx.beginPath();
+            ctx.arc(sw.x, sw.y, currentRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Draw impact slashes
+        for (const sl of this._impactSlashes) {
+            const progress = 1 - sl.timer / sl.maxTimer;
+            // Quick appear, slow fade
+            let alpha;
+            if (progress < 0.15) {
+                alpha = progress / 0.15;
+            } else {
+                alpha = 1 - (progress - 0.15) / 0.85;
+            }
+            const len = sl.length * (0.5 + progress * 0.5);
+            const w = sl.width * (1 - progress * 0.6);
+
+            if (alpha <= 0 || w <= 0) continue;
+
+            const cos = Math.cos(sl.angle);
+            const sin = Math.sin(sl.angle);
+            const x1 = sl.x - cos * len;
+            const y1 = sl.y - sin * len;
+            const x2 = sl.x + cos * len;
+            const y2 = sl.y + sin * len;
+
+            ctx.save();
+
+            // Glow
+            ctx.globalAlpha = alpha * 0.4;
+            ctx.shadowColor = sl.color;
+            ctx.shadowBlur = 14;
+            ctx.strokeStyle = sl.color;
+            ctx.lineWidth = w * 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            // Core (white)
+            ctx.globalAlpha = alpha * 0.9;
+            ctx.shadowBlur = 6;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = w;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
         for (const p of this.particles) {
             p.render(ctx);
         }
@@ -189,6 +290,8 @@ export class ParticleSystem {
     clear() {
         this.particles = [];
         this._lightningBolts = [];
+        this._shockwaves = [];
+        this._impactSlashes = [];
     }
 
     /**
@@ -1139,39 +1242,75 @@ export class ParticleSystem {
      * Proc: Explosive Strikes — orange/red AoE burst at target.
      */
     procExplosion(x, y, radius) {
-        // Primary explosion ring
-        const count = 28;
+        // ── 1. Expanding shockwave ring ──
+        this._shockwaves.push({
+            x, y,
+            radius: 0,
+            maxRadius: radius * 0.9,
+            timer: 350,
+            maxTimer: 350,
+            color: '#ff6d00',
+            width: 3,
+        });
+        // Second slightly delayed inner ring
+        this._shockwaves.push({
+            x, y,
+            radius: 0,
+            maxRadius: radius * 0.55,
+            timer: 280,
+            maxTimer: 280,
+            color: '#ff9800',
+            width: 2,
+        });
+
+        // ── 2. Primary explosion ring sparks ──
+        const count = 32;
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
-            const speed = 90 + Math.random() * 120;
+            const speed = 100 + Math.random() * 140;
             this.particles.push(new Particle(
                 x + (Math.random() - 0.5) * 8,
                 y + (Math.random() - 0.5) * 8,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                3 + Math.random() * 2.5,
+                3.5 + Math.random() * 3,
                 Math.random() > 0.5 ? '#ff6d00' : '#ff9800',
-                300 + Math.random() * 250,
+                350 + Math.random() * 250,
                 { friction: 0.90, glow: true, glowColor: '#ff3d00', shape: 'spark' },
             ));
         }
         // Inner fire burst
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 40 + Math.random() * 60;
+            const speed = 40 + Math.random() * 70;
             this.particles.push(new Particle(
                 x, y,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                3 + Math.random() * 2,
+                4 + Math.random() * 3,
                 Math.random() > 0.5 ? '#ff1744' : '#ffab40',
-                250 + Math.random() * 200,
+                300 + Math.random() * 200,
                 { friction: 0.88, glow: true, glowColor: '#ff6d00', shape: 'circle' },
+            ));
+        }
+        // Ember debris — slow floating embers that linger
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 20 + Math.random() * 40;
+            this.particles.push(new Particle(
+                x + (Math.random() - 0.5) * 20,
+                y + (Math.random() - 0.5) * 20,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                2 + Math.random() * 1.5,
+                '#ffab40',
+                500 + Math.random() * 400,
+                { friction: 0.96, gravity: -15, glow: true, glowColor: '#ff6d00', shape: 'circle' },
             ));
         }
         // Core flash — big
         this.particles.push(new Particle(
-            x, y, 0, 0, 14, '#ffffff', 150,
+            x, y, 0, 0, 18, '#ffffff', 180,
             { shrink: true, glow: true, glowColor: '#ff6d00' },
         ));
     }
@@ -1265,38 +1404,69 @@ export class ParticleSystem {
      * Proc: Heavy Crit — big red/white impact burst.
      */
     procCritImpact(x, y) {
-        // Outer burst ring
-        const count = 20;
+        // ── 1. Cross slash lines — dramatic X through the target ──
+        const baseAngle = Math.random() * Math.PI; // randomize orientation
+        this._impactSlashes.push({
+            x, y,
+            angle: baseAngle,
+            length: 35,
+            timer: 300,
+            maxTimer: 300,
+            color: '#ff1744',
+            width: 3,
+        });
+        this._impactSlashes.push({
+            x, y,
+            angle: baseAngle + Math.PI * 0.5, // perpendicular
+            length: 28,
+            timer: 260,
+            maxTimer: 260,
+            color: '#ff1744',
+            width: 2.5,
+        });
+
+        // ── 2. Outer burst ring ──
+        const count = 24;
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 / count) * i;
-            const speed = 120 + Math.random() * 80;
+            const speed = 130 + Math.random() * 100;
             this.particles.push(new Particle(
                 x, y,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                3 + Math.random() * 2.5,
+                3.5 + Math.random() * 3,
                 Math.random() > 0.5 ? '#ff1744' : '#ffffff',
-                280 + Math.random() * 200,
-                { friction: 0.90, glow: true, glowColor: '#d50000', shape: 'spark' },
+                320 + Math.random() * 200,
+                { friction: 0.89, glow: true, glowColor: '#d50000', shape: 'spark' },
             ));
         }
         // Inner sharp fragments
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 12; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 60 + Math.random() * 80;
+            const speed = 70 + Math.random() * 90;
             this.particles.push(new Particle(
                 x, y,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                2 + Math.random() * 2,
+                2.5 + Math.random() * 2.5,
                 Math.random() > 0.5 ? '#ffcdd2' : '#ff8a80',
-                200 + Math.random() * 150,
-                { friction: 0.88, glow: true, glowColor: '#ff1744', shape: 'square' },
+                250 + Math.random() * 180,
+                { friction: 0.87, glow: true, glowColor: '#ff1744', shape: 'square' },
             ));
         }
+        // ── 3. Small shockwave ring for extra punch ──
+        this._shockwaves.push({
+            x, y,
+            radius: 0,
+            maxRadius: 45,
+            timer: 250,
+            maxTimer: 250,
+            color: '#ff1744',
+            width: 2,
+        });
         // Big central flash
         this.particles.push(new Particle(
-            x, y, 0, 0, 16, '#ffffff', 140,
+            x, y, 0, 0, 20, '#ffffff', 180,
             { shrink: true, glow: true, glowColor: '#ff1744' },
         ));
     }

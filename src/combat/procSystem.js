@@ -41,9 +41,6 @@ export class ProcSystem {
         const procMods = cmods.procs || {};
         const globalMods = cmods.global || {};
 
-        // Global crit bonus from heavy_crit node (Keen Eye)
-        const globalCritBonus = (procMods.heavy_crit && procMods.heavy_crit.globalCritBonus) || 0;
-
         for (const procId of this.slots) {
             if (!procId) continue;
             const def = getProc(procId);
@@ -61,10 +58,8 @@ export class ProcSystem {
             }
 
             // Heavy Crit fires only when isCrit is true
-            // Apply global crit bonus to determine if it was a crit
             if (def.trigger === 'onCrit') {
-                const isCritWithBonus = event.isCrit || (globalCritBonus > 0 && Math.random() < globalCritBonus);
-                if (isCritWithBonus) {
+                if (event.isCrit) {
                     if (Math.random() < def.chance) {
                         def.onProc(event, { ...context, procMods: mods, globalMods });
                     }

@@ -176,7 +176,7 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
     if (_procNotifs.length > 0) {
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = 'bold 16px monospace';
+        ctx.font = 'bold 13px monospace';
 
         for (let i = _procNotifs.length - 1; i >= 0; i--) {
             const n = _procNotifs[i];

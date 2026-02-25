@@ -683,10 +683,10 @@ export function playDoorEnter() {
     }
 }
 
-/** Shooter enemy fires a projectile — plays lazershoot.mp3 */
+/** Shooter enemy fires a projectile — plays shoot.mp3 */
 export function playProjectile() {
     const rate = 0.9 + Math.random() * 0.2;
-    _playSample('assets/sfx/lazershoot.mp3', 0.5, rate);
+    _playSample('assets/sfx/shoot.mp3', 0.5, rate);
 }
 
 /** Dasher enemy starts a dash — plays enemywhoosh.mp3 */
@@ -1640,7 +1640,7 @@ export function init() {
     _loadSample('assets/sfx/pain1.mp3');
     _loadSample('assets/sfx/pain2.mp3');
     _loadSample('assets/sfx/death.mp3');
-    _loadSample('assets/sfx/lazershoot.mp3');
+    _loadSample('assets/sfx/shoot.mp3');
     _loadSample('assets/sfx/enemywhoosh.mp3');
     _loadSample('assets/sfx/health.mp3');
     _loadSample('assets/sfx/enemylightpunch.mp3');
