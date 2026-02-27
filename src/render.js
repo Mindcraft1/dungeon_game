@@ -1336,6 +1336,37 @@ function _drawDepthsFloor(ctx, x, y, col, row, grid, floorColor, gridTint, seed,
         }
     }
 
+    // ── Refracted sunlight net on the sea floor ──
+    // Slowly moving bright cell pattern like light through rippling water surface.
+    // Uses time-based sine offsets so the pattern gently shifts each frame.
+    {
+        const t = Date.now() * 0.0003;
+        // Two crossing wave functions create a diamond/cell interference pattern
+        // Sample 3×3 points within the tile and draw soft bright spots where waves peak
+        ctx.fillStyle = 'rgba(100, 180, 255, 1)';
+        const spacing = S / 3;
+        for (let gx = 0; gx < 3; gx++) {
+            for (let gy = 0; gy < 3; gy++) {
+                const px = x + spacing * 0.5 + gx * spacing;
+                const py = y + spacing * 0.5 + gy * spacing;
+                // Two overlapping sine waves at different angles
+                const wave1 = Math.sin((px * 0.06) + (py * 0.03) + t * 2.1 + h * 6);
+                const wave2 = Math.sin((px * 0.04) - (py * 0.055) + t * 1.7 + h2 * 5);
+                const combined = (wave1 + wave2) * 0.5; // -1..1
+                // Only draw where both waves constructively interfere (bright spots)
+                if (combined > 0.25) {
+                    const intensity = (combined - 0.25) / 0.75; // 0..1
+                    ctx.globalAlpha = intensity * 0.06;
+                    const r = 3 + intensity * 4;
+                    ctx.beginPath();
+                    ctx.arc(px, py, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        ctx.globalAlpha = 1;
+    }
+
     // ── Floor decorations ──
     if (biome.floorDecor) {
         const rng = _tileHash(col, row, seed);
