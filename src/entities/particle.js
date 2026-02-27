@@ -886,6 +886,9 @@ export class ParticleSystem {
             case 'depths':
                 this._spawnDepthsAmbient(ap);
                 break;
+            case 'spaceship':
+                this._spawnSpaceshipAmbient(ap);
+                break;
         }
     }
 
@@ -1022,6 +1025,22 @@ export class ParticleSystem {
             p._ambient = true;
             this.particles.push(p);
         }
+        // Drifting smoke wisps — large, slow, very transparent
+        if (ap.smoke && Math.random() < ap.smoke.rate) {
+            const colors = ap.smoke.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                CANVAS_HEIGHT * 0.3 + Math.random() * CANVAS_HEIGHT * 0.5,
+                8 + Math.random() * 15,  // drift right
+                -(3 + Math.random() * 8), // slow rise
+                ap.smoke.sizeMin + Math.random() * (ap.smoke.sizeMax - ap.smoke.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                5000 + Math.random() * 4000,
+                { friction: 0.995, shrink: true, glow: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
     }
 
     _spawnDepthsAmbient(ap) {
@@ -1069,6 +1088,57 @@ export class ParticleSystem {
                 colors[Math.floor(Math.random() * colors.length)],
                 5000 + Math.random() * 4000,
                 { friction: 1.0, gravity: 2, shrink: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+    }
+
+    _spawnSpaceshipAmbient(ap) {
+        // Floating data motes / holographic dust
+        if (ap.dataMotes && Math.random() < ap.dataMotes.rate) {
+            const colors = ap.dataMotes.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 12,
+                (Math.random() - 0.5) * 12,
+                ap.dataMotes.sizeMin + Math.random() * (ap.dataMotes.sizeMax - ap.dataMotes.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                2500 + Math.random() * 2500,
+                { friction: 0.98, shrink: false, glow: true, glowColor: '#00e5ff' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Sparking electricity — fast, short-lived
+        if (ap.sparks && Math.random() < ap.sparks.rate) {
+            const colors = ap.sparks.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 80,
+                (Math.random() - 0.5) * 80,
+                ap.sparks.sizeMin + Math.random() * (ap.sparks.sizeMax - ap.sparks.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                300 + Math.random() * 500,
+                { friction: 0.95, shrink: true, glow: true, glowColor: '#00e5ff' },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
+        // Holographic glitch fragments — rectangular, brief
+        if (ap.holoGlitch && Math.random() < ap.holoGlitch.rate) {
+            const colors = ap.holoGlitch.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 8,
+                ap.holoGlitch.sizeMin + Math.random() * (ap.holoGlitch.sizeMax - ap.holoGlitch.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                200 + Math.random() * 400,
+                { friction: 1.0, shrink: false, shape: 'square' },
             );
             p._ambient = true;
             this.particles.push(p);

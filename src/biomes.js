@@ -332,22 +332,30 @@ const BIOMES = [
             embers: { rate: 0.14, colors: ['#ff6b35', '#ff4500', '#ff8c00', '#e25822'], sizeMin: 1, sizeMax: 2.5 },
             // Falling ash flakes
             ash: { rate: 0.08, colors: ['#666', '#777', '#555'], sizeMin: 1.5, sizeMax: 3 },
+            // Drifting smoke wisps
+            smoke: { rate: 0.04, colors: ['rgba(80,50,30,0.3)', 'rgba(60,40,25,0.25)', 'rgba(100,60,30,0.2)'], sizeMin: 4, sizeMax: 8 },
         },
 
         floorDecor: {
-            chance: 0.12,
+            chance: 0.18,
             types: [
                 { shape: 'scorch', color: '#2a1a1a', colorAlt: '#3a2020', weight: 3 },
                 { shape: 'crack',  color: '#3a2525', weight: 3 },
                 { shape: 'debris', color: '#4a3535', weight: 2 },
+                { shape: 'lavaPuddle', color: '#cc3300', colorAlt: '#ff6600', weight: 1.5 },
+                { shape: 'ashPile',    color: '#444', colorAlt: '#555', weight: 2 },
+                { shape: 'charredBone', color: '#3a3030', colorAlt: '#554540', weight: 1 },
             ],
         },
 
         wallDecor: {
-            chance: 0.22,
+            chance: 0.28,
             types: [
                 { shape: 'glowCrack', color: '#ff4500', colorAlt: '#ff6b35', weight: 3 },
                 { shape: 'crack',     color: '#3a2525', weight: 2 },
+                { shape: 'sootStain', color: '#1a1010', colorAlt: '#2a1818', weight: 2 },
+                { shape: 'lavaVein',  color: '#cc3300', colorAlt: '#ff6600', weight: 1.5 },
+                { shape: 'ashDrip',   color: '#555', colorAlt: '#666', weight: 1.5 },
             ],
         },
 
@@ -355,6 +363,7 @@ const BIOMES = [
             tintColor: 'rgba(200,60,30,0.05)',
             vignetteColor: 'rgba(30,5,0,0.40)',
             vignetteSize: 0.35,
+            emberGlow: true,
         },
 
         // ── Boss appearance per type ──
@@ -417,24 +426,32 @@ const BIOMES = [
             dataMotes: { rate: 0.10, colors: ['rgba(0,229,255,0.4)', 'rgba(100,255,218,0.35)', 'rgba(130,177,255,0.3)'], sizeMin: 1, sizeMax: 3, glow: true },
             // Sparking electricity
             sparks: { rate: 0.06, colors: ['#00e5ff', '#18ffff', '#80d8ff'], sizeMin: 1, sizeMax: 2 },
+            // Holographic glitch fragments
+            holoGlitch: { rate: 0.02, colors: ['rgba(0,229,255,0.3)', 'rgba(255,23,68,0.25)', 'rgba(100,255,218,0.25)'], sizeMin: 2, sizeMax: 5 },
         },
 
         floorDecor: {
-            chance: 0.22,
+            chance: 0.25,
             types: [
-                { shape: 'grid',     color: 'rgba(0,229,255,0.08)', weight: 4 },  // circuit traces
-                { shape: 'hullSeam', color: '#1a2a3a', colorAlt: '#2a3a4a', weight: 3 },  // hull plate seams
-                { shape: 'vent',     color: '#1a2a3a', weight: 2 },  // floor vent grates
-                { shape: 'dot',      color: '#1a2a3a', weight: 1 },  // rivet cluster
+                { shape: 'grid',       color: 'rgba(0,229,255,0.08)', weight: 4 },
+                { shape: 'hullSeam',   color: '#1a2a3a', colorAlt: '#2a3a4a', weight: 3 },
+                { shape: 'vent',       color: '#1a2a3a', weight: 2 },
+                { shape: 'dot',        color: '#1a2a3a', weight: 1 },
+                { shape: 'dataStream', color: 'rgba(0,229,255,0.06)', colorAlt: 'rgba(100,255,218,0.08)', weight: 2 },
+                { shape: 'hazardMark', color: 'rgba(255,183,77,0.12)', colorAlt: 'rgba(255,138,0,0.15)', weight: 1 },
+                { shape: 'oilStain',   color: 'rgba(20,30,40,0.4)', colorAlt: 'rgba(0,229,255,0.06)', weight: 1.5 },
             ],
         },
 
         wallDecor: {
-            chance: 0.35,
+            chance: 0.38,
             types: [
-                { shape: 'panel',   color: '#2a3545', colorAlt: 'rgba(0,229,255,0.12)', weight: 4 },
-                { shape: 'light',   color: '#00e5ff', weight: 3 },  // strip lights
-                { shape: 'conduit', color: '#2a3a4a', colorAlt: '#3a4a5a', weight: 2 },  // pipes/conduits
+                { shape: 'panel',     color: '#2a3545', colorAlt: 'rgba(0,229,255,0.12)', weight: 4 },
+                { shape: 'light',     color: '#00e5ff', weight: 3 },
+                { shape: 'conduit',   color: '#2a3a4a', colorAlt: '#3a4a5a', weight: 2 },
+                { shape: 'screen',    color: '#0a1520', colorAlt: 'rgba(0,229,255,0.2)', weight: 1.5 },
+                { shape: 'wiring',    color: '#2a3a4a', colorAlt: '#00e5ff', weight: 1.5 },
+                { shape: 'ventGrate', color: '#1a2533', colorAlt: '#0f1922', weight: 1 },
             ],
         },
 
@@ -442,6 +459,7 @@ const BIOMES = [
             tintColor: 'rgba(0,229,255,0.03)',
             vignetteColor: 'rgba(0,5,15,0.45)',
             vignetteSize: 0.35,
+            scanlines: true,
         },
 
         bossTheme: {

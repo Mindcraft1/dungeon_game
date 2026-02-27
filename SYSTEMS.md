@@ -176,10 +176,66 @@ Hazards werden dynamisch pro Raum platziert. Schaden skaliert +10% pro Stage üb
 - **Cooldown:** 900ms
 - **I-Frames:** 160ms
 
-### Leveling
-- **XP-Schwelle:** `30 × 1.25^(level-1)`
-- **Level-Up Optionen:** 2 General-Nodes + 1 Synergy-Node + Base-Stat Fallback
-- **Base-Upgrades:** +25 HP (heal +15), +15 Speed, +8 DMG
+### Leveling & Late-Game Skalierung
+
+**XP-Kurve (Soft-Cap):**
+- **Basis-Schwelle:** 30 XP (Level 1 → 2)
+- **Multiplikator:** ×1.25 pro Level bis Level 10
+- **Soft-Cap ab Level 10:** Multiplikator sinkt um 0.015 pro Level über 10
+- **Minimum-Multiplikator:** ×1.08 (wird nie unterschritten)
+- **Formel:** `mult = max(1.08, 1.25 - (level - 10) × 0.015)` für Level > 10
+
+| Level | XP benötigt (alt) | XP benötigt (neu) | Unterschied |
+|-------|--------------------|--------------------|-------------|
+| 5 | 73 | 73 | identisch |
+| 10 | 224 | 224 | identisch |
+| 15 | 683 | 448 | −34% |
+| 20 | 2.088 | 762 | −64% |
+| 25 | 6.381 | 1.170 | −82% |
+
+**Gegner-XP skaliert mit Stage:**
+- Formel: `xpValue × (1 + (stage - 1) × 0.04)`
+- +4% XP pro Stage → Stage 30 Gegner geben ~2.2× so viel XP
+- Gilt für alle Gegner-Typen (Basic, Shooter, Dasher, Tank) und Bosse
+- Typ-Multiplikatoren (×1.3 Shooter, ×1.5 Dasher, ×2.0 Tank) werden *vor* der Stage-Skalierung angewandt
+
+| Stage | Basic XP | Shooter XP | Tank XP |
+|-------|----------|------------|---------|
+| 1 | 15 | 19 | 30 |
+| 10 | 20 | 26 | 41 |
+| 20 | 26 | 34 | 53 |
+| 30 | 32 | 42 | 65 |
+| 40 | 38 | 50 | 77 |
+
+**Level-Up Optionen:** 2 General-Nodes + 1 Synergy-Node + Base-Stat Fallback
+
+**Level-skalierende Base-Upgrades:**
+
+Base-Stat-Upgrades wachsen mit dem Spieler-Level, damit jedes Level-Up im Endgame spürbar bleibt:
+
+| Upgrade | Formel | Level 1 | Level 10 | Level 20 | Level 30 |
+|---------|--------|---------|----------|----------|----------|
+| ❤️ Max HP | `25 + floor(level × 2)` | +27 | +45 | +65 | +85 |
+| 👢 Speed | `15 + floor(level × 0.5)` | +15 | +20 | +25 | +30 |
+| ⚔️ Damage | `8 + floor(level × 1.5)` | +9 | +23 | +38 | +53 |
+
+HP-Upgrade heilt zusätzlich 60% des gewährten HP-Bonus.
+
+**Konstanten** (in `constants.js`):
+
+| Konstante | Wert | Beschreibung |
+|-----------|------|--------------|
+| `XP_BASE` | 30 | Basis-XP für Level 1 → 2 |
+| `XP_MULTIPLIER` | 1.25 | XP-Mult bis zum Soft-Cap |
+| `XP_SOFT_CAP_LEVEL` | 10 | Ab wann Mult sinkt |
+| `XP_MULT_FLOOR` | 1.08 | Minimaler XP-Mult |
+| `XP_MULT_DECAY` | 0.015 | Mult-Verringerung pro Level über Soft-Cap |
+| `ENEMY_XP_STAGE_SCALE` | 0.04 | +4% Gegner-XP pro Stage |
+| `UPGRADE_HP_PER_LEVEL` | 2 | Extra HP pro Spieler-Level bei HP-Upgrade |
+| `UPGRADE_SPEED_PER_LEVEL` | 0.5 | Extra Speed pro Spieler-Level |
+| `UPGRADE_DAMAGE_PER_LEVEL` | 1.5 | Extra DMG pro Spieler-Level |
+
+**Design-Ziel:** Der Spieler soll sich ab Stage 30+ zunehmend mächtiger fühlen und weiter spürbar stärker werden, während die Herausforderung durch Gegner-HP/Anzahl/Typen erhalten bleibt. Leveling darf nie zum Stillstand kommen.
 
 ---
 
