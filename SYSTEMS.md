@@ -257,17 +257,47 @@ Jeder besiegte Gegner hat **25% Chance** einen Pickup zu droppen. Drops hängen 
 
 Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node hat eine Rarität und Stack-Limit.
 
-**Raritäts-Gewichtung bei Zufallsauswahl:**
-| Rarität | Gewicht | Farbe |
-|---------|---------|-------|
-| Common | 50 | – |
-| Uncommon | 35 | – |
-| Rare | 15 | – |
+### 10.1 Rarity System (5 Tiers)
 
-### Melee-Nodes (8)
+| Rarität | Farbe | Frühestes Stage | Badge-Effekt |
+|---------|-------|-----------------|--------------|
+| Common | `#b0bec5` | 1 | Standard-Pill |
+| Uncommon | `#66bb6a` | 1 | Standard-Pill |
+| Rare | `#42a5f5` | 1 | Standard-Pill |
+| Epic | `#e040fb` | 10 | Pulsierender Glow-Aura |
+| Legendary | `#ff6d00` | 25 | Starker Glow + leuchtender Text |
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+### 10.2 Stage-Scaled Rarity Weights
+
+Gewichte skalieren dynamisch mit dem aktuellen Stage. Höhere Stages verschieben Gewicht in Richtung seltener Tiers.
+
+**Progression-Faktor:** `progression = min(1.0, (stage - 1) / 49)` (0 bei Stage 1, ~1.0 bei Stage 50)
+
+| Rarität | Stage 1 | Stage 10 | Stage 25 | Stage 50 |
+|---------|---------|----------|----------|----------|
+| Common | 50 | 45 | 36 | 22 |
+| Uncommon | 35 | 36 | 37 | 40 |
+| Rare | 12 | 14 | 17 | 22 |
+| Epic | 0 | 5 | 8 | 13 |
+| Legendary | 0 | 0 | 0 | 10 |
+
+- **Epic** nodes werden erst ab **Stage 10** in die Pool aufgenommen
+- **Legendary** nodes werden erst ab **Stage 25** verfügbar, Gewicht steigt linear mit `(stage - 25) × 0.4`
+- `getEligibleNodes()` filtert Nodes raus, deren Rarity-Unlock-Stage noch nicht erreicht ist
+
+### 10.3 Level-Up Selection
+
+`buildLevelUpChoices()` bietet **3 Optionen** an:
+- **2 General Picks** — aus dem gesamten Pool (stage-weighted rarity)
+- **1 Synergy Pick** — aus der Kategorie der aktuellen Waffe/Ability/Proc (bevorzugt passende Nodes)
+- Duplikate werden gefiltert, Forge/Reroll Tokens können den Pool verändern
+
+---
+
+### Melee-Nodes (13)
+
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | ⚔️ **Cleave** | Uncommon | 2 | +1 Extra Melee-Ziel pro Stack |
 | 🌀 **Wide Arc** | Common | 2 | +20% Angriffs-Bogen pro Stack |
 | ⚡ **Quick Strikes** | Common | 2 | +15% Angriffsgeschwindigkeit pro Stack |
@@ -276,11 +306,16 @@ Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node h
 | 💥 **Kill Nova** | Rare | 1 | On Kill: AoE Burst (r60, ×0.4 DMG, 1s CD) |
 | 🔨 **Heavy Strike** | Common | 1 | +30% KB, -10% Speed |
 | 🏃 **Lunge** | Uncommon | 1 | Kleiner Vorstoß beim Angriff (30px) |
+| 🧛 **Vampiric Edge** | Rare | 2 | 8% Melee-Lifesteal pro Stack |
+| 🔗 **Chain Fury** | Uncommon | 1 | Kills geben +50% DMG für 2s |
+| 🌋 **Earthquake Slam** | **Epic** | 1 | Jeder 5. Hit: Massives AoE Groundpound (r120, ×0.8 DMG) |
+| 🌪️ **Whirlwind Strike** | **Epic** | 1 | 360° Angriffe, aber 20% langsamer |
+| 🔆 **Razor Orbit** | Rare | 2 | Melee-Kill spawnt orbitierende Klinge (15s, ×0.25 DMG) |
 
-### Dagger-Nodes (8)
+### Dagger-Nodes (12)
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 🗡️ **Multi-Dagger** | Uncommon | 2 | +1 Dagger pro Wurf |
 | 🌊 **Fan of Knives** | Rare | 1 | 3-Wege Kegel (Arc 0.4) |
 | 📌 **Piercing Daggers** | Common | 3 | +1 Pierce pro Stack |
@@ -289,78 +324,118 @@ Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node h
 | 💨 **Swift Throw** | Common | 2 | +25% Dagger-Speed pro Stack |
 | 🎯 **Precision Throw** | Common | 2 | +5% Crit-Chance (Daggers) pro Stack |
 | 🪃 **Boomerang** | Rare | 1 | Dolche kehren zurück |
+| 💣 **Explosive Daggers** | **Epic** | 1 | Dolche explodieren beim letzten Hit (r60, ×0.5 DMG) |
+| 🎯 **Homing Daggers** | Rare | 1 | Dolche verfolgen leicht Gegner |
+| 👻 **Shadow Daggers** | **Epic** | 1 | Dolche spawnen Geister-Kopie nach 0.3s (×0.4 DMG) |
+| 🐍 **Venomous Tips** | Uncommon | 1 | Dolche verlangsamen Gegner 30% für 1.5s |
 
-### Dash-Nodes (5)
+### Dash-Nodes (9)
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 💥 **Impact Dash** | Uncommon | 1 | AoE + KB am Dash-Ende (r50, KB 15) |
 | 🔥 **Blazing Dash** | Uncommon | 1 | Feuer-Spur beim Dashen (6 DPS, 0.8s) |
 | ⏱️ **Quick Recovery** | Common | 2 | -15% Dash-Cooldown pro Stack |
 | 📏 **Extended Roll** | Common | 2 | +20% Dash-Distanz pro Stack |
 | 💫 **Stunning Rush** | Uncommon | 1 | Dash-Kollision stunt 0.4s |
+| ⚡ **Double Dash** | **Legendary** | 2 | +1 Dash Charge (verkettbare Dashes!) |
+| 👻 **Phantom Trail** | **Epic** | 1 | Dash hinterlässt schadenverursachende Nachbilder (×0.35, 0.6s) |
+| 🌀 **Void Rift** | **Epic** | 1 | Dash hinterlässt Vortex der Gegner anzieht (r80, 1.5s) |
+| ♻️ **Dash Reset** | Uncommon | 1 | Kills resetten sofort Dash-Cooldown |
 
-### Shockwave-Nodes (4) — *Benötigen Shockwave equipped*
+### Shockwave-Nodes (7) — *Benötigen Shockwave equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 💥 **Wider Blast** | Common | 2 | +30% Radius pro Stack |
 | 🔄 **Aftershock** | Rare | 1 | Zweiter Puls nach 0.3s (60% DMG) |
 | 💫 **Concussive Blast** | Uncommon | 1 | Stun 0.6s im inneren Radius (50%) |
 | ⏱️ **Seismic Affinity** | Common | 1 | -20% Cooldown |
+| 💥 **Chain Reaction** | **Epic** | 1 | Getötete Feinde explodieren (×0.4 DMG, r70) |
+| 🔥 **Scorching Wave** | Uncommon | 1 | Shockwave entzündet Feinde (4 DPS, 2s) |
+| 🌑 **Gravity Shock** | Uncommon | 1 | Shockwave zieht Feinde erst nach innen |
 
-### Blade Storm-Nodes (3) — *Benötigen Blade Storm equipped*
+### Blade Storm-Nodes (6) — *Benötigen Blade Storm equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 🌀 **Prolonged Storm** | Common | 2 | +1s Dauer pro Stack |
 | 🌀 **Expanding Vortex** | Common | 2 | +15% Radius pro Stack |
 | ⏱️ **Storm Mastery** | Uncommon | 1 | -15% Cooldown |
+| ⚡ **Lightning Vortex** | Rare | 1 | Storm zappt Feinde mit Bonus-⚡-DMG (×0.2) |
+| 🩸 **Shredding Blades** | Uncommon | 1 | Storm verursacht Bleed (3 DPS, 2s) |
+| 🌋 **Blade Eruption** | **Legendary** | 1 | Storm endet mit massiver Explosion (r160, ×1.0 DMG) |
 
-### Gravity Pull-Nodes (2) — *Benötigen Gravity Pull equipped*
+### Gravity Pull-Nodes (4) — *Benötigen Gravity Pull equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 🌑 **Gravity Well** | Common | 2 | +25% Radius pro Stack |
 | ⏱️ **Warp Affinity** | Uncommon | 1 | -15% Cooldown |
+| ⚫ **Singularity** | **Epic** | 1 | Pull komprimiert Feinde, +25% DMG taken (3s) |
+| 💥 **Void Explosion** | **Epic** | 1 | Pull endet mit violenter Explosion (r120, ×0.8 DMG) |
 
-### Freeze Pulse-Nodes (3) — *Benötigen Freeze Pulse equipped*
+### Freeze Pulse-Nodes (6) — *Benötigen Freeze Pulse equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | ❄️ **Permafrost** | Common | 2 | +25% Radius pro Stack |
 | ❄️ **Deep Freeze** | Uncommon | 2 | +0.5s Freeze-Dauer pro Stack |
 | ⏱️ **Frost Mastery** | Uncommon | 1 | -20% Cooldown |
+| 💎 **Shatter** | **Epic** | 1 | Gefrorene Feinde töten: AoE Eis-DMG (r80, ×0.6) |
+| ❄️ **Frost Nova Chain** | **Epic** | 1 | Freeze breitet sich auf 2 nahe Feinde aus (r120) |
+| 🧊 **Absolute Zero** | Uncommon | 1 | Gefrorene Feinde nehmen +30% mehr DMG |
 
-### Explosive Strikes-Nodes (3) — *Benötigen Explosive Strikes equipped*
+### Explosive Strikes-Nodes (5) — *Benötigen Explosive Strikes equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 🔥 **Volatile Mix** | Uncommon | 3 | +5% Explosion-Chance (cap +15% → 25% total) |
 | 💥 **Blast Radius** | Common | 2 | +20% Explosion-Radius pro Stack |
 | 💣 **Bigger Boom** | Uncommon | 2 | +15% Explosion-DMG pro Stack |
+| 🔥 **Inferno Chain** | **Epic** | 1 | Explosionen können weitere Explosionen triggern (25% Chance) |
+| 🔥 **Napalm** | Uncommon | 1 | Explosionen hinterlassen Feuer (5 DPS, 2s) |
 
-### Chain Lightning-Nodes (3) — *Benötigen Chain Lightning equipped*
+### Chain Lightning-Nodes (5) — *Benötigen Chain Lightning equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | ⚡ **Longer Chain** | Common | 2 | +1 Blitz-Sprung pro Stack |
 | ⚡ **Conduction** | Uncommon | 2 | +5% Lightning-Chance (cap +13% → 25% total) |
 | ⚡ **Extended Arc** | Common | 2 | +20% Lightning-Range pro Stack |
+| ⚡ **Overcharge** | Uncommon | 2 | +25% Chain Lightning-DMG pro Stack |
+| ⚡ **Paralyzing Bolt** | Rare | 1 | Lightning stunt letztes Ziel 0.5s |
 
-### Heavy Crit-Nodes (2) — *Benötigen Heavy Crit equipped*
+### Heavy Crit-Nodes (4) — *Benötigen Heavy Crit equipped*
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | 💎 **Devastating Crits** | Uncommon | 2 | +20% Crit-Bonus-DMG pro Stack |
 | 🎯 **Keen Eye** | Common | 3 | +3% globale Crit-Chance pro Stack |
+| 💥 **Critical Mass** | **Epic** | 1 | Crits verursachen kleine Explosion (r50, ×0.3 DMG) |
+| 🔥 **Crit Streak** | Uncommon | 1 | Jeder Crit: +5% nächste Crit-Chance (max +25%) |
 
-### Global-Nodes (2)
+### Global-Nodes (6)
 
-| Node | Rarität | Max Stacks | Effekt |
-|------|---------|------------|--------|
+| Node | Rarität | Max | Effekt |
+|------|---------|-----|--------|
 | ⚡ **Power Surge** | Rare | 2 | +8% aller Schaden pro Stack |
 | ⏱️ **Temporal Flux** | Rare | 2 | -8% aller Cooldowns pro Stack |
+| 🌈 **Elemental Fury** | **Legendary** | 1 | On Kill: zufälliger elementarer Burst (r70, ×0.35) |
+| 🏃 **Momentum** | Rare | 1 | Kills innerhalb 3s: +5% Speed (max +30%) |
+| 🔮 **Glass Cannon** | **Legendary** | 1 | +25% aller DMG, aber -15% Max HP |
+| ⚡ **Overcharge** | **Epic** | 1 | +15% Ability-DMG, -10% Ability-CD |
+
+### Node-Zählung nach Rarität
+
+| Rarität | Anzahl |
+|---------|--------|
+| Common | 23 |
+| Uncommon | 27 |
+| Rare | 12 |
+| Epic | 14 |
+| Legendary | 4 |
+| **Gesamt** | **80** |
 
 ---
 

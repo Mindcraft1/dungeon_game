@@ -4,15 +4,49 @@
 // ─────────────────────────────────────────────────────────────
 
 import { NODE_DEFINITIONS, NODE_IDS, getNode, createDefaultCombatMods } from './nodes.js';
-import { NODE_RARITY_COMMON, NODE_RARITY_UNCOMMON, NODE_RARITY_RARE } from '../constants.js';
+import { NODE_RARITY_COMMON, NODE_RARITY_UNCOMMON, NODE_RARITY_RARE, NODE_RARITY_EPIC, NODE_RARITY_LEGENDARY } from '../constants.js';
 import * as MetaStore from '../meta/metaStore.js';
 
-// ── Rarity weights for random selection ──
-const RARITY_WEIGHTS = {
-    [NODE_RARITY_COMMON]:   50,
-    [NODE_RARITY_UNCOMMON]: 35,
-    [NODE_RARITY_RARE]:     15,
+// ── Rarity base weights for random selection ──
+const BASE_RARITY_WEIGHTS = {
+    [NODE_RARITY_COMMON]:    50,
+    [NODE_RARITY_UNCOMMON]:  35,
+    [NODE_RARITY_RARE]:      12,
+    [NODE_RARITY_EPIC]:       3,
+    [NODE_RARITY_LEGENDARY]:  0,   // 0 base = never at stage 1
 };
+
+// Stage thresholds where rarities unlock and start scaling
+const RARITY_UNLOCK_STAGE = {
+    [NODE_RARITY_COMMON]:    1,
+    [NODE_RARITY_UNCOMMON]:  1,
+    [NODE_RARITY_RARE]:      1,
+    [NODE_RARITY_EPIC]:      10,   // epics can appear from stage 10+
+    [NODE_RARITY_LEGENDARY]: 25,   // legendaries from stage 25+
+};
+
+/**
+ * Get rarity weights adjusted for current stage.
+ * Higher stages shift weight toward rarer tiers.
+ * @param {number} stage - current game stage (1+)
+ * @returns {Record<string, number>}
+ */
+function getRarityWeights(stage = 1) {
+    const s = Math.max(1, stage);
+    // Scale factor: how much to boost rarer tiers (0 at stage 1, ~1.0 at stage 50)
+    const progression = Math.min(1.0, (s - 1) / 49);
+
+    return {
+        [NODE_RARITY_COMMON]:    Math.max(10, 50 - progression * 28),  // 50 → 22
+        [NODE_RARITY_UNCOMMON]:  35 + progression * 5,                 // 35 → 40
+        [NODE_RARITY_RARE]:      12 + progression * 10,                // 12 → 22
+        [NODE_RARITY_EPIC]:      s >= RARITY_UNLOCK_STAGE[NODE_RARITY_EPIC]      ? 3 + progression * 10  : 0,  // 0 → 13
+        [NODE_RARITY_LEGENDARY]: s >= RARITY_UNLOCK_STAGE[NODE_RARITY_LEGENDARY] ? Math.max(0, (s - 25) * 0.4) : 0,  // 0 → ~5 at stage 37, ~10 at stage 50
+    };
+}
+
+// Legacy compat (used in a few places that don't pass stage)
+const RARITY_WEIGHTS = BASE_RARITY_WEIGHTS;
 
 // ── Per-Run State ──
 
@@ -182,9 +216,14 @@ function _rebuildCombatMods() {
  * @returns {object[]} array of node definitions
  */
 export function getEligibleNodes(poolType, context) {
+    const stage = context.stage || 1;
     return NODE_IDS
         .map(id => NODE_DEFINITIONS[id])
         .filter(def => {
+            // Rarity stage gate: don't show nodes whose rarity isn't unlocked yet
+            const unlockStage = RARITY_UNLOCK_STAGE[def.rarity];
+            if (unlockStage && stage < unlockStage) return false;
+
             // Pool type filter
             if (poolType !== 'all') {
                 if (poolType === 'ability') {
@@ -211,17 +250,19 @@ export function pickRandomNodes(poolType, context, count = 3) {
     if (eligible.length === 0) return [];
     if (eligible.length <= count) return _shuffle(eligible);
 
+    const weights = getRarityWeights(context.stage || 1);
+
     // Weighted random selection without replacement
     const selected = [];
     const remaining = [...eligible];
 
     for (let i = 0; i < count && remaining.length > 0; i++) {
-        const totalWeight = remaining.reduce((sum, def) => sum + (RARITY_WEIGHTS[def.rarity] || 30), 0);
+        const totalWeight = remaining.reduce((sum, def) => sum + (weights[def.rarity] || 5), 0);
         let roll = Math.random() * totalWeight;
         let picked = remaining.length - 1;
 
         for (let j = 0; j < remaining.length; j++) {
-            roll -= (RARITY_WEIGHTS[remaining[j].rarity] || 30);
+            roll -= (weights[remaining[j].rarity] || 5);
             if (roll <= 0) { picked = j; break; }
         }
 
@@ -248,7 +289,7 @@ export function buildLevelUpChoices(context, player) {
         allGeneral.push(...getEligibleNodes(pool, context));
     }
 
-    const generalPicks = _weightedPickN(allGeneral, 2);
+    const generalPicks = _weightedPickN(allGeneral, 2, context.stage || 1);
     for (const def of generalPicks) {
         choices.push({
             type: 'node',
@@ -274,7 +315,7 @@ export function buildLevelUpChoices(context, player) {
     const synergyFiltered = synergyPools.filter(d => !pickedIds.has(d.id));
 
     if (synergyFiltered.length > 0) {
-        const synPick = _weightedPickN(synergyFiltered, 1);
+        const synPick = _weightedPickN(synergyFiltered, 1, context.stage || 1);
         for (const def of synPick) {
             choices.push({
                 type: 'node',
@@ -366,16 +407,17 @@ function _shuffle(arr) {
     return a;
 }
 
-function _weightedPickN(pool, n) {
+function _weightedPickN(pool, n, stage = 1) {
     if (pool.length <= n) return _shuffle(pool);
+    const weights = getRarityWeights(stage);
     const selected = [];
     const remaining = [...pool];
     for (let i = 0; i < n && remaining.length > 0; i++) {
-        const totalWeight = remaining.reduce((sum, def) => sum + (RARITY_WEIGHTS[def.rarity] || 30), 0);
+        const totalWeight = remaining.reduce((sum, def) => sum + (weights[def.rarity] || 5), 0);
         let roll = Math.random() * totalWeight;
         let picked = remaining.length - 1;
         for (let j = 0; j < remaining.length; j++) {
-            roll -= (RARITY_WEIGHTS[remaining[j].rarity] || 30);
+            roll -= (weights[remaining[j].rarity] || 5);
             if (roll <= 0) { picked = j; break; }
         }
         selected.push(remaining[picked]);

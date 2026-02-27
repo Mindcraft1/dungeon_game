@@ -58,6 +58,23 @@ export class Player {
         this.dashDirX = 0;
         this.dashDirY = 0;
 
+        // ── Dash charge system (for Double/Triple Dash node) ──
+        this.dashMaxCharges = 1;    // base = 1, increased by nodes
+        this.dashCharges = 1;       // current available charges
+        this.dashChargeTimer = 0;   // ms until next charge regenerates
+
+        // ── Melee tracking (for Earthquake Slam, Chain Fury, Razor Orbit) ──
+        this.meleeHitCounter = 0;         // for quake every Nth hit
+        this.chainKillDmgTimer = 0;       // ms remaining of chain fury buff
+        this.chainKillDmgActive = false;
+
+        // ── Momentum tracking (Global: kills grant speed) ──
+        this.momentumStacks = 0;
+        this.momentumTimer = 0;
+
+        // ── Crit Streak tracking (Heavy Crit node) ──
+        this.critStreakBonus = 0;
+
         // ── Buff system ──
         // Each buff: { type, remaining (ms), duration (ms) }
         this.activeBuffs = [];
@@ -178,6 +195,32 @@ export class Player {
 
         // ── Dash logic ──
         if (this.dashCooldown > 0) this.dashCooldown -= ms;
+
+        // ── Dash charge regeneration ──
+        if (this.dashCharges < this.dashMaxCharges) {
+            this.dashChargeTimer -= ms;
+            if (this.dashChargeTimer <= 0) {
+                this.dashCharges = Math.min(this.dashCharges + 1, this.dashMaxCharges);
+                // If still below max, start next charge timer
+                if (this.dashCharges < this.dashMaxCharges) {
+                    this.dashChargeTimer = this.dashCooldown > 0 ? this.dashCooldown : 900;
+                } else {
+                    this.dashChargeTimer = 0;
+                }
+            }
+        }
+
+        // ── Chain Fury timer ──
+        if (this.chainKillDmgTimer > 0) {
+            this.chainKillDmgTimer -= ms;
+            if (this.chainKillDmgTimer <= 0) this.chainKillDmgActive = false;
+        }
+
+        // ── Momentum timer ──
+        if (this.momentumTimer > 0) {
+            this.momentumTimer -= ms;
+            if (this.momentumTimer <= 0) { this.momentumStacks = 0; this.momentumTimer = 0; }
+        }
 
         if (this.dashing) {
             this.dashTimer -= ms;
@@ -314,7 +357,11 @@ export class Player {
      */
     tryDash(movement, mods = {}, globalMods = {}) {
         if (this.dashing) return false;
-        if (this.dashCooldown > 0) return false;
+
+        // Charge-based: need at least 1 charge to dash
+        const maxCharges = 1 + (mods.extraCharges || 0);
+        this.dashMaxCharges = maxCharges;
+        if (this.dashCharges <= 0) return false;
 
         // Need a movement direction to dash
         let dirX = movement.x;
@@ -333,9 +380,19 @@ export class Player {
         const durationMult = (mods.durationMult || 1);
         const cdMult = (mods.cooldownMult || 1) * (globalMods.cooldownMult || 1) * this.talentDashCdMult;
 
+        // Consume a charge
+        this.dashCharges--;
+
+        // Start the charge regen timer (per charge)
+        const cdTime = getVal('dashCooldown', DASH_COOLDOWN) * cdMult;
+        if (this.dashChargeTimer <= 0) {
+            this.dashChargeTimer = cdTime;
+        }
+        // Also keep dashCooldown for backwards compatibility with UI/other systems
+        this.dashCooldown = cdTime;
+
         this.dashing = true;
         this.dashTimer = getVal('dashDuration', DASH_DURATION) * durationMult;
-        this.dashCooldown = getVal('dashCooldown', DASH_COOLDOWN) * cdMult;
         this.dashDirX = dirX;
         this.dashDirY = dirY;
         this.invulnTimer = Math.max(this.invulnTimer, DASH_INVULN_TIME);
@@ -536,6 +593,17 @@ export class Player {
                     fireTrailDps: mods.fireTrailDps || 0,
                     returning: mods.returning || false,
                     critBonus,
+                    explosive: mods.explosive || false,
+                    explosionRadius: mods.explosionRadius || 0,
+                    explosionDmgMult: mods.explosionDmgMult || 0,
+                    homing: mods.homing || false,
+                    homingStrength: mods.homingStrength || 0,
+                    shadowCopy: mods.shadowCopy || false,
+                    shadowDelay: mods.shadowDelay || 0,
+                    shadowDmgMult: mods.shadowDmgMult || 0,
+                    venomSlow: mods.venomSlow || false,
+                    venomSlowFactor: mods.venomSlowFactor || 1,
+                    venomSlowDuration: mods.venomSlowDuration || 0,
                 });
             }
         } else {
@@ -563,6 +631,17 @@ export class Player {
                     fireTrailDps: mods.fireTrailDps || 0,
                     returning: mods.returning || false,
                     critBonus,
+                    explosive: mods.explosive || false,
+                    explosionRadius: mods.explosionRadius || 0,
+                    explosionDmgMult: mods.explosionDmgMult || 0,
+                    homing: mods.homing || false,
+                    homingStrength: mods.homingStrength || 0,
+                    shadowCopy: mods.shadowCopy || false,
+                    shadowDelay: mods.shadowDelay || 0,
+                    shadowDmgMult: mods.shadowDmgMult || 0,
+                    venomSlow: mods.venomSlow || false,
+                    venomSlowFactor: mods.venomSlowFactor || 1,
+                    venomSlowDuration: mods.venomSlowDuration || 0,
                 });
             }
         }
@@ -724,7 +803,7 @@ export class Player {
         return this.activeBuffs.some(b => b.type === type);
     }
 
-    /** Effective move speed accounting for biome, Swift Boots buff, lava slow, and tar slow. */
+    /** Effective move speed accounting for biome, Swift Boots buff, lava slow, tar slow, and momentum. */
     getEffectiveSpeed() {
         let spd = this.hasBuff(PICKUP_SWIFT_BOOTS) ? this.speed * BUFF_SWIFT_SPEED_MULT : this.speed;
         if (this.talentSpeedMult !== 1) spd *= this.talentSpeedMult;
@@ -732,15 +811,21 @@ export class Player {
         if (this.onLava) spd *= HAZARD_LAVA_SLOW;
         // Skip tar slow while dashing so the player can dash over holes adjacent to tar
         if (!this.dashing && (this.onTar || this.tarLingerTimer > 0)) spd *= HAZARD_TAR_SLOW;
+        // Momentum node: speed stacks from recent kills
+        if (this.momentumStacks > 0) spd *= (1 + this.momentumStacks * 0.05);
         return spd;
     }
 
-    /** Effective damage accounting for Berserker rage passive. */
+    /** Effective damage accounting for Berserker rage passive and Chain Fury. */
     getEffectiveDamage() {
         let dmg = this.damage;
         if (this.talentMeleeDmgMult !== 1) dmg = Math.floor(dmg * this.talentMeleeDmgMult);
         if (this.berserkActive && this.berserkDamageBuff > 0) {
             dmg = Math.floor(dmg * (1 + this.berserkDamageBuff));
+        }
+        // Chain Fury: kill grants +50% DMG for 2s
+        if (this.chainKillDmgActive) {
+            dmg = Math.floor(dmg * 1.5);
         }
         return dmg;
     }

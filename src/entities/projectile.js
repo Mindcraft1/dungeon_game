@@ -108,6 +108,22 @@ export class PlayerProjectile {
         this._returning = false;           // currently on return trip
         this._ownerRef = modOpts.owner || null; // player ref for returning
         this._fireTrailTimer = 0;          // spawn fire zones periodically
+
+        // ── New node-driven modifiers ──
+        this.explosive = modOpts.explosive || false;
+        this.explosionRadius = modOpts.explosionRadius || 0;
+        this.explosionDmgMult = modOpts.explosionDmgMult || 0;
+        this.homing = modOpts.homing || false;
+        this.homingStrength = modOpts.homingStrength || 0;
+        this.shadowCopy = modOpts.shadowCopy || false;
+        this.shadowDelay = modOpts.shadowDelay || 0;
+        this.shadowDmgMult = modOpts.shadowDmgMult || 0;
+        this.venomSlow = modOpts.venomSlow || false;
+        this.venomSlowFactor = modOpts.venomSlowFactor || 1;
+        this.venomSlowDuration = modOpts.venomSlowDuration || 0;
+        this._shadowSpawned = false;
+        this._shadowTimer = 0;
+        this._isShadow = modOpts._isShadow || false; // shadow copies don't spawn more shadows
     }
 
     update(dt, enemies, boss, grid) {
@@ -139,6 +155,56 @@ export class PlayerProjectile {
 
         this.x += this.dirX * this.speed * dt;
         this.y += this.dirY * this.speed * dt;
+
+        // ── Homing: gently steer toward nearest enemy ──
+        if (this.homing && !this._returning) {
+            let nearestDist = 200; // max homing detection range
+            let nearestE = null;
+            for (const e of enemies) {
+                if (e.dead || this._hitSet.has(e)) continue;
+                const dx = e.x - this.x;
+                const dy = e.y - this.y;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d < nearestDist) { nearestDist = d; nearestE = e; }
+            }
+            if (boss && !boss.dead && !this._hitSet.has(boss)) {
+                const dx = boss.x - this.x;
+                const dy = boss.y - this.y;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d < nearestDist) { nearestDist = d; nearestE = boss; }
+            }
+            if (nearestE) {
+                const tx = nearestE.x - this.x;
+                const ty = nearestE.y - this.y;
+                const td = Math.sqrt(tx * tx + ty * ty) || 1;
+                const str = this.homingStrength * dt;
+                this.dirX += (tx / td) * str;
+                this.dirY += (ty / td) * str;
+                const dl = Math.sqrt(this.dirX * this.dirX + this.dirY * this.dirY) || 1;
+                this.dirX /= dl;
+                this.dirY /= dl;
+            }
+        }
+
+        // ── Shadow Copy: spawn a ghost dagger after delay ──
+        if (this.shadowCopy && !this._shadowSpawned && !this._isShadow) {
+            this._shadowTimer += dt * 1000;
+            if (this._shadowTimer >= this.shadowDelay) {
+                this._shadowSpawned = true;
+                if (!this.pendingShadowCopy) {
+                    this.pendingShadowCopy = {
+                        x: this.x, y: this.y,
+                        dirX: this.dirX, dirY: this.dirY,
+                        speed: this.speed * 0.9,
+                        damage: Math.floor(this.damage * this.shadowDmgMult),
+                        radius: this.radius,
+                        color: '#9e9e9e',
+                        maxDist: this.maxDist * 0.7,
+                        knockback: this.knockback * 0.5,
+                    };
+                }
+            }
+        }
 
         // ── Fire trail: spawn fire zones along path ──
         if (this.fireTrail) {
@@ -204,10 +270,28 @@ export class PlayerProjectile {
                 this.hitTarget = { x: e.x, y: e.y, dirX: this.dirX, dirY: this.dirY, entity: e };
                 this._hitSet.add(e);
 
+                // Venom slow on hit
+                if (this.venomSlow && e.applyStatusEffect) {
+                    e.applyStatusEffect('slow', this.venomSlowDuration, this.venomSlowFactor);
+                }
+                // Queue venom for game.js to apply (if entity lacks applyStatusEffect)
+                if (this.venomSlow) {
+                    if (!this.pendingVenomTargets) this.pendingVenomTargets = [];
+                    this.pendingVenomTargets.push({ target: e, factor: this.venomSlowFactor, duration: this.venomSlowDuration });
+                }
+
                 if (this.pierceRemaining > 0) {
                     this.pierceRemaining--;
                     // Don't die — continue through
                 } else {
+                    // Explosive daggers: queue explosion at impact point
+                    if (this.explosive && this.explosionRadius > 0) {
+                        this.pendingExplosion = {
+                            x: e.x, y: e.y,
+                            radius: this.explosionRadius,
+                            damage: Math.floor(this.damage * this.explosionDmgMult),
+                        };
+                    }
                     this.dead = true;
                     return;
                 }
@@ -229,9 +313,23 @@ export class PlayerProjectile {
                 this.hitTarget = { x: boss.x, y: boss.y, dirX: this.dirX, dirY: this.dirY, entity: boss };
                 this._hitSet.add(boss);
 
+                // Venom slow on boss
+                if (this.venomSlow) {
+                    if (!this.pendingVenomTargets) this.pendingVenomTargets = [];
+                    this.pendingVenomTargets.push({ target: boss, factor: this.venomSlowFactor, duration: this.venomSlowDuration });
+                }
+
                 if (this.pierceRemaining > 0) {
                     this.pierceRemaining--;
                 } else {
+                    // Explosive daggers on boss
+                    if (this.explosive && this.explosionRadius > 0) {
+                        this.pendingExplosion = {
+                            x: boss.x, y: boss.y,
+                            radius: this.explosionRadius,
+                            damage: Math.floor(this.damage * this.explosionDmgMult),
+                        };
+                    }
                     this.dead = true;
                     return;
                 }

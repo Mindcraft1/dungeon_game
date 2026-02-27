@@ -167,18 +167,39 @@ export function renderStatusEffects(ctx, enemy) {
         ctx.restore();
     }
 
-    // Burning: orange flickering glow
+    // Burning: bright fire glow + animated flicker
     if (s.burnUntil > 0) {
         ctx.save();
-        const flicker = Math.sin(Date.now() * 0.015) * 0.1;
-        ctx.globalAlpha = 0.3 + flicker;
-        ctx.shadowColor = '#ff6d00';
-        ctx.shadowBlur = 8;
-        ctx.strokeStyle = '#ff9800';
-        ctx.lineWidth = 2;
+        const t = Date.now();
+        const flicker = Math.sin(t * 0.015) * 0.12 + Math.sin(t * 0.037) * 0.06;
+
+        // Inner glow fill
+        ctx.globalAlpha = 0.22 + flicker * 0.5;
+        ctx.fillStyle = '#ff6d00';
         ctx.beginPath();
-        ctx.arc(enemy.x, enemy.y, enemy.radius + 1, 0, Math.PI * 2);
+        ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bright outer fire ring
+        ctx.globalAlpha = 0.55 + flicker;
+        ctx.shadowColor = '#ff3d00';
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#ffab00';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.radius + 3, 0, Math.PI * 2);
         ctx.stroke();
+
+        // Second glow ring for extra punch
+        ctx.globalAlpha = 0.3 + flicker;
+        ctx.shadowColor = '#ff9800';
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = '#ffe082';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
         ctx.shadowBlur = 0;
         ctx.restore();
     }

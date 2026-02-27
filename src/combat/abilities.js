@@ -11,7 +11,7 @@ import {
     ABILITY_GRAVITY_SLOW_DURATION, ABILITY_GRAVITY_FORCE,
     ABILITY_FREEZE_CD, ABILITY_FREEZE_RADIUS, ABILITY_FREEZE_DURATION, ABILITY_FREEZE_DMG_MULT,
 } from '../constants.js';
-import { applyFreeze, applySlow } from './statusEffects.js';
+import { applyFreeze, applySlow, applyBurn } from './statusEffects.js';
 import * as Impact from './impactSystem.js';
 import { stopBladeStorm } from '../audio.js';
 
@@ -28,11 +28,32 @@ export const ABILITY_DEFINITIONS = {
 
         onUse(ctx) {
             const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
-            const baseDmg = Math.floor(player.damage * ABILITY_SHOCKWAVE_DMG_MULT * (globalMods.damageMult || 1));
+            const baseDmg = Math.floor(player.damage * ABILITY_SHOCKWAVE_DMG_MULT * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
             const effectiveRadius = ABILITY_SHOCKWAVE_RADIUS * (abilityMods.radiusMult || 1);
 
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
+
+            // ── Gravity Shock: pull enemies inward first ──
+            if (abilityMods.pullBefore) {
+                const pullFraction = 0.45; // pull 45% of the distance toward player
+                const minPullDist = 20;    // minimum pull in px so nearby enemies still feel it
+                for (const e of targets) {
+                    if (e.dead) continue;
+                    const dx = player.x - e.x;
+                    const dy = player.y - e.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > effectiveRadius + (e.radius || 12) || dist < 5) continue;
+                    const pullPx = Math.max(minPullDist, dist * pullFraction);
+                    // Don't overshoot past the player
+                    const clampedPull = Math.min(pullPx, dist - (player.radius || 14) - (e.radius || 12));
+                    if (clampedPull <= 0) continue;
+                    e.x += (dx / dist) * clampedPull;
+                    e.y += (dy / dist) * clampedPull;
+                }
+            }
+
             let hitCount = 0;
+            const killed = []; // track kills for Chain Reaction
 
             for (const e of targets) {
                 if (e.dead) continue;
@@ -40,6 +61,8 @@ export const ABILITY_DEFINITIONS = {
                 const dy = e.y - player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > effectiveRadius + (e.radius || 12)) continue;
+
+                const hpBefore = e.hp;
 
                 // Knockback scales inversely with distance
                 const d = dist || 1;
@@ -49,12 +72,20 @@ export const ABILITY_DEFINITIONS = {
                 Impact.flashEntity(e, 80);
                 hitCount++;
 
+                // ── Scorching Wave: ignite enemies ──
+                if (abilityMods.burnOnHit) {
+                    applyBurn(e, abilityMods.burnDuration || 2000, abilityMods.burnDps || 4);
+                }
+
                 // Concussive Blast: stun in inner radius
                 if (abilityMods.stunDuration && abilityMods.stunInnerRadius) {
                     if (dist <= effectiveRadius * abilityMods.stunInnerRadius) {
                         applyFreeze(e, abilityMods.stunDuration);
                     }
                 }
+
+                // Track kills for chain reaction
+                if (e.dead && hpBefore > 0) killed.push(e);
 
                 // Trigger proc on each hit
                 if (procSystem) {
@@ -64,6 +95,26 @@ export const ABILITY_DEFINITIONS = {
                         { enemies, boss, particles },
                     );
                 }
+            }
+
+            // ── Chain Reaction: killed enemies explode ──
+            if (abilityMods.chainReaction && killed.length > 0) {
+                const chainDmg = Math.floor(player.damage * (abilityMods.chainDmgMult || 0.4));
+                const chainRadius = abilityMods.chainRadius || 70;
+                for (const dead of killed) {
+                    for (const e of targets) {
+                        if (e.dead || e === dead) continue;
+                        const dx = e.x - dead.x;
+                        const dy = e.y - dead.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > chainRadius + (e.radius || 12)) continue;
+                        const d = dist || 1;
+                        e.takeDamage(chainDmg, (dx / d) * 6, (dy / d) * 6);
+                        Impact.flashEntity(e, 50);
+                    }
+                    if (particles) particles.procExplosion(dead.x, dead.y, chainRadius * 0.7);
+                }
+                Impact.shake(10, 0.86);
             }
 
             // Impact — big, punchy hit-stop + heavy shake + screen flash
@@ -136,13 +187,34 @@ export const ABILITY_DEFINITIONS = {
                 state.active = false;
                 // Stop the looping blade storm sound
                 stopBladeStorm();
+
+                // ── Blade Eruption: massive explosion on end ──
+                if (abilityMods.endExplosion) {
+                    const eruptRadius = abilityMods.endExplosionRadius || 160;
+                    const eruptDmg = Math.floor(player.damage * (abilityMods.endExplosionDmgMult || 1.0) * (globalMods.damageMult || 1));
+                    const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
+                    for (const e of targets) {
+                        if (e.dead) continue;
+                        const dx = e.x - player.x;
+                        const dy = e.y - player.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > eruptRadius + (e.radius || 12)) continue;
+                        const d = dist || 1;
+                        e.takeDamage(eruptDmg, (dx / d) * 12, (dy / d) * 12);
+                        Impact.flashEntity(e, 100);
+                    }
+                    Impact.bigImpact(150, 16, 0.88);
+                    Impact.screenFlash('#ff5722', 0.5, 0.003);
+                    if (particles) particles.procExplosion(player.x, player.y, eruptRadius);
+                }
+
                 return state;
             }
 
             // Tick damage
             if (state.tickTimer <= 0) {
                 state.tickTimer = ABILITY_BLADESTORM_TICK;
-                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT * (globalMods.damageMult || 1));
+                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
 
                 let tickHits = 0;
@@ -158,6 +230,18 @@ export const ABILITY_DEFINITIONS = {
                     e.takeDamage(tickDmg, (dx / d) * 4, (dy / d) * 4);
                     Impact.flashEntity(e, 60);
                     tickHits++;
+
+                    // ── Lightning Vortex: bonus zap DMG per tick ──
+                    if (abilityMods.lightningTicks) {
+                        const zapDmg = Math.floor(player.damage * (abilityMods.lightningDmgMult || 0.2) * (globalMods.damageMult || 1));
+                        e.takeDamage(zapDmg, 0, 0);
+                        if (particles) particles.procChainLightning([{ x: player.x, y: player.y }, { x: e.x, y: e.y }]);
+                    }
+
+                    // ── Shredding Blades: apply bleed (burn) per tick ──
+                    if (abilityMods.bleedOnTick) {
+                        applyBurn(e, abilityMods.bleedDuration || 2000, abilityMods.bleedDps || 3);
+                    }
 
                     if (procSystem) {
                         const abilityCrit = Math.random() < (player.critChance + (player.talentCritBonus || 0));
@@ -202,7 +286,7 @@ export const ABILITY_DEFINITIONS = {
 
         onUpdate(ctx, dt, state) {
             if (!state || !state.active) return state;
-            const { player, enemies, boss, particles, abilityMods = {} } = ctx;
+            const { player, enemies, boss, particles, abilityMods = {}, globalMods = {} } = ctx;
             const effectiveRadius = ABILITY_GRAVITY_RADIUS * (abilityMods.radiusMult || 1);
 
             state.pullRemaining -= dt;
@@ -223,6 +307,12 @@ export const ABILITY_DEFINITIONS = {
                     e.x += (dx / dist) * pullStr;
                     e.y += (dy / dist) * pullStr;
                     pulling++;
+
+                    // ── Singularity: mark pulled enemies as vulnerable ──
+                    if (abilityMods.singularity) {
+                        e._vulnerabilityMult = abilityMods.singularityVulnMult || 1.25;
+                        e._vulnerabilityTimer = (abilityMods.singularityDuration || 3000) / 1000; // seconds
+                    }
                 }
                 // Continuous rumble while pulling
                 if (pulling > 0) Impact.shake(2 + pulling * 0.5, 0.82);
@@ -235,6 +325,26 @@ export const ABILITY_DEFINITIONS = {
                 // Apply slow after pull ends
                 state.slowApplied = true;
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
+
+                // ── Void Explosion: explode when pull ends ──
+                if (abilityMods.endExplosion) {
+                    const eruptRadius = abilityMods.endExplosionRadius || 120;
+                    const eruptDmg = Math.floor(player.damage * (abilityMods.endExplosionDmgMult || 0.8) * (globalMods.damageMult || 1));
+                    for (const e of targets) {
+                        if (e.dead) continue;
+                        const dx = e.x - player.x;
+                        const dy = e.y - player.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > eruptRadius + (e.radius || 12)) continue;
+                        const d = dist || 1;
+                        e.takeDamage(eruptDmg, (dx / d) * 10, (dy / d) * 10);
+                        Impact.flashEntity(e, 80);
+                    }
+                    Impact.bigImpact(120, 14, 0.88);
+                    Impact.screenFlash('#6200ea', 0.45, 0.003);
+                    if (particles) particles.procExplosion(player.x, player.y, eruptRadius);
+                }
+
                 for (const e of targets) {
                     if (e.dead) continue;
                     const dx = player.x - e.x;
@@ -262,10 +372,11 @@ export const ABILITY_DEFINITIONS = {
         onUse(ctx) {
             const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
-            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT * (globalMods.damageMult || 1));
+            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
             const effectiveRadius = ABILITY_FREEZE_RADIUS * (abilityMods.radiusMult || 1);
             const freezeDuration = ABILITY_FREEZE_DURATION + (abilityMods.durationBonus || 0);
             let hitCount = 0;
+            const frozenTargets = []; // track for chain freeze
 
             for (const e of targets) {
                 if (e.dead) continue;
@@ -275,11 +386,58 @@ export const ABILITY_DEFINITIONS = {
                 if (dist > effectiveRadius + (e.radius || 12)) continue;
 
                 applyFreeze(e, freezeDuration * 1000);
+
+                // ── Absolute Zero: mark frozen enemies as vulnerable ──
+                if (abilityMods.frozenVulnerability) {
+                    e._vulnerabilityMult = abilityMods.frozenVulnMult || 1.30;
+                    e._vulnerabilityTimer = freezeDuration; // vulnerability lasts as long as freeze
+                }
+
                 if (dmg > 0) {
                     e.takeDamage(dmg, 0, 0);
                 }
                 Impact.flashEntity(e, 100);
                 hitCount++;
+                frozenTargets.push(e);
+            }
+
+            // ── Frost Nova Chain: freeze spreads to nearby unfrozen enemies ──
+            if (abilityMods.chainFreeze && frozenTargets.length > 0) {
+                const chainCount = abilityMods.chainCount || 2;
+                const chainRange = abilityMods.chainRange || 120;
+                const alreadyFrozen = new Set(frozenTargets);
+
+                for (const frozen of frozenTargets) {
+                    let chained = 0;
+                    for (const e of targets) {
+                        if (e.dead || alreadyFrozen.has(e)) continue;
+                        if (chained >= chainCount) break;
+                        const dx = e.x - frozen.x;
+                        const dy = e.y - frozen.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > chainRange + (e.radius || 12)) continue;
+                        applyFreeze(e, freezeDuration * 0.7 * 1000); // slightly shorter chain freeze
+                        if (abilityMods.frozenVulnerability) {
+                            e._vulnerabilityMult = abilityMods.frozenVulnMult || 1.30;
+                            e._vulnerabilityTimer = freezeDuration * 0.7;
+                        }
+                        alreadyFrozen.add(e);
+                        chained++;
+                        Impact.flashEntity(e, 80);
+                        if (particles) particles.procChainLightning([{ x: frozen.x, y: frozen.y }, { x: e.x, y: e.y }]);
+                    }
+                }
+            }
+
+            // ── Shatter: register shatter info so game.js can trigger AoE on frozen kills ──
+            // We store shatter data on the player for the combat system to read
+            if (abilityMods.shatter) {
+                player._freezeShatter = {
+                    active: true,
+                    radius: abilityMods.shatterRadius || 80,
+                    dmgMult: abilityMods.shatterDmgMult || 0.6,
+                    timer: freezeDuration + 1, // active while freeze lasts + buffer
+                };
             }
 
             Impact.bigImpact(90, 12, 0.90);

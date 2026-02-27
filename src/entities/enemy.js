@@ -126,6 +126,15 @@ export class Enemy {
         initStatus(this);
         const statusResult = updateStatus(this, ms);
 
+        // ── Vulnerability timer countdown ──
+        if (this._vulnerabilityTimer > 0) {
+            this._vulnerabilityTimer -= dt;
+            if (this._vulnerabilityTimer <= 0) {
+                this._vulnerabilityMult = 1;
+                this._vulnerabilityTimer = 0;
+            }
+        }
+
         // Burn damage
         if (statusResult.burnDamage > 0) {
             this.hp -= statusResult.burnDamage;
@@ -430,6 +439,12 @@ export class Enemy {
 
     takeDamage(amount, kbX = 0, kbY = 0, isCrit = false) {
         if (this.dead) return;
+
+        // Vulnerability multiplier (from Singularity / Absolute Zero)
+        if (this._vulnerabilityMult && this._vulnerabilityMult > 1) {
+            amount = Math.floor(amount * this._vulnerabilityMult);
+        }
+
         this.hp -= amount;
         this.damageFlashTimer = 120;
         playHit();

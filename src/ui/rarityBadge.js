@@ -7,7 +7,7 @@ import { RARITY_COLORS, RARITY_LABELS } from '../constants.js';
 /**
  * Draw a small rarity pill badge.
  * @param {CanvasRenderingContext2D} ctx
- * @param {string} rarity - 'common' | 'uncommon' | 'rare'
+ * @param {string} rarity - 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
  * @param {number} x - center X of the badge
  * @param {number} y - center Y of the badge
  * @param {boolean} [dimmed=false] - if true, lower opacity for non-selected items
@@ -17,6 +17,8 @@ export function drawRarityBadge(ctx, rarity, x, y, dimmed = false) {
 
     const label = RARITY_LABELS[rarity] || rarity;
     const color = RARITY_COLORS[rarity];
+    const isEpic = rarity === 'epic';
+    const isLegendary = rarity === 'legendary';
 
     ctx.save();
 
@@ -32,26 +34,44 @@ export function drawRarityBadge(ctx, rarity, x, y, dimmed = false) {
 
     if (dimmed) ctx.globalAlpha = 0.5;
 
+    // ── Glow aura for Epic / Legendary ──
+    if ((isEpic || isLegendary) && !dimmed) {
+        const pulse = 0.45 + 0.25 * Math.sin(performance.now() / (isLegendary ? 350 : 600));
+        ctx.shadowColor = color;
+        ctx.shadowBlur = isLegendary ? 14 : 8;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(rx - 1, ry - 1, pillW + 2, pillH + 2, radius + 1);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = dimmed ? 0.5 : 1;
+    }
+
     // Pill background
     ctx.fillStyle = color;
-    ctx.globalAlpha *= 0.18;
+    ctx.globalAlpha *= (isLegendary ? 0.3 : isEpic ? 0.24 : 0.18);
     ctx.beginPath();
     ctx.roundRect(rx, ry, pillW, pillH, radius);
     ctx.fill();
 
     // Pill border
-    ctx.globalAlpha = dimmed ? 0.4 : 0.7;
+    ctx.globalAlpha = dimmed ? 0.4 : (isLegendary ? 1.0 : isEpic ? 0.85 : 0.7);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = isLegendary ? 1.5 : 1;
     ctx.beginPath();
     ctx.roundRect(rx, ry, pillW, pillH, radius);
     ctx.stroke();
 
     // Text
-    ctx.globalAlpha = dimmed ? 0.5 : 0.9;
+    ctx.globalAlpha = dimmed ? 0.5 : (isLegendary ? 1.0 : 0.9);
     ctx.fillStyle = color;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    if (isLegendary && !dimmed) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 6;
+    }
     ctx.fillText(label.toUpperCase(), x, y);
 
     ctx.restore();
@@ -72,6 +92,8 @@ export function drawRarityBadgeRight(ctx, rarity, x, y, dimmed = false) {
 
     const label = RARITY_LABELS[rarity] || rarity;
     const color = RARITY_COLORS[rarity];
+    const isEpic = rarity === 'epic';
+    const isLegendary = rarity === 'legendary';
 
     ctx.save();
 
@@ -86,26 +108,44 @@ export function drawRarityBadgeRight(ctx, rarity, x, y, dimmed = false) {
 
     if (dimmed) ctx.globalAlpha = 0.5;
 
+    // ── Glow aura for Epic / Legendary ──
+    if ((isEpic || isLegendary) && !dimmed) {
+        const pulse = 0.45 + 0.25 * Math.sin(performance.now() / (isLegendary ? 350 : 600));
+        ctx.shadowColor = color;
+        ctx.shadowBlur = isLegendary ? 14 : 8;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(rx - 1, ry - 1, pillW + 2, pillH + 2, radius + 1);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = dimmed ? 0.5 : 1;
+    }
+
     // Pill background
     ctx.fillStyle = color;
-    ctx.globalAlpha *= 0.18;
+    ctx.globalAlpha *= (isLegendary ? 0.3 : isEpic ? 0.24 : 0.18);
     ctx.beginPath();
     ctx.roundRect(rx, ry, pillW, pillH, radius);
     ctx.fill();
 
     // Pill border
-    ctx.globalAlpha = dimmed ? 0.4 : 0.7;
+    ctx.globalAlpha = dimmed ? 0.4 : (isLegendary ? 1.0 : isEpic ? 0.85 : 0.7);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = isLegendary ? 1.5 : 1;
     ctx.beginPath();
     ctx.roundRect(rx, ry, pillW, pillH, radius);
     ctx.stroke();
 
     // Text
-    ctx.globalAlpha = dimmed ? 0.5 : 0.9;
+    ctx.globalAlpha = dimmed ? 0.5 : (isLegendary ? 1.0 : 0.9);
     ctx.fillStyle = color;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    if (isLegendary && !dimmed) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 6;
+    }
     ctx.fillText(label.toUpperCase(), rx + pillW / 2, y);
 
     ctx.restore();

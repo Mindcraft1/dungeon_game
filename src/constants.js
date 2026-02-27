@@ -297,20 +297,26 @@ export const PROC_HEAVY_CRIT_EXTRA_DMG = 0.4; // +40% on crit
 export const PLAYER_BASE_CRIT_CHANCE = 0.05;  // 5% base crit chance
 
 // ── Upgrade Node System ──
-export const NODE_RARITY_COMMON   = 'common';
-export const NODE_RARITY_UNCOMMON = 'uncommon';
-export const NODE_RARITY_RARE     = 'rare';
+export const NODE_RARITY_COMMON    = 'common';
+export const NODE_RARITY_UNCOMMON  = 'uncommon';
+export const NODE_RARITY_RARE      = 'rare';
+export const NODE_RARITY_EPIC      = 'epic';
+export const NODE_RARITY_LEGENDARY = 'legendary';
 
 // Rarity display colors and labels
 export const RARITY_COLORS = {
-    common:   '#9e9e9e',
-    uncommon: '#4caf50',
-    rare:     '#ffd740',
+    common:    '#9e9e9e',
+    uncommon:  '#4caf50',
+    rare:      '#ffd740',
+    epic:      '#e040fb',
+    legendary: '#ff6d00',
 };
 export const RARITY_LABELS = {
-    common:   'Common',
-    uncommon: 'Uncommon',
-    rare:     'Rare',
+    common:    'Common',
+    uncommon:  'Uncommon',
+    rare:      'Rare',
+    epic:      'Epic',
+    legendary: 'Legendary',
 };
 
 // ── Event System ──
