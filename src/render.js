@@ -98,6 +98,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
                     _drawSpaceshipFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
                 } else if (isJungle) {
                     _drawJungleFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
+                } else if (isDepths) {
+                    _drawDepthsFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
                 } else {
                     // Floor
                     ctx.fillStyle = floorColor;
@@ -416,6 +418,120 @@ function _drawFloorDecor(ctx, x, y, type, col, row, seed) {
                 );
                 ctx.stroke();
             }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'seaweed': {
+            // Swaying seaweed fronds rooted to the floor
+            const fronds = 2 + Math.floor(h1 * 3);
+            for (let i = 0; i < fronds; i++) {
+                const fx = x + 6 + _tileHash(col + i, row, seed + 850 + i) * 28;
+                const fy = y + TILE_SIZE - 2;
+                const fh = 12 + _tileHash(col, row + i, seed + 860 + i) * 16;
+                const sway = (_tileHash(col + i, row + i, seed + 870) - 0.5) * 10;
+                const isAlt = _tileHash(col + i, row, seed + 880 + i) > 0.4;
+                ctx.strokeStyle = isAlt && type.colorAlt ? type.colorAlt : type.color;
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.moveTo(fx, fy);
+                ctx.quadraticCurveTo(fx + sway * 0.6, fy - fh * 0.5, fx + sway, fy - fh);
+                ctx.stroke();
+                // Small leaf/bulb at tip
+                if (isAlt && type.colorAlt) {
+                    ctx.fillStyle = type.colorAlt;
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.ellipse(fx + sway, fy - fh, 2, 1, sway * 0.05, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'barnacle': {
+            // Small barnacle clusters on floor
+            ctx.globalAlpha = 0.45;
+            const bCount = 3 + Math.floor(h1 * 3);
+            for (let i = 0; i < bCount; i++) {
+                const bx = x + 5 + _tileHash(col + i, row, seed + 890 + i) * 30;
+                const by = y + 5 + _tileHash(col, row + i, seed + 900 + i) * 30;
+                const br = 1.5 + _tileHash(col + i, row + i, seed + 910) * 2;
+                ctx.fillStyle = type.color;
+                ctx.beginPath();
+                ctx.arc(bx, by, br, 0, Math.PI * 2);
+                ctx.fill();
+                // Inner dimple
+                ctx.fillStyle = type.colorAlt || 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.arc(bx, by, br * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'coral': {
+            // Small coral formation — branching structure
+            ctx.globalAlpha = 0.55;
+            const baseX = x + 10 + h1 * 20;
+            const baseY = y + TILE_SIZE - 4;
+            // Main stem
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.lineTo(baseX + (h2 - 0.5) * 4, baseY - 10 - h1 * 6);
+            ctx.stroke();
+            // Left branch
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(baseX + (h2 - 0.5) * 2, baseY - 6);
+            ctx.lineTo(baseX - 4 - h1 * 3, baseY - 12 - h2 * 4);
+            ctx.stroke();
+            // Right branch
+            ctx.beginPath();
+            ctx.moveTo(baseX + (h2 - 0.5) * 3, baseY - 8);
+            ctx.lineTo(baseX + 5 + h2 * 3, baseY - 14 - h1 * 3);
+            ctx.stroke();
+            // Polyp dots at tips
+            if (type.colorAlt) {
+                ctx.fillStyle = type.colorAlt;
+                ctx.globalAlpha = 0.5;
+                const tips = [
+                    [baseX + (h2 - 0.5) * 4, baseY - 10 - h1 * 6],
+                    [baseX - 4 - h1 * 3, baseY - 12 - h2 * 4],
+                    [baseX + 5 + h2 * 3, baseY - 14 - h1 * 3],
+                ];
+                for (const [tx, ty] of tips) {
+                    ctx.beginPath();
+                    ctx.arc(tx, ty, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'shell': {
+            // Tiny spiral shell
+            const sx = x + 8 + h1 * 24;
+            const sy = y + 10 + h2 * 20;
+            ctx.fillStyle = type.color;
+            ctx.globalAlpha = 0.5;
+            // Spiral approximation: overlapping arcs decreasing in size
+            const baseR = 2.5 + h1 * 1.5;
+            ctx.beginPath();
+            ctx.arc(sx, sy, baseR, 0, Math.PI * 2);
+            ctx.fill();
+            // Inner spiral lines
+            ctx.strokeStyle = type.colorAlt || 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 0.5;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.arc(sx, sy, baseR * 0.65, Math.PI * 0.3, Math.PI * 1.7);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(sx - 0.5, sy - 0.3, baseR * 0.35, Math.PI * 0.5, Math.PI * 1.8);
+            ctx.stroke();
             ctx.globalAlpha = 1;
             break;
         }
@@ -923,6 +1039,104 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
             ctx.globalAlpha = 1;
             break;
         }
+        case 'stalactite': {
+            // Hanging mineral / stalactite formations on wall
+            ctx.globalAlpha = 0.6;
+            const stalCount = 2 + Math.floor(h1 * 3);
+            for (let i = 0; i < stalCount; i++) {
+                const sx = x + 4 + _tileHash(col + i, row, seed + 670 + i) * (TILE_SIZE - 8);
+                const stalLen = 8 + _tileHash(col, row + i, seed + 680 + i) * 14;
+                const stalW = 2 + _tileHash(col + i, row + i, seed + 690) * 2;
+                // Triangular stalactite shape
+                ctx.fillStyle = type.color;
+                ctx.beginPath();
+                ctx.moveTo(sx - stalW, y + TILE_SIZE);
+                ctx.lineTo(sx + stalW, y + TILE_SIZE);
+                ctx.lineTo(sx + (h1 - 0.5) * 2, y + TILE_SIZE - stalLen);
+                ctx.closePath();
+                ctx.fill();
+                // Wet highlight
+                if (type.colorAlt) {
+                    ctx.fillStyle = type.colorAlt;
+                    ctx.globalAlpha = 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(sx - stalW * 0.3, y + TILE_SIZE);
+                    ctx.lineTo(sx, y + TILE_SIZE - stalLen + 2);
+                    ctx.lineTo(sx + stalW * 0.3, y + TILE_SIZE);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.globalAlpha = 0.6;
+                }
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'crystal': {
+            // Glowing crystal cluster on wall
+            const cx2 = x + 8 + h1 * 22;
+            const cy2 = y + TILE_SIZE - 6 - h2 * 14;
+            ctx.save();
+            ctx.shadowColor = type.color;
+            ctx.shadowBlur = 8;
+            // Main crystal shard
+            ctx.fillStyle = type.color;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(cx2 - 2, cy2 + 6);
+            ctx.lineTo(cx2, cy2 - 6 - h1 * 4);
+            ctx.lineTo(cx2 + 2, cy2 + 6);
+            ctx.closePath();
+            ctx.fill();
+            // Smaller secondary shard
+            ctx.beginPath();
+            ctx.moveTo(cx2 + 3, cy2 + 5);
+            ctx.lineTo(cx2 + 4, cy2 - 2 - h2 * 3);
+            ctx.lineTo(cx2 + 6, cy2 + 5);
+            ctx.closePath();
+            ctx.fill();
+            // Tiny third shard
+            if (h1 > 0.3) {
+                ctx.beginPath();
+                ctx.moveTo(cx2 - 5, cy2 + 4);
+                ctx.lineTo(cx2 - 4, cy2 + 1 - h2 * 2);
+                ctx.lineTo(cx2 - 3, cy2 + 4);
+                ctx.closePath();
+                ctx.fill();
+            }
+            // Bright highlight on main crystal
+            ctx.fillStyle = type.colorAlt || '#ffffff';
+            ctx.globalAlpha = 0.35;
+            ctx.beginPath();
+            ctx.moveTo(cx2 - 0.5, cy2 + 3);
+            ctx.lineTo(cx2, cy2 - 3);
+            ctx.lineTo(cx2 + 0.5, cy2 + 3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            break;
+        }
+        case 'barnacle': {
+            // Barnacle clusters on wall surface
+            ctx.globalAlpha = 0.5;
+            const bCount = 3 + Math.floor(h1 * 4);
+            for (let i = 0; i < bCount; i++) {
+                const bx = x + 3 + _tileHash(col + i, row, seed + 700 + i) * (TILE_SIZE - 6);
+                const by = y + TILE_SIZE - 3 - _tileHash(col, row + i, seed + 710 + i) * (TILE_SIZE * 0.6);
+                const br = 1.5 + _tileHash(col + i, row + i, seed + 720) * 2;
+                // Outer ring
+                ctx.fillStyle = type.color;
+                ctx.beginPath();
+                ctx.arc(bx, by, br, 0, Math.PI * 2);
+                ctx.fill();
+                // Inner hole
+                ctx.fillStyle = type.colorAlt || 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.arc(bx, by, br * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
         case 'glowMushroom': {
             // Bioluminescent mushroom growing on wall
             const mx = x + 8 + h1 * 24;
@@ -1036,6 +1250,98 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
             ctx.fillRect(cx2 - 3, y + 22 + h1 * 8, 6, 2);
             ctx.globalAlpha = 1;
             break;
+        }
+    }
+}
+
+// ── Depths biome: underwater stone floor tile ───────────────
+function _drawDepthsFloor(ctx, x, y, col, row, grid, floorColor, gridTint, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 6000);
+    const h2 = _tileHash(col, row, seed + 6001);
+    const h3 = _tileHash(col, row, seed + 6002);
+
+    // ── Base floor with subtle color variation (dark stone) ──
+    const shadeIdx = ((col * 7 + row * 3) ^ (col * 5 + row)) & 7;
+    const shades = [
+        '#0c1220', '#0e1424', '#0a101e', '#0d1322',
+        '#0b1120', '#0f1526', '#091018', '#10161e',
+    ];
+    ctx.fillStyle = shades[shadeIdx];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Wet sheen — slight blue-tinted highlight on some tiles ──
+    if (h < 0.4) {
+        const grad = ctx.createLinearGradient(x, y, x + S, y + S);
+        grad.addColorStop(0, 'rgba(40, 80, 150, 0.0)');
+        grad.addColorStop(0.4 + h2 * 0.2, 'rgba(40, 80, 150, 0.08)');
+        grad.addColorStop(1, 'rgba(40, 80, 150, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, S, S);
+    }
+
+    // ── Dark sediment patches ──
+    if (h3 > 0.55) {
+        ctx.fillStyle = 'rgba(5, 10, 25, 0.15)';
+        ctx.beginPath();
+        ctx.ellipse(
+            x + S * 0.5 + (h - 0.5) * S * 0.3,
+            y + S * 0.5 + (h2 - 0.5) * S * 0.3,
+            S * 0.2 + h * S * 0.2,
+            S * 0.15 + h2 * S * 0.15,
+            h3 * Math.PI * 2, 0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+
+    // ── Subtle blue bioluminescent spots (rare) ──
+    if (h > 0.85) {
+        ctx.fillStyle = 'rgba(60, 150, 255, 0.08)';
+        const bx = x + 6 + h2 * (S - 12);
+        const by = y + 6 + h3 * (S - 12);
+        ctx.beginPath();
+        ctx.arc(bx, by, 4 + h * 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ── Stone seams — irregular, like worn underwater rock ──
+    ctx.strokeStyle = 'rgba(8, 16, 35, 0.25)';
+    ctx.lineWidth = 0.5;
+    // Top edge with erosion wobble
+    ctx.beginPath();
+    ctx.moveTo(x, y + 0.5);
+    ctx.lineTo(x + S * 0.25, y + 0.5 + (h - 0.5) * 2);
+    ctx.lineTo(x + S * 0.5, y + 0.5 - (h2 - 0.5) * 1.5);
+    ctx.lineTo(x + S * 0.75, y + 0.5 + (h3 - 0.5) * 1.5);
+    ctx.lineTo(x + S, y + 0.5);
+    ctx.stroke();
+    // Left edge
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y);
+    ctx.lineTo(x + 0.5 + (h2 - 0.5) * 2, y + S * 0.35);
+    ctx.lineTo(x + 0.5 - (h - 0.5) * 1.5, y + S * 0.65);
+    ctx.lineTo(x + 0.5, y + S);
+    ctx.stroke();
+
+    // ── Micro-sediment specks ──
+    if (h2 > 0.35) {
+        ctx.fillStyle = 'rgba(20, 35, 60, 0.3)';
+        for (let i = 0; i < 3; i++) {
+            const dx = x + 3 + _tileHash(col + i, row, seed + 6010 + i) * (S - 6);
+            const dy = y + 3 + _tileHash(col, row + i, seed + 6020 + i) * (S - 6);
+            const dr = 0.5 + _tileHash(col + i, row + i, seed + 6030) * 0.7;
+            ctx.beginPath();
+            ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ── Floor decorations ──
+    if (biome.floorDecor) {
+        const rng = _tileHash(col, row, seed);
+        if (rng < biome.floorDecor.chance) {
+            const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, seed + 100));
+            _drawFloorDecor(ctx, x, y, type, col, row, seed);
         }
     }
 }
@@ -1301,6 +1607,11 @@ export function renderAtmosphere(ctx, biome) {
         _renderDappledLight(ctx);
     }
 
+    // ── Underwater caustic light (depths biome) ──
+    if (atm.causticLight) {
+        _renderCausticLight(ctx);
+    }
+
     // Radial vignette (cached to an offscreen canvas for perf)
     if (atm.vignetteColor && atm.vignetteSize > 0) {
         const key = atm.vignetteColor + '|' + atm.vignetteSize;
@@ -1367,5 +1678,55 @@ function _renderDappledLight(ctx) {
         ctx.ellipse(sx, sy, spot.radiusX * 0.4 * pulse, spot.radiusY * 0.4 * pulse, spot.angle + drift * 0.1, 0, Math.PI * 2);
         ctx.fill();
     }
+    ctx.restore();
+}
+
+// ── Caustic light: underwater light refraction patterns ─────
+// Thin, slowly shifting wavy lines that drift across the floor.
+const _CAUSTIC_LINES = [];
+for (let i = 0; i < 14; i++) {
+    _CAUSTIC_LINES.push({
+        baseOffset: (i / 14) * CANVAS_WIDTH * 1.4 - CANVAS_WIDTH * 0.2,
+        angle: 0.35 + (i % 3) * 0.15,           // slight diagonal
+        waveFreq: 0.008 + (i % 4) * 0.003,
+        waveAmp: 6 + (i * 7 % 10),
+        speed: 0.00012 + (i % 3) * 0.00006,
+        phase: i * 0.9,
+        alpha: 0.03 + (i % 3) * 0.012,
+        lineWidth: 0.6 + (i % 3) * 0.4,
+    });
+}
+
+function _renderCausticLight(ctx) {
+    const t = Date.now();
+    ctx.save();
+
+    for (const line of _CAUSTIC_LINES) {
+        const shift = t * line.speed + line.phase;
+        const drift = Math.sin(shift) * 30;         // slow lateral drift
+        const pulse = 0.7 + Math.sin(shift * 2.2) * 0.3;
+
+        ctx.globalAlpha = line.alpha * pulse;
+        ctx.strokeStyle = 'rgba(80, 170, 255, 1)';
+        ctx.lineWidth = line.lineWidth;
+
+        ctx.beginPath();
+        const cosA = Math.cos(line.angle);
+        const sinA = Math.sin(line.angle);
+        const steps = 18;
+        for (let s = 0; s <= steps; s++) {
+            const frac = s / steps;
+            // Walk along the line's main axis (full canvas diagonal)
+            const along = frac * (CANVAS_WIDTH + CANVAS_HEIGHT) - CANVAS_HEIGHT * 0.3;
+            // Perpendicular wave offset
+            const wave = Math.sin(along * line.waveFreq + shift * 3) * line.waveAmp;
+            const px = cosA * along - sinA * wave + drift + line.baseOffset * cosA;
+            const py = sinA * along + cosA * wave + drift * 0.3;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+    }
+
     ctx.restore();
 }

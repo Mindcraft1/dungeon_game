@@ -1041,6 +1041,22 @@ export class ParticleSystem {
             p._ambient = true;
             this.particles.push(p);
         }
+        // Drifting sediment — tiny slow-falling specks
+        if (ap.sediment && Math.random() < ap.sediment.rate) {
+            const colors = ap.sediment.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                -5,
+                (Math.random() - 0.5) * 6,
+                5 + Math.random() * 12,  // slow sink
+                ap.sediment.sizeMin + Math.random() * (ap.sediment.sizeMax - ap.sediment.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                5000 + Math.random() * 4000,
+                { friction: 1.0, gravity: 2, shrink: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
     }
 
     // ── Combat ability / proc effects ───────────────────────

@@ -141,32 +141,42 @@ const BIOMES = [
 
         ambientParticles: {
             // Rising bubbles
-            bubbles: { rate: 0.10, colors: ['rgba(150,200,255,0.5)', 'rgba(100,180,255,0.4)', 'rgba(180,220,255,0.35)'], sizeMin: 1.5, sizeMax: 4 },
+            bubbles: { rate: 0.12, colors: ['rgba(150,200,255,0.5)', 'rgba(100,180,255,0.4)', 'rgba(180,220,255,0.35)', 'rgba(200,230,255,0.3)'], sizeMin: 1, sizeMax: 4.5 },
             // Drifting light motes
-            motes: { rate: 0.04, colors: ['rgba(100,200,255,0.4)', 'rgba(150,220,255,0.3)'], sizeMin: 2, sizeMax: 5, glow: true },
+            motes: { rate: 0.05, colors: ['rgba(100,200,255,0.4)', 'rgba(150,220,255,0.3)', 'rgba(80,180,240,0.35)'], sizeMin: 2, sizeMax: 5, glow: true },
+            // Tiny drifting sediment
+            sediment: { rate: 0.07, colors: ['rgba(80,120,160,0.3)', 'rgba(60,100,140,0.25)', 'rgba(100,140,180,0.2)'], sizeMin: 0.8, sizeMax: 2 },
         },
 
         floorDecor: {
-            chance: 0.14,
+            chance: 0.20,
             types: [
-                { shape: 'puddle', color: 'rgba(60,100,180,0.25)', weight: 3 },
-                { shape: 'dot',    color: '#1e3a5e', weight: 2 },  // algae
-                { shape: 'crack',  color: '#1e2a40', weight: 1 },
+                { shape: 'puddle',    color: 'rgba(50,90,170,0.3)', weight: 2.5 },     // deep water pool
+                { shape: 'dot',       color: '#1e3a5e', weight: 1.5 },                  // algae
+                { shape: 'crack',     color: '#1e2a40', weight: 1 },
+                { shape: 'seaweed',   color: '#1b5e3b', colorAlt: '#2e8b57', weight: 2 },  // swaying seaweed
+                { shape: 'barnacle',  color: '#3a5070', colorAlt: '#4a6888', weight: 1.5 }, // barnacle clusters
+                { shape: 'coral',     color: '#6a3060', colorAlt: '#9a50a0', weight: 1 },  // small coral formation
+                { shape: 'shell',     color: '#b0a090', colorAlt: '#d0c8b8', weight: 0.8 }, // tiny shells
             ],
         },
 
         wallDecor: {
-            chance: 0.20,
+            chance: 0.30,
             types: [
-                { shape: 'drip',   color: '#4a6a9a', colorAlt: 'rgba(80,140,220,0.3)', weight: 3 },
-                { shape: 'moss',   color: '#2e4a6e', weight: 2 },
+                { shape: 'drip',       color: '#4a6a9a', colorAlt: 'rgba(80,140,220,0.3)', weight: 3 },
+                { shape: 'moss',       color: '#2e4a6e', weight: 1.5 },
+                { shape: 'stalactite', color: '#3a5878', colorAlt: '#4a6888', weight: 2 },   // hanging mineral formations
+                { shape: 'crystal',    color: '#42a5f5', colorAlt: '#90caf9', weight: 1.5 }, // glowing crystal cluster
+                { shape: 'barnacle',   color: '#2a4060', colorAlt: '#3a5878', weight: 1.5 }, // wall barnacles
             ],
         },
 
         atmosphere: {
-            tintColor: 'rgba(40,80,200,0.06)',
-            vignetteColor: 'rgba(0,5,30,0.45)',
-            vignetteSize: 0.38,
+            tintColor: 'rgba(30,70,180,0.05)',
+            vignetteColor: 'rgba(0,3,25,0.50)',
+            vignetteSize: 0.40,
+            causticLight: true,                     // underwater light caustics
         },
 
         // ── Boss appearance per type ──
