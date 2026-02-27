@@ -52,6 +52,7 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
     const isSpaceship = biome && biome.id === 'spaceship';
     const isDepths    = biome && biome.id === 'depths';
     const isJungle    = biome && biome.id === 'jungle';
+    const isDesert    = biome && biome.id === 'desert';
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
@@ -66,6 +67,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
                     _drawDepthsWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, floorColor, decorSeed, biome);
                 } else if (isJungle) {
                     _drawJungleWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
+                } else if (isDesert) {
+                    _drawDesertWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
                 } else {
                     // Wall – base fill
                     ctx.fillStyle = wallColor;
@@ -100,6 +103,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
                     _drawJungleFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
                 } else if (isDepths) {
                     _drawDepthsFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
+                } else if (isDesert) {
+                    _drawDesertFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
                 } else {
                     // Floor
                     ctx.fillStyle = floorColor;
@@ -531,6 +536,111 @@ function _drawFloorDecor(ctx, x, y, type, col, row, seed) {
             ctx.stroke();
             ctx.beginPath();
             ctx.arc(sx - 0.5, sy - 0.3, baseR * 0.35, Math.PI * 0.5, Math.PI * 1.8);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            break;
+        }
+        // ── Desert floor decor ──────────────────────────────────
+        case 'sandDrift': {
+            // Wind-blown sand accumulation — small crescent shape
+            const sx = x + 6 + h1 * 22;
+            const sy = y + 10 + h2 * 18;
+            ctx.fillStyle = type.color || 'rgba(180, 150, 90, 0.25)';
+            ctx.globalAlpha = 0.35;
+            ctx.beginPath();
+            ctx.ellipse(sx, sy, 6 + h1 * 4, 2 + h2 * 1.5, h1 * 0.4 - 0.2, 0, Math.PI);
+            ctx.fill();
+            // Wind streak line
+            ctx.strokeStyle = type.colorAlt || 'rgba(160, 130, 70, 0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.globalAlpha = 0.25;
+            ctx.beginPath();
+            ctx.moveTo(sx - 6 - h2 * 4, sy + 0.5);
+            ctx.bezierCurveTo(sx - 3, sy - 1, sx + 3, sy - 0.5, sx + 8 + h1 * 3, sy + 1);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'bone': {
+            // Tiny bone fragment half-buried in sand
+            const bx = x + 8 + h1 * 22;
+            const by = y + 8 + h2 * 22;
+            const ang = h1 * Math.PI;
+            ctx.save();
+            ctx.translate(bx, by);
+            ctx.rotate(ang);
+            ctx.fillStyle = type.color || 'rgba(210, 200, 170, 0.4)';
+            ctx.globalAlpha = 0.45;
+            // Shaft
+            ctx.fillRect(-4, -0.8, 8, 1.6);
+            // Knobs at ends
+            ctx.beginPath();
+            ctx.arc(-4, 0, 1.5, 0, Math.PI * 2);
+            ctx.arc(4, 0, 1.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.restore();
+            break;
+        }
+        case 'scarab': {
+            // Tiny beetle shape — oval body + head
+            const bx = x + 10 + h1 * 18;
+            const by = y + 10 + h2 * 18;
+            ctx.fillStyle = type.color || 'rgba(60, 100, 80, 0.5)';
+            ctx.globalAlpha = 0.5;
+            // Body
+            ctx.beginPath();
+            ctx.ellipse(bx, by, 2.5 + h1 * 0.8, 1.8, h2 * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+            // Head
+            ctx.beginPath();
+            const headAngle = h2 * Math.PI;
+            ctx.arc(bx + Math.cos(headAngle) * 3, by + Math.sin(headAngle) * 3, 1, 0, Math.PI * 2);
+            ctx.fill();
+            // Sheen
+            ctx.fillStyle = type.colorAlt || 'rgba(100, 180, 140, 0.3)';
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.ellipse(bx - 0.5, by - 0.5, 1.2, 0.8, headAngle, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'rune': {
+            // Faded ancient carving on floor
+            const rx = x + 10 + h1 * 18;
+            const ry = y + 10 + h2 * 16;
+            ctx.strokeStyle = type.color || 'rgba(160, 140, 100, 0.2)';
+            ctx.lineWidth = 0.8;
+            ctx.globalAlpha = 0.25;
+            // Pick from a few simple glyph patterns
+            const glyph = Math.floor(h1 * 4);
+            ctx.beginPath();
+            if (glyph === 0) {
+                // Eye of Horus style
+                ctx.arc(rx, ry, 3.5, 0, Math.PI * 2);
+                ctx.moveTo(rx - 5, ry);
+                ctx.lineTo(rx + 5, ry);
+                ctx.moveTo(rx, ry + 3.5);
+                ctx.lineTo(rx + 2, ry + 6);
+            } else if (glyph === 1) {
+                // Ankh-ish
+                ctx.arc(rx, ry - 2, 2.5, 0, Math.PI * 2);
+                ctx.moveTo(rx, ry + 0.5);
+                ctx.lineTo(rx, ry + 6);
+                ctx.moveTo(rx - 3, ry + 3);
+                ctx.lineTo(rx + 3, ry + 3);
+            } else if (glyph === 2) {
+                // Triangle / pyramid
+                ctx.moveTo(rx, ry - 4);
+                ctx.lineTo(rx - 4, ry + 3);
+                ctx.lineTo(rx + 4, ry + 3);
+                ctx.closePath();
+            } else {
+                // Wavy serpent
+                ctx.moveTo(rx - 5, ry);
+                ctx.bezierCurveTo(rx - 2, ry - 3, rx + 2, ry + 3, rx + 5, ry);
+            }
             ctx.stroke();
             ctx.globalAlpha = 1;
             break;
@@ -1251,6 +1361,288 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
             ctx.globalAlpha = 1;
             break;
         }
+        // ── Desert wall decor ───────────────────────────────────
+        case 'sandLayer': {
+            // Horizontal sand deposit line across wall base
+            ctx.globalAlpha = 0.4;
+            const ly = y + TILE_SIZE - 3 - h1 * 4;
+            ctx.fillStyle = type.color || 'rgba(180, 150, 90, 0.3)';
+            // Main deposit band
+            ctx.beginPath();
+            ctx.moveTo(x + 1, y + TILE_SIZE);
+            ctx.lineTo(x + 1, ly + 2);
+            ctx.bezierCurveTo(x + TILE_SIZE * 0.3, ly, x + TILE_SIZE * 0.7, ly + 1 + h2 * 2, x + TILE_SIZE - 1, ly + 1);
+            ctx.lineTo(x + TILE_SIZE - 1, y + TILE_SIZE);
+            ctx.closePath();
+            ctx.fill();
+            // Granular top edge
+            ctx.fillStyle = type.colorAlt || 'rgba(200, 170, 110, 0.2)';
+            ctx.globalAlpha = 0.25;
+            for (let i = 0; i < 5; i++) {
+                const gx = x + 4 + _tileHash(col + i, row, seed + 900 + i) * (TILE_SIZE - 8);
+                const gy = ly + 1 + _tileHash(col, row + i, seed + 910) * 2;
+                ctx.beginPath();
+                ctx.arc(gx, gy, 1 + _tileHash(col + i, row + i, seed + 920) * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'hieroglyph': {
+            // Faded ancient wall marking / glyph
+            const gx = x + 8 + h1 * 16;
+            const gy = y + 8 + h2 * 16;
+            ctx.strokeStyle = type.color || 'rgba(160, 140, 100, 0.2)';
+            ctx.lineWidth = 0.8;
+            ctx.globalAlpha = 0.2;
+            const glyph = Math.floor(h1 * 5);
+            ctx.beginPath();
+            if (glyph === 0) {
+                // Winged sun disc
+                ctx.arc(gx, gy, 3, 0, Math.PI * 2);
+                ctx.moveTo(gx - 3, gy);
+                ctx.bezierCurveTo(gx - 7, gy - 3, gx - 10, gy - 1, gx - 11, gy);
+                ctx.moveTo(gx + 3, gy);
+                ctx.bezierCurveTo(gx + 7, gy - 3, gx + 10, gy - 1, gx + 11, gy);
+            } else if (glyph === 1) {
+                // Seated figure
+                ctx.moveTo(gx - 2, gy - 5);
+                ctx.lineTo(gx, gy - 6);
+                ctx.lineTo(gx + 2, gy - 5);
+                ctx.moveTo(gx, gy - 5);
+                ctx.lineTo(gx, gy);
+                ctx.lineTo(gx + 4, gy + 4);
+                ctx.moveTo(gx, gy);
+                ctx.lineTo(gx - 3, gy + 4);
+            } else if (glyph === 2) {
+                // Serpent wave
+                ctx.moveTo(gx - 6, gy);
+                ctx.bezierCurveTo(gx - 3, gy - 4, gx, gy + 4, gx + 3, gy);
+                ctx.bezierCurveTo(gx + 5, gy - 2, gx + 7, gy - 1, gx + 8, gy - 3);
+            } else if (glyph === 3) {
+                // Scarab
+                ctx.ellipse(gx, gy, 4, 3, 0, 0, Math.PI * 2);
+                ctx.moveTo(gx - 4, gy - 1);
+                ctx.lineTo(gx - 6, gy - 4);
+                ctx.moveTo(gx + 4, gy - 1);
+                ctx.lineTo(gx + 6, gy - 4);
+            } else {
+                // Bird (ibis)
+                ctx.moveTo(gx - 2, gy - 4);
+                ctx.lineTo(gx + 1, gy - 5);
+                ctx.lineTo(gx + 4, gy - 3);
+                ctx.moveTo(gx + 1, gy - 4);
+                ctx.lineTo(gx, gy + 2);
+                ctx.lineTo(gx, gy + 5);
+                ctx.moveTo(gx, gy + 2);
+                ctx.lineTo(gx + 3, gy + 5);
+            }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'scorchMark': {
+            // Heat/fire damage scorch on wall
+            const sx = x + 8 + h1 * 20;
+            const sy = y + 6 + h2 * 20;
+            ctx.fillStyle = type.color || 'rgba(30, 20, 10, 0.3)';
+            ctx.globalAlpha = 0.3;
+            // Irregular darkened patch
+            ctx.beginPath();
+            ctx.ellipse(sx, sy, 5 + h1 * 4, 4 + h2 * 3, h1 * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            // Darker core
+            ctx.fillStyle = 'rgba(15, 10, 5, 0.25)';
+            ctx.globalAlpha = 0.25;
+            ctx.beginPath();
+            ctx.ellipse(sx, sy, 3 + h1 * 2, 2 + h2 * 1.5, h1 * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            // Faint ember glow at edge
+            if (type.colorAlt) {
+                ctx.fillStyle = type.colorAlt;
+                ctx.globalAlpha = 0.1;
+                ctx.beginPath();
+                ctx.ellipse(sx + (h1 - 0.5) * 4, sy + (h2 - 0.5) * 3, 2, 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+    }
+}
+
+// ── Desert biome: sun-baked sandstone floor tile ────────────
+function _drawDesertFloor(ctx, x, y, col, row, grid, floorColor, gridTint, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 7000);
+    const h2 = _tileHash(col, row, seed + 7001);
+    const h3 = _tileHash(col, row, seed + 7002);
+
+    // ── Base floor with warm sandstone variation ──
+    const shadeIdx = ((col * 5 + row * 9) ^ (col * 3 + row * 2)) & 7;
+    const shades = [
+        '#2e251a', '#30271c', '#2c231a', '#32291e',
+        '#2a2118', '#34291c', '#281f16', '#362b1e',
+    ];
+    ctx.fillStyle = shades[shadeIdx];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Wind-blown sand accumulation — lighter warm patches ──
+    if (h < 0.35) {
+        ctx.fillStyle = 'rgba(180, 140, 80, 0.08)';
+        ctx.beginPath();
+        ctx.ellipse(
+            x + S * 0.3 + h2 * S * 0.4,
+            y + S * 0.4 + h * S * 0.3,
+            S * 0.3 + h2 * S * 0.15,
+            S * 0.2 + h * S * 0.1,
+            h3 * 0.5, 0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+
+    // ── Sun-baked hot spots — very subtle warm highlight ──
+    if (h3 > 0.65) {
+        const grad = ctx.createRadialGradient(
+            x + S * (0.3 + h * 0.4), y + S * (0.3 + h2 * 0.4), 0,
+            x + S * (0.3 + h * 0.4), y + S * (0.3 + h2 * 0.4), S * 0.4
+        );
+        grad.addColorStop(0, 'rgba(200, 160, 80, 0.06)');
+        grad.addColorStop(1, 'rgba(200, 160, 80, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, S, S);
+    }
+
+    // ── Weathered stone seams ──
+    ctx.strokeStyle = 'rgba(40, 30, 15, 0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 0.5);
+    ctx.lineTo(x + S * 0.35, y + 0.5 + (h - 0.5) * 2);
+    ctx.lineTo(x + S * 0.65, y + 0.5 - (h2 - 0.5) * 1.5);
+    ctx.lineTo(x + S, y + 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y);
+    ctx.lineTo(x + 0.5 + (h2 - 0.5) * 1.5, y + S * 0.4);
+    ctx.lineTo(x + 0.5, y + S);
+    ctx.stroke();
+
+    // ── Tiny sand grains / grit specks ──
+    if (h2 > 0.3) {
+        const grits = ['rgba(160, 130, 80, 0.35)', 'rgba(140, 110, 60, 0.3)', 'rgba(180, 150, 100, 0.25)'];
+        for (let i = 0; i < 4; i++) {
+            const dx = x + 3 + _tileHash(col + i, row, seed + 7010 + i) * (S - 6);
+            const dy = y + 3 + _tileHash(col, row + i, seed + 7020 + i) * (S - 6);
+            const dr = 0.4 + _tileHash(col + i, row + i, seed + 7030) * 0.6;
+            ctx.fillStyle = grits[i % 3];
+            ctx.beginPath();
+            ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ── Floor decorations ──
+    if (biome.floorDecor) {
+        const rng = _tileHash(col, row, seed);
+        if (rng < biome.floorDecor.chance) {
+            const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, seed + 100));
+            _drawFloorDecor(ctx, x, y, type, col, row, seed);
+        }
+    }
+}
+
+// ── Desert biome: weathered sandstone wall tile ─────────────
+function _drawDesertWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 8000);
+    const h2 = _tileHash(col, row, seed + 8001);
+    const h3 = _tileHash(col, row, seed + 8002);
+    const exposed = _hasFloorNeighbour(grid, row, col);
+
+    // ── Base wall with per-tile sandstone variation ──
+    const wallShades = ['#6a5535', '#665130', '#6e5938', '#625030', '#705b3a', '#5e4d2c'];
+    ctx.fillStyle = wallShades[((col * 7 + row * 3) ^ (col + row * 5)) % wallShades.length];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Layered sandstone striations (horizontal bands) ──
+    ctx.globalAlpha = 0.25;
+    const bandCount = 3 + Math.floor(h * 3);
+    for (let i = 0; i < bandCount; i++) {
+        const by = y + 3 + (i / bandCount) * (S - 6) + _tileHash(col, row + i, seed + 8010 + i) * 3;
+        const bh = 1.5 + _tileHash(col + i, row, seed + 8020) * 2;
+        const bright = _tileHash(col + i, row + i, seed + 8030) > 0.5;
+        ctx.fillStyle = bright ? 'rgba(180, 150, 100, 0.3)' : 'rgba(50, 35, 15, 0.25)';
+        ctx.fillRect(x + 2, by, S - 4, bh);
+    }
+    ctx.globalAlpha = 1;
+
+    // ── Chipped stone texture — small dark pits ──
+    if (h > 0.4) {
+        ctx.fillStyle = 'rgba(40, 30, 15, 0.25)';
+        for (let i = 0; i < 3; i++) {
+            const px = x + 5 + _tileHash(col + i, row, seed + 8040 + i) * (S - 10);
+            const py = y + 5 + _tileHash(col, row + i, seed + 8050 + i) * (S - 10);
+            ctx.beginPath();
+            ctx.arc(px, py, 0.8 + _tileHash(col + i, row + i, seed + 8060) * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ── Bevels (warm stone) ──
+    ctx.fillStyle = wallLight;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(x, y, S, 2);
+    ctx.fillRect(x, y, 2, S);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wallDark;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(x, y + S - 2, S, 2);
+    ctx.fillRect(x + S - 2, y, 2, S);
+    ctx.globalAlpha = 1;
+
+    // ── Sand creeping onto exposed walls ──
+    if (exposed) {
+        const dirs = [
+            { dr: -1, dc: 0, side: 'top' },
+            { dr: 1, dc: 0, side: 'bottom' },
+            { dr: 0, dc: -1, side: 'left' },
+            { dr: 0, dc: 1, side: 'right' },
+        ];
+        for (const { dr, dc, side } of dirs) {
+            const nr = row + dr, nc = col + dc;
+            if (nr >= 0 && nr < grid.length && nc >= 0 && nc < grid[0].length && grid[nr][nc] === 0) {
+                ctx.fillStyle = 'rgba(180, 150, 90, 0.15)';
+                const sandHash = _tileHash(col, row, seed + 8070 + dr * 10 + dc);
+                const sandDepth = 3 + sandHash * 5;
+                if (side === 'bottom') {
+                    for (let i = 0; i < 3; i++) {
+                        const sx = x + _tileHash(col + i, row, seed + 8080 + i) * S;
+                        const sw = 6 + _tileHash(col, row + i, seed + 8090 + i) * 10;
+                        ctx.beginPath();
+                        ctx.ellipse(sx, y + S, sw / 2, sandDepth / 2, 0, Math.PI, 0);
+                        ctx.fill();
+                    }
+                } else if (side === 'top') {
+                    for (let i = 0; i < 3; i++) {
+                        const sx = x + _tileHash(col + i, row, seed + 8100 + i) * S;
+                        const sw = 6 + _tileHash(col, row + i, seed + 8110 + i) * 10;
+                        ctx.beginPath();
+                        ctx.ellipse(sx, y, sw / 2, sandDepth / 2, 0, 0, Math.PI);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        // ── Wall decorations ──
+        if (biome.wallDecor) {
+            const rng = _tileHash(col, row, seed + 99);
+            if (rng < biome.wallDecor.chance) {
+                const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, seed + 200));
+                _drawWallDecor(ctx, x, y, type, col, row, seed);
+            }
+        }
     }
 }
 
@@ -1643,6 +2035,11 @@ export function renderAtmosphere(ctx, biome) {
         _renderCausticLight(ctx);
     }
 
+    // ── Desert heat haze ──
+    if (atm.heatHaze) {
+        _renderHeatHaze(ctx);
+    }
+
     // Radial vignette (cached to an offscreen canvas for perf)
     if (atm.vignetteColor && atm.vignetteSize > 0) {
         const key = atm.vignetteColor + '|' + atm.vignetteSize;
@@ -1755,6 +2152,57 @@ function _renderCausticLight(ctx) {
             const py = sinA * along + cosA * wave + drift * 0.3;
             if (s === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+// ── Heat haze: subtle shimmering warm air distortion ────────
+function _renderHeatHaze(ctx) {
+    const t = Date.now();
+    ctx.save();
+
+    // Layer 1 — very faint warm tint that slowly undulates
+    const wavePhase = t * 0.0004;
+    const bandCount = 6;
+    for (let i = 0; i < bandCount; i++) {
+        const baseY = (i / bandCount) * CANVAS_HEIGHT;
+        const wobble = Math.sin(wavePhase + i * 1.3) * 8;
+        const alpha = 0.015 + Math.sin(wavePhase * 1.7 + i * 0.9) * 0.008;
+
+        ctx.fillStyle = `rgba(200, 160, 60, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(0, baseY + wobble);
+        // Wavy horizontal band
+        for (let sx = 0; sx <= CANVAS_WIDTH; sx += 40) {
+            const y = baseY + wobble + Math.sin(sx * 0.008 + wavePhase * 2 + i) * 4;
+            ctx.lineTo(sx, y);
+        }
+        ctx.lineTo(CANVAS_WIDTH, baseY + wobble + CANVAS_HEIGHT / bandCount);
+        for (let sx = CANVAS_WIDTH; sx >= 0; sx -= 40) {
+            const y = baseY + wobble + CANVAS_HEIGHT / bandCount + Math.sin(sx * 0.01 + wavePhase * 1.5 + i * 0.7) * 3;
+            ctx.lineTo(sx, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Layer 2 — drifting heat shimmer lines (very subtle)
+    ctx.globalCompositeOperation = 'source-over';
+    const lineCount = 5;
+    for (let i = 0; i < lineCount; i++) {
+        const baseY = 40 + (i / lineCount) * (CANVAS_HEIGHT - 80);
+        const drift = Math.sin(t * 0.0003 + i * 2.1) * 20;
+        const pulse = 0.5 + Math.sin(t * 0.0005 + i * 1.4) * 0.5;
+
+        ctx.strokeStyle = `rgba(255, 220, 130, ${0.02 * pulse})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let sx = 0; sx <= CANVAS_WIDTH; sx += 8) {
+            const y = baseY + drift + Math.sin(sx * 0.012 + t * 0.001 + i * 1.1) * 3;
+            if (sx === 0) ctx.moveTo(sx, y);
+            else ctx.lineTo(sx, y);
         }
         ctx.stroke();
     }

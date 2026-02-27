@@ -971,6 +971,22 @@ export class ParticleSystem {
             p._ambient = true;
             this.particles.push(p);
         }
+        // Dust motes — tiny slow-floating specks
+        if (ap.dust && Math.random() < ap.dust.rate) {
+            const colors = ap.dust.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                3 + Math.random() * 8,       // gentle rightward drift (wind)
+                (Math.random() - 0.5) * 4,
+                ap.dust.sizeMin + Math.random() * (ap.dust.sizeMax - ap.dust.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                5000 + Math.random() * 4000,
+                { friction: 0.998, shrink: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
     }
 
     _spawnWastelandAmbient(ap) {

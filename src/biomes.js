@@ -235,32 +235,42 @@ const BIOMES = [
 
         ambientParticles: {
             // Blowing sand grains
-            sand: { rate: 0.18, colors: ['#d4a056', '#c49a42', '#b8860b'], sizeMin: 1, sizeMax: 2.5 },
+            sand: { rate: 0.20, colors: ['#d4a056', '#c49a42', '#b8860b', '#deb887', '#c8a860'], sizeMin: 1, sizeMax: 3 },
             // Heat shimmer (rare, large, faint)
-            shimmer: { rate: 0.015, color: 'rgba(255,220,150,0.3)', size: 8 },
+            shimmer: { rate: 0.02, color: 'rgba(255,220,150,0.25)', size: 9 },
+            // Dust motes — tiny slow-floating specks
+            dust: { rate: 0.06, colors: ['rgba(180,150,100,0.4)', 'rgba(200,170,120,0.35)', 'rgba(160,130,80,0.3)'], sizeMin: 0.8, sizeMax: 2 },
         },
 
         floorDecor: {
-            chance: 0.10,
+            chance: 0.18,
             types: [
-                { shape: 'crack',  color: '#5a4528', weight: 4 },
-                { shape: 'dot',    color: '#6a5535', weight: 2 },  // sand cluster
-                { shape: 'pebble', color: '#7a6540', weight: 2 },
+                { shape: 'crack',     color: '#5a4528', weight: 3 },
+                { shape: 'dot',       color: '#6a5535', weight: 1.5 },  // sand cluster
+                { shape: 'pebble',    color: '#7a6540', weight: 2 },
+                { shape: 'sandDrift', color: '#c49a42', colorAlt: '#b8860b', weight: 2.5 },  // wind-blown sand piles
+                { shape: 'bone',      color: '#d4c8a0', colorAlt: '#e8dcc0', weight: 1 },    // tiny bone fragments
+                { shape: 'scarab',    color: '#4a6a30', colorAlt: '#6a8a40', weight: 0.6 },  // tiny beetle
+                { shape: 'rune',      color: '#8a7040', colorAlt: '#a08850', weight: 0.8 },  // ancient worn carving
             ],
         },
 
         wallDecor: {
-            chance: 0.18,
+            chance: 0.28,
             types: [
-                { shape: 'erosion', color: '#5a4528', colorAlt: '#4a3a20', weight: 3 },
-                { shape: 'crack',   color: '#4a3a20', weight: 2 },
+                { shape: 'erosion',    color: '#5a4528', colorAlt: '#4a3a20', weight: 3 },
+                { shape: 'crack',      color: '#4a3a20', weight: 2 },
+                { shape: 'sandLayer',  color: '#c49a42', colorAlt: '#a08040', weight: 2.5 },   // sand deposit line on wall
+                { shape: 'hieroglyph', color: '#6a5535', colorAlt: '#8a7545', weight: 1.5 },   // faded wall marking
+                { shape: 'scorchMark', color: '#3a2a18', colorAlt: '#5a4020', weight: 1 },     // heat damage on stone
             ],
         },
 
         atmosphere: {
             tintColor: 'rgba(200,160,80,0.04)',
-            vignetteColor: 'rgba(40,25,5,0.30)',
-            vignetteSize: 0.28,
+            vignetteColor: 'rgba(40,25,5,0.35)',
+            vignetteSize: 0.32,
+            heatHaze: true,
         },
 
         // ── Boss appearance per type ──
