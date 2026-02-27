@@ -97,6 +97,18 @@ export const UPGRADE_HP = 25;
 export const UPGRADE_SPEED = 15;
 export const UPGRADE_DAMAGE = 8;
 
+// ── Late-game XP & Upgrade Scaling ──
+// XP curve flattens past soft-cap so leveling stays achievable
+export const XP_SOFT_CAP_LEVEL = 10;           // level where XP mult starts decreasing
+export const XP_MULT_FLOOR = 1.08;             // minimum XP multiplier at high levels
+export const XP_MULT_DECAY = 0.015;            // mult decrease per level past soft cap
+// Enemy XP grows with stage so tougher enemies = more reward
+export const ENEMY_XP_STAGE_SCALE = 0.04;      // +4% enemy XP per stage
+// Base stat upgrades scale with player level to stay impactful
+export const UPGRADE_HP_PER_LEVEL = 2;          // extra HP per player level on upgrade
+export const UPGRADE_SPEED_PER_LEVEL = 0.5;     // extra speed per player level on upgrade
+export const UPGRADE_DAMAGE_PER_LEVEL = 1.5;    // extra damage per player level on upgrade
+
 // ── Door ──
 export const DOOR_COLOR_LOCKED = '#c0392b';
 export const DOOR_COLOR_UNLOCKED = '#27ae60';

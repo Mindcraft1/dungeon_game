@@ -6,6 +6,8 @@ import {
     DAGGER_RADIUS, DAGGER_COLOR, DAGGER_KNOCKBACK,
     DASH_SPEED_MULT, DASH_DURATION, DASH_COOLDOWN, DASH_INVULN_TIME,
     XP_BASE, XP_MULTIPLIER, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
+    XP_SOFT_CAP_LEVEL, XP_MULT_FLOOR, XP_MULT_DECAY,
+    UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL,
     MAX_ACTIVE_BUFFS, BUFF_DURATION_SHORT, BUFF_DURATION_LONG,
     BUFF_RAGE_DAMAGE_MULT, BUFF_HEAL_AMOUNT,
     BUFF_PIERCING_RANGE_MULT, BUFF_PIERCING_DAMAGE_MULT,
@@ -711,19 +713,34 @@ export class Player {
     levelUp(choice) {
         this.level++;
         this.xp -= this.xpToNext;
-        this.xpToNext = Math.floor(this.xpToNext * XP_MULTIPLIER);
+
+        // Soft-cap XP curve: multiplier diminishes past soft-cap level
+        // so late-game leveling stays achievable (exponential → near-linear)
+        const lvl = this.level;
+        let mult;
+        if (lvl <= XP_SOFT_CAP_LEVEL) {
+            mult = XP_MULTIPLIER;
+        } else {
+            mult = Math.max(XP_MULT_FLOOR, XP_MULTIPLIER - (lvl - XP_SOFT_CAP_LEVEL) * XP_MULT_DECAY);
+        }
+        this.xpToNext = Math.floor(this.xpToNext * mult);
+
+        // Level-scaling upgrades: grow with player level so they stay impactful
+        const hpGain  = UPGRADE_HP     + Math.floor(lvl * UPGRADE_HP_PER_LEVEL);
+        const spdGain = UPGRADE_SPEED  + Math.floor(lvl * UPGRADE_SPEED_PER_LEVEL);
+        const dmgGain = UPGRADE_DAMAGE + Math.floor(lvl * UPGRADE_DAMAGE_PER_LEVEL);
 
         switch (choice) {
             case 'hp':
-                this._baseMaxHp += UPGRADE_HP;
+                this._baseMaxHp += hpGain;
                 this.maxHp = Math.round(this._baseMaxHp * this.talentMaxHpMult);
-                this.hp = Math.min(this.hp + Math.floor(UPGRADE_HP * 0.6), this.maxHp);
+                this.hp = Math.min(this.hp + Math.floor(hpGain * 0.6), this.maxHp);
                 break;
             case 'speed':
-                this.speed += UPGRADE_SPEED;
+                this.speed += spdGain;
                 break;
             case 'damage':
-                this.damage += UPGRADE_DAMAGE;
+                this.damage += dmgGain;
                 break;
         }
     }

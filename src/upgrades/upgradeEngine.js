@@ -350,11 +350,15 @@ export function buildLevelUpChoices(context, player) {
 }
 
 function _getBaseStatChoices(player) {
-    const UPGRADE_HP = 25, UPGRADE_SPEED = 15, UPGRADE_DAMAGE = 8;
+    // Level-scaling upgrades: amounts grow with player level
+    const lvl = player.level;
+    const hpGain  = 25 + Math.floor(lvl * 2);
+    const spdGain = 15 + Math.floor(lvl * 0.5);
+    const dmgGain = 8  + Math.floor(lvl * 1.5);
     return [
-        { type: 'base', id: 'hp', label: `+${UPGRADE_HP} Max HP (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50', icon: '❤️' },
-        { type: 'base', id: 'speed', label: `+${UPGRADE_SPEED} Speed`, color: '#2196f3', icon: '👢' },
-        { type: 'base', id: 'damage', label: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336', icon: '⚔️' },
+        { type: 'base', id: 'hp', label: `+${hpGain} Max HP (heal +${Math.floor(hpGain * 0.6)})`, color: '#4caf50', icon: '❤️' },
+        { type: 'base', id: 'speed', label: `+${spdGain} Speed`, color: '#2196f3', icon: '👢' },
+        { type: 'base', id: 'damage', label: `+${dmgGain} Damage`, color: '#f44336', icon: '⚔️' },
     ];
 }
 

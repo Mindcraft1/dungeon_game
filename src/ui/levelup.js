@@ -1,4 +1,5 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
+    UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
 
 /**
@@ -13,12 +14,18 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     const optCount = choices ? choices.length : 3;
 
     // --- Dynamic width: measure all option labels and pick the widest ---
+    // Level-scaling upgrade amounts
+    const _lvl = player.level;
+    const _hpG  = UPGRADE_HP     + Math.floor(_lvl * UPGRADE_HP_PER_LEVEL);
+    const _spdG = UPGRADE_SPEED  + Math.floor(_lvl * UPGRADE_SPEED_PER_LEVEL);
+    const _dmgG = UPGRADE_DAMAGE + Math.floor(_lvl * UPGRADE_DAMAGE_PER_LEVEL);
+
     const opts0 = choices
         ? choices.map((c, i) => `[${i + 1}]  ${c.label}`)
         : [
-            `[1]  +${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`,
-            `[2]  +${UPGRADE_SPEED} Speed`,
-            `[3]  +${UPGRADE_DAMAGE} Damage`,
+            `[1]  +${_hpG} Max HP  (heal +${Math.floor(_hpG * 0.6)})`,
+            `[2]  +${_spdG} Speed`,
+            `[3]  +${_dmgG} Damage`,
         ];
     ctx.font = 'bold 16px monospace';
     let maxTextW = 0;
@@ -59,9 +66,9 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     const opts = choices
         ? choices.map((c, i) => ({ key: `${i + 1}`, text: c.label, color: c.color, rarity: c.rarity }))
         : [
-            { key: '1', text: `+${UPGRADE_HP} Max HP  (heal +${Math.floor(UPGRADE_HP * 0.6)})`, color: '#4caf50' },
-            { key: '2', text: `+${UPGRADE_SPEED} Speed`, color: '#2196f3' },
-            { key: '3', text: `+${UPGRADE_DAMAGE} Damage`, color: '#f44336' },
+            { key: '1', text: `+${_hpG} Max HP  (heal +${Math.floor(_hpG * 0.6)})`, color: '#4caf50' },
+            { key: '2', text: `+${_spdG} Speed`, color: '#2196f3' },
+            { key: '3', text: `+${_dmgG} Damage`, color: '#f44336' },
         ];
 
     const startY = by + headerH;

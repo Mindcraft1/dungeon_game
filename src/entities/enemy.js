@@ -1,6 +1,6 @@
 import {
     TILE_SIZE,
-    ENEMY_RADIUS, ENEMY_COLOR, ENEMY_HIT_COOLDOWN, ENEMY_XP,
+    ENEMY_RADIUS, ENEMY_COLOR, ENEMY_HIT_COOLDOWN, ENEMY_XP, ENEMY_XP_STAGE_SCALE,
     ENEMY_TYPE_BASIC, ENEMY_TYPE_SHOOTER, ENEMY_TYPE_TANK, ENEMY_TYPE_DASHER,
     SHOOTER_COLOR, SHOOTER_HP_MULT, SHOOTER_SPEED_MULT,
     SHOOTER_RANGE, SHOOTER_FIRE_COOLDOWN, SHOOTER_XP_MULT,
@@ -71,6 +71,10 @@ export class Enemy {
                 this.xpValue = getVal('enemyXp', ENEMY_XP);
                 break;
         }
+
+        // Stage-based XP scaling: later-stage enemies give proportionally more XP
+        const stageXpMult = 1 + Math.max(0, stage - 1) * ENEMY_XP_STAGE_SCALE;
+        this.xpValue = Math.floor(this.xpValue * stageXpMult);
 
         this.hp = this.maxHp;
 
