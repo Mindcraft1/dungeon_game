@@ -43,35 +43,46 @@ const BIOMES = [
         // ── Visual: Ambient particles ──
         ambientParticles: {
             // Falling leaves
-            leaves: { rate: 0.12, colors: ['#4caf50', '#66bb6a', '#388e3c', '#81c784'], sizeMin: 2, sizeMax: 4 },
+            leaves: { rate: 0.14, colors: ['#4caf50', '#66bb6a', '#388e3c', '#81c784', '#a5d6a7'], sizeMin: 2, sizeMax: 5 },
             // Fireflies
-            fireflies: { rate: 0.03, color: '#c8e6c9', glow: true },
+            fireflies: { rate: 0.04, color: '#c8e6c9', glow: true },
+            // Floating pollen / spores
+            pollen: { rate: 0.06, colors: ['rgba(200,230,150,0.6)', 'rgba(180,220,120,0.5)', 'rgba(255,255,200,0.4)'], sizeMin: 1, sizeMax: 2.5 },
         },
 
-        // ── Visual: Floor decorations (drawn on ~12% of floor tiles, seeded per room) ──
+        // ── Visual: Floor decorations (drawn on ~18% of floor tiles, seeded per room) ──
         floorDecor: {
-            chance: 0.12,
+            chance: 0.18,
             types: [
-                { shape: 'grass',   color: '#2e7d32', colorAlt: '#388e3c', weight: 3 },
-                { shape: 'dot',     color: '#33691e', weight: 2 },  // moss dot
-                { shape: 'crack',   color: '#2a4020', weight: 1 },
+                { shape: 'grass',     color: '#2e7d32', colorAlt: '#388e3c', weight: 3 },
+                { shape: 'tallGrass', color: '#2e7d32', colorAlt: '#4caf50', weight: 2 },  // taller, wavier grass tufts
+                { shape: 'dot',       color: '#33691e', weight: 1 },  // moss dot
+                { shape: 'mushroom',  color: '#d4a057', colorAlt: '#f5deb3', weight: 1.5 }, // small mushroom cluster
+                { shape: 'flower',    color: '#e040fb', colorAlt: '#ff80ab', weight: 1 },  // tiny jungle flowers
+                { shape: 'root',      color: '#5d4037', colorAlt: '#795548', weight: 1.5 }, // exposed tree roots
+                { shape: 'puddle',    color: 'rgba(60,120,80,0.25)', weight: 0.8 },         // mossy water puddle
+                { shape: 'crack',     color: '#2a4020', weight: 0.5 },
             ],
         },
 
-        // ── Visual: Wall decorations (drawn on ~20% of walls with exposed floor edge) ──
+        // ── Visual: Wall decorations (drawn on ~30% of walls with exposed floor edge) ──
         wallDecor: {
-            chance: 0.20,
+            chance: 0.30,
             types: [
-                { shape: 'vine',   color: '#388e3c', colorAlt: '#4caf50', weight: 3 },
-                { shape: 'moss',   color: '#2e7d32', weight: 2 },
+                { shape: 'vine',         color: '#388e3c', colorAlt: '#4caf50', weight: 3 },
+                { shape: 'thickVine',    color: '#2e7d32', colorAlt: '#66bb6a', weight: 2 },  // thicker vine with multiple leaves
+                { shape: 'moss',         color: '#2e7d32', weight: 2 },
+                { shape: 'hangingRoot',  color: '#5d4037', colorAlt: '#795548', weight: 1.5 }, // dangling roots from walls
+                { shape: 'glowMushroom', color: '#76ff03', colorAlt: '#b2ff59', weight: 1 },  // bioluminescent fungi on walls
             ],
         },
 
         // ── Visual: Atmospheric overlay ──
         atmosphere: {
-            tintColor: 'rgba(50,150,50,0.04)',   // subtle green mist
-            vignetteColor: 'rgba(10,30,10,0.35)', // warm dark green
-            vignetteSize: 0.30,                    // how far vignette reaches inward (0–1)
+            tintColor: 'rgba(40,130,40,0.03)',    // subtle green mist
+            vignetteColor: 'rgba(5,25,5,0.40)',   // deep jungle darkness at edges
+            vignetteSize: 0.35,                    // how far vignette reaches inward (0–1)
+            dappledLight: true,                    // sunlight filtering through canopy
         },
 
         // ── Boss appearance per type ──

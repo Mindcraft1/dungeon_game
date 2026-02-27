@@ -51,6 +51,7 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
     const gridTint   = biome ? biome.gridTint   : 'rgba(255,255,255,0.03)';
     const isSpaceship = biome && biome.id === 'spaceship';
     const isDepths    = biome && biome.id === 'depths';
+    const isJungle    = biome && biome.id === 'jungle';
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
@@ -63,6 +64,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
                     _drawSpaceshipWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
                 } else if (isDepths) {
                     _drawDepthsWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, floorColor, decorSeed, biome);
+                } else if (isJungle) {
+                    _drawJungleWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, decorSeed, biome);
                 } else {
                     // Wall – base fill
                     ctx.fillStyle = wallColor;
@@ -93,6 +96,8 @@ export function renderRoom(ctx, grid, biome = null, decorSeed = 0) {
             } else {
                 if (isSpaceship) {
                     _drawSpaceshipFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
+                } else if (isJungle) {
+                    _drawJungleFloor(ctx, x, y, col, row, grid, floorColor, gridTint, decorSeed, biome);
                 } else {
                     // Floor
                     ctx.fillStyle = floorColor;
@@ -301,6 +306,337 @@ function _drawFloorDecor(ctx, x, y, type, col, row, seed) {
             }
             ctx.globalAlpha = 1;
             break;
+        }
+        case 'tallGrass': {
+            // Taller, wavier grass tufts with multiple blades
+            const count = 3 + Math.floor(h1 * 4);
+            for (let i = 0; i < count; i++) {
+                const bx = x + 4 + _tileHash(col + i, row, seed + 710 + i) * 32;
+                const by = y + 30 + _tileHash(col, row + i, seed + 720 + i) * 6;
+                const bh = 8 + _tileHash(col + i, row + i, seed + 730) * 10;
+                const lean = (_tileHash(col, row, seed + 740 + i) - 0.5) * 8;
+                const isAlt = _tileHash(col + i, row, seed + 750 + i) > 0.5;
+                ctx.strokeStyle = isAlt && type.colorAlt ? type.colorAlt : type.color;
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                // Curved blade using quadratic bezier
+                ctx.quadraticCurveTo(bx + lean * 0.6, by - bh * 0.6, bx + lean, by - bh);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'mushroom': {
+            // Small mushroom cluster (1-3 mushrooms)
+            const count = 1 + Math.floor(h1 * 2.5);
+            for (let i = 0; i < count; i++) {
+                const mx = x + 8 + _tileHash(col + i, row, seed + 760 + i) * 24;
+                const my = y + 20 + _tileHash(col, row + i, seed + 770 + i) * 14;
+                const mh = 4 + _tileHash(col + i, row + i, seed + 780) * 4;
+                const capR = 2 + _tileHash(col + i, row, seed + 790) * 2.5;
+                // Stem
+                ctx.strokeStyle = type.colorAlt || '#f5deb3';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(mx, my);
+                ctx.lineTo(mx, my - mh);
+                ctx.stroke();
+                // Cap (half-circle)
+                ctx.fillStyle = type.color;
+                ctx.beginPath();
+                ctx.arc(mx, my - mh, capR, Math.PI, 0);
+                ctx.fill();
+                // Cap highlight
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.beginPath();
+                ctx.arc(mx - capR * 0.3, my - mh - capR * 0.2, capR * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'flower': {
+            // Tiny colorful jungle flowers (2-4 dots with petal arcs)
+            const count = 2 + Math.floor(h1 * 3);
+            for (let i = 0; i < count; i++) {
+                const fx = x + 6 + _tileHash(col + i, row, seed + 800 + i) * 28;
+                const fy = y + 6 + _tileHash(col, row + i, seed + 810 + i) * 28;
+                const petalR = 1.5 + _tileHash(col + i, row + i, seed + 820) * 1;
+                const isAlt = _tileHash(col + i, row, seed + 830 + i) > 0.4;
+                // Petals (3-4 small circles around center)
+                ctx.fillStyle = isAlt && type.colorAlt ? type.colorAlt : type.color;
+                ctx.globalAlpha = 0.7;
+                for (let p = 0; p < 4; p++) {
+                    const angle = (p / 4) * Math.PI * 2 + h1 * 2;
+                    const px = fx + Math.cos(angle) * petalR * 1.2;
+                    const py = fy + Math.sin(angle) * petalR * 1.2;
+                    ctx.beginPath();
+                    ctx.arc(px, py, petalR * 0.7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Center dot
+                ctx.fillStyle = '#ffeb3b';
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.arc(fx, fy, petalR * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'root': {
+            // Exposed tree roots crossing the floor tile
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            const rx = x + h1 * 8;
+            const ry = y + 10 + h2 * 20;
+            ctx.moveTo(rx, ry);
+            ctx.quadraticCurveTo(
+                x + TILE_SIZE * 0.4 + h2 * 10,
+                ry + (h1 - 0.5) * 16,
+                x + TILE_SIZE - h2 * 6,
+                ry + (h1 - 0.3) * 12
+            );
+            ctx.stroke();
+            // Thinner secondary root
+            if (h1 > 0.3) {
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = type.colorAlt || type.color;
+                ctx.globalAlpha = 0.35;
+                ctx.beginPath();
+                ctx.moveTo(x + TILE_SIZE * 0.3 + h2 * 10, ry + (h1 - 0.5) * 10);
+                ctx.quadraticCurveTo(
+                    x + TILE_SIZE * 0.5, ry + 6 + h2 * 8,
+                    x + TILE_SIZE * 0.6 + h1 * 8, y + TILE_SIZE - 4
+                );
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+    }
+}
+
+// ── Jungle biome: lush organic floor tile ───────────────────
+function _drawJungleFloor(ctx, x, y, col, row, grid, floorColor, gridTint, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 4000);
+    const h2 = _tileHash(col, row, seed + 4001);
+    const h3 = _tileHash(col, row, seed + 4002);
+
+    // ── Base floor with subtle color variation ──
+    // Alternate between slightly different earth/moss shades
+    const shadeIdx = ((col * 3 + row * 7) ^ (col + row * 5)) & 7;
+    const shades = [
+        '#1a2e1a', '#1c301b', '#182c19', '#1b2f1c',
+        '#192d18', '#1d311d', '#172b17', '#1e321e',
+    ];
+    ctx.fillStyle = shades[shadeIdx];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Mossy patches — some tiles have a greener tint overlay ──
+    if (h < 0.35) {
+        ctx.fillStyle = 'rgba(40, 80, 30, 0.15)';
+        // Irregular blob
+        ctx.beginPath();
+        ctx.ellipse(
+            x + S * 0.3 + h2 * S * 0.4,
+            y + S * 0.3 + h * S * 0.4,
+            S * 0.3 + h2 * S * 0.15,
+            S * 0.25 + h * S * 0.15,
+            h3 * Math.PI, 0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+
+    // ── Damp/dark patches — gives a more uneven natural look ──
+    if (h3 > 0.6) {
+        ctx.fillStyle = 'rgba(10, 20, 10, 0.12)';
+        ctx.beginPath();
+        ctx.ellipse(
+            x + S * 0.5 + (h - 0.5) * S * 0.3,
+            y + S * 0.5 + (h2 - 0.5) * S * 0.3,
+            S * 0.2 + h * S * 0.2,
+            S * 0.15 + h2 * S * 0.15,
+            h * Math.PI * 2, 0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+
+    // ── Organic tile edges — instead of grid lines, irregular soft edges ──
+    // Subtle darker seam (like natural stone/dirt boundaries)
+    ctx.strokeStyle = 'rgba(15, 25, 12, 0.3)';
+    ctx.lineWidth = 0.5;
+    // Top edge with slight wobble
+    ctx.beginPath();
+    ctx.moveTo(x, y + 0.5);
+    ctx.lineTo(x + S * 0.3, y + 0.5 + (h - 0.5) * 1.5);
+    ctx.lineTo(x + S * 0.6, y + 0.5 - (h2 - 0.5) * 1);
+    ctx.lineTo(x + S, y + 0.5);
+    ctx.stroke();
+    // Left edge with slight wobble
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y);
+    ctx.lineTo(x + 0.5 + (h2 - 0.5) * 1.5, y + S * 0.4);
+    ctx.lineTo(x + 0.5 - (h - 0.5) * 1, y + S * 0.7);
+    ctx.lineTo(x + 0.5, y + S);
+    ctx.stroke();
+
+    // ── Tiny ambient detail: scattered micro-pebbles/dirt specks ──
+    if (h2 > 0.4) {
+        ctx.fillStyle = 'rgba(30, 50, 25, 0.3)';
+        for (let i = 0; i < 3; i++) {
+            const dx = x + 4 + _tileHash(col + i, row, seed + 4010 + i) * (S - 8);
+            const dy = y + 4 + _tileHash(col, row + i, seed + 4020 + i) * (S - 8);
+            const dr = 0.5 + _tileHash(col + i, row + i, seed + 4030) * 0.8;
+            ctx.beginPath();
+            ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ── Floor decorations ──
+    if (biome.floorDecor) {
+        const rng = _tileHash(col, row, seed);
+        if (rng < biome.floorDecor.chance) {
+            const type = _pickWeighted(biome.floorDecor.types, _tileHash(col, row, seed + 100));
+            _drawFloorDecor(ctx, x, y, type, col, row, seed);
+        }
+    }
+}
+
+// ── Jungle biome: organic wall tile with bark texture ───────
+function _drawJungleWall(ctx, x, y, col, row, grid, wallColor, wallLight, wallDark, seed, biome) {
+    const S = TILE_SIZE;
+    const h  = _tileHash(col, row, seed + 5000);
+    const h2 = _tileHash(col, row, seed + 5001);
+    const h3 = _tileHash(col, row, seed + 5002);
+    const exposed = _hasFloorNeighbour(grid, row, col);
+
+    // ── Base wall fill with per-tile color variation ──
+    const wallShades = ['#3a5a2e', '#365628', '#3e5e32', '#345224', '#3c5c30', '#38582c'];
+    ctx.fillStyle = wallShades[((col * 5 + row * 11) ^ (col + row)) % wallShades.length];
+    ctx.fillRect(x, y, S, S);
+
+    // ── Bark-like horizontal grain lines ──
+    ctx.strokeStyle = 'rgba(30, 50, 20, 0.4)';
+    ctx.lineWidth = 0.5;
+    const grainCount = 3 + Math.floor(h * 3);
+    for (let i = 0; i < grainCount; i++) {
+        const gy = y + 4 + (i / grainCount) * (S - 8) + _tileHash(col, row + i, seed + 5010 + i) * 4;
+        ctx.beginPath();
+        ctx.moveTo(x + 2, gy);
+        // Wavy grain
+        ctx.quadraticCurveTo(
+            x + S * 0.3 + _tileHash(col + i, row, seed + 5020) * S * 0.2,
+            gy + (_tileHash(col, row + i, seed + 5030) - 0.5) * 4,
+            x + S - 2,
+            gy + (_tileHash(col + i, row + i, seed + 5040) - 0.5) * 3
+        );
+        ctx.stroke();
+    }
+
+    // ── Knot detail (on ~25% of walls) ──
+    if (h > 0.75) {
+        const kx = x + 10 + h2 * 20;
+        const ky = y + 10 + h3 * 20;
+        const kr = 3 + h * 2;
+        ctx.fillStyle = 'rgba(35, 55, 25, 0.6)';
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, kr, kr * 0.7, h2 * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+        // Inner ring
+        ctx.strokeStyle = 'rgba(25, 40, 18, 0.5)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, kr * 0.6, kr * 0.4, h2 * Math.PI, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    // ── Light/dark bevels (softer, more organic than default) ──
+    // Top + left: lighter bark
+    ctx.fillStyle = wallLight;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(x, y, S, 2);
+    ctx.fillRect(x, y, 2, S);
+    ctx.globalAlpha = 1;
+    // Bottom + right: darker bark
+    ctx.fillStyle = wallDark;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(x, y + S - 2, S, 2);
+    ctx.fillRect(x + S - 2, y, 2, S);
+    ctx.globalAlpha = 1;
+
+    // ── Mossy overgrowth on exposed walls (facing floor) ──
+    if (exposed) {
+        // Green moss creeping onto the wall from the floor side
+        // Find which side(s) face the floor
+        const dirs = [
+            { dr: -1, dc: 0, side: 'top' },
+            { dr: 1, dc: 0, side: 'bottom' },
+            { dr: 0, dc: -1, side: 'left' },
+            { dr: 0, dc: 1, side: 'right' },
+        ];
+        for (const { dr, dc, side } of dirs) {
+            const nr = row + dr, nc = col + dc;
+            if (nr >= 0 && nr < grid.length && nc >= 0 && nc < grid[0].length && grid[nr][nc] === 0) {
+                // This side faces the floor — draw moss creeping in
+                ctx.fillStyle = 'rgba(46, 125, 50, 0.25)';
+                const mossHash = _tileHash(col, row, seed + 5050 + dr * 10 + dc);
+                const mossDepth = 4 + mossHash * 6;
+                if (side === 'bottom') {
+                    // Moss creeping up from bottom
+                    for (let i = 0; i < 4; i++) {
+                        const mx = x + _tileHash(col + i, row, seed + 5060 + i) * S;
+                        const mw = 4 + _tileHash(col, row + i, seed + 5070 + i) * 8;
+                        const md = mossDepth + _tileHash(col + i, row + i, seed + 5080) * 4;
+                        ctx.beginPath();
+                        ctx.ellipse(mx, y + S, mw / 2, md / 2, 0, Math.PI, 0);
+                        ctx.fill();
+                    }
+                } else if (side === 'top') {
+                    for (let i = 0; i < 4; i++) {
+                        const mx = x + _tileHash(col + i, row, seed + 5090 + i) * S;
+                        const mw = 4 + _tileHash(col, row + i, seed + 5100 + i) * 8;
+                        const md = mossDepth + _tileHash(col + i, row + i, seed + 5110) * 4;
+                        ctx.beginPath();
+                        ctx.ellipse(mx, y, mw / 2, md / 2, 0, 0, Math.PI);
+                        ctx.fill();
+                    }
+                } else if (side === 'left') {
+                    for (let i = 0; i < 3; i++) {
+                        const my = y + _tileHash(col, row + i, seed + 5120 + i) * S;
+                        const mh = 4 + _tileHash(col + i, row, seed + 5130 + i) * 8;
+                        const md = mossDepth + _tileHash(col + i, row + i, seed + 5140) * 3;
+                        ctx.beginPath();
+                        ctx.ellipse(x, my, md / 2, mh / 2, 0, -Math.PI / 2, Math.PI / 2);
+                        ctx.fill();
+                    }
+                } else if (side === 'right') {
+                    for (let i = 0; i < 3; i++) {
+                        const my = y + _tileHash(col, row + i, seed + 5150 + i) * S;
+                        const mh = 4 + _tileHash(col + i, row, seed + 5160 + i) * 8;
+                        const md = mossDepth + _tileHash(col + i, row + i, seed + 5170) * 3;
+                        ctx.beginPath();
+                        ctx.ellipse(x + S, my, md / 2, mh / 2, 0, Math.PI / 2, Math.PI * 1.5);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        // ── Wall decorations ──
+        if (biome.wallDecor) {
+            const rng = _tileHash(col, row, seed + 99);
+            if (rng < biome.wallDecor.chance) {
+                const type = _pickWeighted(biome.wallDecor.types, _tileHash(col, row, seed + 200));
+                _drawWallDecor(ctx, x, y, type, col, row, seed);
+            }
         }
     }
 }
@@ -515,6 +851,114 @@ function _drawWallDecor(ctx, x, y, type, col, row, seed) {
                 ctx.fill();
             }
             ctx.globalAlpha = 1;
+            break;
+        }
+        case 'thickVine': {
+            // Thick vine with multiple leaves and curve
+            ctx.strokeStyle = type.color;
+            ctx.lineWidth = 2.5;
+            ctx.globalAlpha = 0.65;
+            const startX = x + 6 + h2 * 28;
+            const segments = 3 + Math.floor(h1 * 3);
+            let vx = startX, vy = y + TILE_SIZE;
+            ctx.beginPath();
+            ctx.moveTo(vx, vy);
+            for (let i = 0; i < segments; i++) {
+                const prevX = vx, prevY = vy;
+                vx += (h1 - 0.35) * 5;
+                vy -= 5 + h2 * 5;
+                const cpx = prevX + (vx - prevX) * 0.5 + (h2 - 0.5) * 6;
+                const cpy = prevY + (vy - prevY) * 0.5;
+                ctx.quadraticCurveTo(cpx, cpy, vx, vy);
+            }
+            ctx.stroke();
+            // Leaves along the vine
+            if (type.colorAlt) {
+                ctx.fillStyle = type.colorAlt;
+                ctx.globalAlpha = 0.6;
+                let lx = startX, ly = y + TILE_SIZE;
+                for (let i = 0; i < segments; i++) {
+                    lx += (h1 - 0.35) * 5;
+                    ly -= 5 + h2 * 5;
+                    if (i % 2 === 0) {
+                        const leafAngle = _tileHash(col + i, row, seed + 610 + i) * Math.PI;
+                        ctx.save();
+                        ctx.translate(lx, ly);
+                        ctx.rotate(leafAngle);
+                        ctx.beginPath();
+                        ctx.ellipse(3, 0, 3, 1.5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'hangingRoot': {
+            // Dangling tree roots from wall edge
+            ctx.strokeStyle = type.color;
+            ctx.globalAlpha = 0.55;
+            const rootCount = 2 + Math.floor(h1 * 3);
+            for (let i = 0; i < rootCount; i++) {
+                const rx = x + 4 + _tileHash(col + i, row, seed + 620 + i) * (TILE_SIZE - 8);
+                const rootLen = 12 + _tileHash(col, row + i, seed + 630 + i) * 18;
+                const sway = (_tileHash(col + i, row + i, seed + 640) - 0.5) * 8;
+                ctx.lineWidth = 1.5 + _tileHash(col + i, row, seed + 650) * 1;
+                ctx.beginPath();
+                ctx.moveTo(rx, y + TILE_SIZE);
+                ctx.quadraticCurveTo(rx + sway, y + TILE_SIZE - rootLen * 0.5, rx + sway * 0.6, y + TILE_SIZE - rootLen);
+                ctx.stroke();
+                // Tiny tendril at the end
+                if (type.colorAlt && _tileHash(col + i, row, seed + 660) > 0.5) {
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeStyle = type.colorAlt;
+                    ctx.beginPath();
+                    ctx.moveTo(rx + sway * 0.6, y + TILE_SIZE - rootLen);
+                    ctx.lineTo(rx + sway * 0.6 + (h1 - 0.5) * 4, y + TILE_SIZE - rootLen - 3);
+                    ctx.stroke();
+                    ctx.strokeStyle = type.color;
+                }
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+        case 'glowMushroom': {
+            // Bioluminescent mushroom growing on wall
+            const mx = x + 8 + h1 * 24;
+            const my = y + TILE_SIZE - 8 - h2 * 16;
+            const capR = 3 + h1 * 2;
+            // Glow aura
+            ctx.save();
+            ctx.shadowColor = type.color;
+            ctx.shadowBlur = 10;
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = type.color;
+            ctx.beginPath();
+            ctx.arc(mx, my, capR + 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            // Stem
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#8d6e63';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(mx, my + capR);
+            ctx.lineTo(mx + (h1 - 0.5) * 3, my + capR + 5 + h2 * 4);
+            ctx.stroke();
+            // Cap
+            ctx.fillStyle = type.color;
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(mx, my, capR, Math.PI, 0);
+            ctx.fill();
+            // Bright highlight on cap
+            ctx.fillStyle = type.colorAlt || '#ffffff';
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.arc(mx - 1, my - capR * 0.3, capR * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
             break;
         }
         case 'panel': {
@@ -839,7 +1283,7 @@ let _vignetteCache = null;
 let _vignetteCacheKey = '';
 
 /**
- * Render atmospheric overlay: full-screen tint + radial vignette.
+ * Render atmospheric overlay: full-screen tint + radial vignette + dappled light.
  * Call after entities but before HUD.
  */
 export function renderAtmosphere(ctx, biome) {
@@ -850,6 +1294,11 @@ export function renderAtmosphere(ctx, biome) {
     if (atm.tintColor) {
         ctx.fillStyle = atm.tintColor;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
+    // ── Dappled sunlight (jungle canopy light filtering through) ──
+    if (atm.dappledLight) {
+        _renderDappledLight(ctx);
     }
 
     // Radial vignette (cached to an offscreen canvas for perf)
@@ -874,4 +1323,49 @@ export function renderAtmosphere(ctx, biome) {
         }
         ctx.drawImage(_vignetteCache, 0, 0);
     }
+}
+
+// ── Dappled light: sun rays filtering through jungle canopy ─
+// Creates slowly shifting soft light patches
+const _DAPPLED_SPOTS = [];
+// Pre-generate stable light spots (seeded, reused each frame)
+for (let i = 0; i < 12; i++) {
+    _DAPPLED_SPOTS.push({
+        baseX: (i * 137.5 + 42) % CANVAS_WIDTH,
+        baseY: (i * 89.3 + 31) % CANVAS_HEIGHT,
+        radiusX: 30 + (i * 23 % 40),
+        radiusY: 20 + (i * 17 % 30),
+        phase: i * 0.52,
+        speed: 0.0003 + (i % 5) * 0.0001,
+        driftX: 0.4 + (i % 3) * 0.2,
+        driftY: 0.2 + (i % 4) * 0.1,
+        alpha: 0.025 + (i % 4) * 0.008,
+        angle: (i * 0.4) % (Math.PI * 2),
+    });
+}
+
+function _renderDappledLight(ctx) {
+    const t = Date.now();
+    ctx.save();
+    for (const spot of _DAPPLED_SPOTS) {
+        const drift = Math.sin(t * spot.speed + spot.phase);
+        const drift2 = Math.cos(t * spot.speed * 0.7 + spot.phase * 1.3);
+        const sx = spot.baseX + drift * spot.driftX * 40;
+        const sy = spot.baseY + drift2 * spot.driftY * 30;
+        const pulse = 1 + Math.sin(t * spot.speed * 2 + spot.phase) * 0.15;
+
+        ctx.globalAlpha = spot.alpha * pulse;
+        ctx.fillStyle = 'rgba(180, 220, 100, 1)';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, spot.radiusX * pulse, spot.radiusY * pulse, spot.angle + drift * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner brighter core
+        ctx.globalAlpha = spot.alpha * pulse * 0.6;
+        ctx.fillStyle = 'rgba(220, 255, 150, 1)';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, spot.radiusX * 0.4 * pulse, spot.radiusY * 0.4 * pulse, spot.angle + drift * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
 }

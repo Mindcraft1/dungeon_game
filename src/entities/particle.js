@@ -921,6 +921,22 @@ export class ParticleSystem {
             p._ambient = true;
             this.particles.push(p);
         }
+        // Floating pollen / spores — very slow drift, tiny, subtle
+        if (ap.pollen && Math.random() < ap.pollen.rate) {
+            const colors = ap.pollen.colors;
+            const p = new Particle(
+                Math.random() * CANVAS_WIDTH,
+                Math.random() * CANVAS_HEIGHT,
+                (Math.random() - 0.5) * 8,  // gentle horizontal drift
+                -3 + Math.random() * 6,       // mostly float / slight rise
+                ap.pollen.sizeMin + Math.random() * (ap.pollen.sizeMax - ap.pollen.sizeMin),
+                colors[Math.floor(Math.random() * colors.length)],
+                4000 + Math.random() * 3000,
+                { friction: 0.995, shrink: false, glow: false },
+            );
+            p._ambient = true;
+            this.particles.push(p);
+        }
     }
 
     _spawnDesertAmbient(ap) {
