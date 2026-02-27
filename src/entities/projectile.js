@@ -35,8 +35,8 @@ export class Projectile {
             return;
         }
 
-        // Player collision (skipped in training)
-        if (!trainingMode) {
+        // Player collision (skipped in training and while dashing)
+        if (!trainingMode && !player.dashing) {
             const dx = this.x - player.x;
             const dy = this.y - player.y;
             if (dx * dx + dy * dy < (this.radius + player.radius) ** 2) {
@@ -462,8 +462,8 @@ export class RocketProjectile {
             return;
         }
 
-        // Direct hit on player (skipped in training)
-        if (!trainingMode) {
+        // Direct hit on player (skipped in training and while dashing)
+        if (!trainingMode && !player.dashing) {
             const dx = this.x - player.x;
             const dy = this.y - player.y;
             if (dx * dx + dy * dy < (this.radius + player.radius) ** 2) {
@@ -599,8 +599,8 @@ export class Explosion {
 
         this.tickTimer -= ms;
 
-        // Damage player if inside zone
-        if (!trainingMode) {
+        // Damage player if inside zone (skipped while dashing)
+        if (!trainingMode && !player.dashing) {
             const dx = this.x - player.x;
             const dy = this.y - player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
