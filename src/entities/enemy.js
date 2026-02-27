@@ -47,7 +47,7 @@ export class Enemy {
                 this.speed = baseSpeed * SHOOTER_SPEED_MULT;
                 this.damage = Math.floor(baseDamage * 0.5);
                 this.xpValue = Math.floor(ENEMY_XP * SHOOTER_XP_MULT);
-                this.projectileDamage = PROJECTILE_DAMAGE + Math.floor(Math.max(0, stage - 4) * 0.4);
+                this.projectileDamage = PROJECTILE_DAMAGE + Math.floor(Math.max(0, stage - 4) * 0.25);
                 break;
             case ENEMY_TYPE_TANK:
                 this.radius = 16;

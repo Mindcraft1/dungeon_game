@@ -926,17 +926,17 @@ export class Game {
 
         // ── HP: gentle per-room increase, slightly steeper each act ──
         // Phase 1: +5% per room (rooms 1-9)   → max ~1.45× at room 9
-        // Phase 2: +7% per room (rooms 11-19) → ~1.63× at room 19
+        // Phase 2: +5.5% per room (rooms 11-19) → ~1.95× at room 19
         // Phase 3+: +8% per room              → continues climbing
         let hpMult;
         if (act === 0) {
             hpMult = 1 + (stage - 1) * 0.05;
         } else if (act === 1) {
             const phase1Max = 1 + 9 * 0.05;  // 1.45
-            hpMult = phase1Max + (stage - 10) * 0.07;
+            hpMult = phase1Max + (stage - 10) * 0.055;
         } else {
             const phase1Max = 1 + 9 * 0.05;  // 1.45
-            const phase2Max = phase1Max + 9 * 0.07;  // 2.08
+            const phase2Max = phase1Max + 9 * 0.055;  // 1.945
             hpMult = phase2Max + (stage - 20) * 0.08;
         }
 

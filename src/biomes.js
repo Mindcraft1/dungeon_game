@@ -126,7 +126,7 @@ const BIOMES = [
         hazardWeights: {
             spikes: 0.8, lava: 0.8, arrow: 1.4, tar: 1.0,
         },
-        playerSpeedMult: 0.9,
+        playerSpeedMult: 0.95,
 
         ambientParticles: {
             // Rising bubbles
