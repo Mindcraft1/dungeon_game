@@ -33,6 +33,11 @@ import {
     CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
     ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
     DARKNESS_CONFIG,
+    PERF_TIER_BRONZE, PERF_TIER_SILVER, PERF_TIER_GOLD, PERF_TIER_DIAMOND,
+    PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
+    PERF_TIER_COLORS, PERF_TIER_ICONS, PERF_RARITY_SHIFT,
+    ENEMY_XP_STAGE_SCALE,
+    REWARD_ORB_RADIUS,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom, getMenuHoverGrid, getTabHover } from './input.js';
 import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
@@ -42,11 +47,12 @@ import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { Projectile, PlayerProjectile, RocketProjectile, Explosion } from './entities/projectile.js';
 import { Door } from './entities/door.js';
+import { RewardOrb } from './entities/rewardOrb.js';
 import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO, CoinPickup } from './entities/pickup.js';
 import { ParticleSystem } from './entities/particle.js';
 import { triggerShake } from './shake.js';
-import { renderHUD, renderBossHPBar } from './ui/hud.js';
+import { renderHUD, renderBossHPBar, renderPerformanceMeter } from './ui/hud.js';
 import { renderLevelUpOverlay, renderGameOverOverlay, renderBossVictoryOverlay } from './ui/levelup.js';
 import { renderMenu } from './ui/menu.js';
 import { renderProfiles, MAX_NAME_LEN } from './ui/profiles.js';
@@ -175,6 +181,15 @@ export class Game {
         this.upgradeIndex = 0;
         this._levelUpSpaceReady = false; // true after first Space press, confirm on second
         this._cachedLevelUpChoices = null; // cached to avoid different random choices between update & render
+
+        // ── Room Reward System ──
+        this.roomXP = 0;                  // XP accumulated in current room (for performance rating)
+        this.roomXPBaseline = 0;          // expected baseline XP for this room
+        this.rewardOrb = null;            // RewardOrb entity (spawns after room clear)
+        this.performanceTier = PERF_TIER_BRONZE; // current/last performance tier
+        this.levelUpBanners = [];         // [{text, color, timer, maxTimer}] non-blocking level-up popups
+        this._rewardOrbPending = false;   // true after enemies cleared but before orb picked up
+        this._roomCleared = false;        // true after all enemies die for the first time in a room
 
         // Pause menu selection
         this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
@@ -594,6 +609,14 @@ export class Game {
         this.boss = null;
         this.cheatBosses = [];
         this.bossVictoryDelay = 0;
+        // Reset room reward state
+        this.roomXP = 0;
+        this.roomXPBaseline = 0;
+        this.rewardOrb = null;
+        this._rewardOrbPending = false;
+        this._roomCleared = false;
+        this.performanceTier = PERF_TIER_BRONZE;
+        this.levelUpBanners = [];
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
         setMenuBiome(null);  // clear menu particles for new run
@@ -745,6 +768,21 @@ export class Game {
         this.secondWaveTriggered = false;
         this.secondWaveActive = false;
         this.secondWaveAnnounceTimer = 0;
+
+        // ── Reset room reward state ──
+        this.roomXP = 0;
+        this.rewardOrb = null;
+        this._rewardOrbPending = false;
+        this._roomCleared = false;
+        // Compute baseline XP for performance rating
+        const enemyCount = this.enemies.length;
+        const baseXpPerEnemy = ENEMY_XP * (1 + (Math.max(1, this.stage) - 1) * ENEMY_XP_STAGE_SCALE);
+        this.roomXPBaseline = enemyCount * baseXpPerEnemy;
+        // Enable manual lock on the door so it stays locked until reward is picked
+        // (only for non-training, non-boss rooms — boss rooms use their own flow)
+        if (!this.trainingMode && !this._isBossStage(this.stage)) {
+            this.door.manualLock = true;
+        }
 
         // ── Achievement event: room started (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
@@ -1294,6 +1332,14 @@ export class Game {
         this.bossVictoryDelay = 0;
         this.currentBiome = null;
         this.biomeAnnounceTimer = 0;
+        // Reset room reward state
+        this.roomXP = 0;
+        this.roomXPBaseline = 0;
+        this.rewardOrb = null;
+        this._rewardOrbPending = false;
+        this._roomCleared = false;
+        this.performanceTier = PERF_TIER_BRONZE;
+        this.levelUpBanners = [];
         // ── Room type cleanup ──
         const restartDef = getRoomType(this.currentRoomType);
         callHook(restartDef, 'onExit');
@@ -3844,19 +3890,35 @@ export class Game {
                     const darkXpMult = this.darknessXpMult;
                     const talentXpMult = this.player.talentXpMult || 1;
                     const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult * talentXpMult);
-                    if (this.player.addXp(xp)) {
+                    this.player.addXp(xp);
+                    this.roomXP += xp;  // track room performance
+
+                    // ── Passive level-ups: no overlay interrupt, just auto-stat + banner ──
+                    while (this.player.xp >= this.player.xpToNext) {
+                        this.player.autoLevelUp();
                         Audio.playLevelUp();
-                        // Level-up particles
                         this.particles.levelUp(this.player.x, this.player.y);
                         // Relic: heal on level-up
                         if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
                             const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
                             this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
                         }
-                        this._cachedLevelUpChoices = this._getLevelUpChoices();
-                        this.state = STATE_LEVEL_UP;
-                        return;
+                        this._syncTalentPoints();
+                        // Achievement event
+                        if (!this.cheatsUsedThisRun) {
+                            achEmit('player_level_changed', { level: this.player.level });
+                        }
+                        // Non-blocking level-up banner
+                        this.levelUpBanners.push({
+                            text: `⬆ Level ${this.player.level}!`,
+                            color: '#ffd700',
+                            timer: 2000,
+                            maxTimer: 2000,
+                        });
                     }
+
+                    // Update performance tier in real-time
+                    this.performanceTier = this._computePerformanceTier();
                 }
             }
         }
@@ -4387,49 +4449,75 @@ export class Game {
         // Door
         const allBossesForDoor = this._allBosses();
         const allFoes = allBossesForDoor.length > 0 ? [...this.enemies, ...allBossesForDoor] : this.enemies;
-        this.door.update(dt, allFoes, this.trainingMode);
 
-        // ── Second Wave check ──
-        // When all enemies die, roll for a second wave (stage 8+, non-boss, non-training, once per room)
-        if (doorWasLocked && !this.door.locked
-            && !this.trainingMode
-            && !this.secondWaveTriggered
-            && !this._isBossStage(this.stage)
-            && this.stage >= SECOND_WAVE_MIN_STAGE
-            && Math.random() < SECOND_WAVE_CHANCE) {
-            this.secondWaveTriggered = true;
-            this.secondWaveActive = true;
-            this.secondWaveAnnounceTimer = SECOND_WAVE_ANNOUNCE_TIME;
+        // ── Room Clear Detection (non-boss, non-training) ──
+        // Detect when all enemies just died for the first time (one-shot via _roomCleared flag)
+        const allEnemiesDead = allFoes.length > 0 && allFoes.every(e => e.dead);
+        const roomJustCleared = allEnemiesDead && !this._roomCleared
+            && !this.trainingMode && !this._isBossStage(this.stage);
 
-            // Spawn a smaller wave of enemies using new stepped density + phase scaling
-            const baseCount = this._getEnemyCount(this.stage);
-            const waveCount = Math.max(2, Math.round(baseCount * SECOND_WAVE_ENEMY_MULT));
-            const spawns = getEnemySpawns(
-                this.grid, this._currentSpawnPos, { col: this.door.col, row: this.door.row }, waveCount,
-            );
-            const { hp: hpBase, speed: spdBase, damage: dmgBase } = this._getEnemyScaling(this.stage);
-            const types = this._getEnemyTypes(this.stage, waveCount, this.currentBiome);
+        if (roomJustCleared) {
+            this._roomCleared = true;
 
-            this.enemies = spawns.map((p, i) => new Enemy(
-                p.x, p.y, hpBase, spdBase, dmgBase, types[i], this.stage,
-            ));
-            this.projectiles = [];
+            // ── Second Wave check ──
+            if (!this.secondWaveTriggered
+                && this.stage >= SECOND_WAVE_MIN_STAGE
+                && Math.random() < SECOND_WAVE_CHANCE) {
+                this._roomCleared = false;  // reset — room isn't truly cleared yet
+                this.secondWaveTriggered = true;
+                this.secondWaveActive = true;
+                this.secondWaveAnnounceTimer = SECOND_WAVE_ANNOUNCE_TIME;
 
-            // Re-lock the door
-            this.door.locked = true;
+                // Spawn a smaller wave of enemies
+                const baseCount = this._getEnemyCount(this.stage);
+                const waveCount = Math.max(2, Math.round(baseCount * SECOND_WAVE_ENEMY_MULT));
+                const spawns = getEnemySpawns(
+                    this.grid, this._currentSpawnPos, { col: this.door.col, row: this.door.row }, waveCount,
+                );
+                const { hp: hpBase, speed: spdBase, damage: dmgBase } = this._getEnemyScaling(this.stage);
+                const types = this._getEnemyTypes(this.stage, waveCount, this.currentBiome);
 
-            // Effects
-            triggerShake(6, 0.9);
-            Audio.playBossRoar();  // dramatic sound for the ambush
-        } else {
-            // Normal door unlock — no second wave
-            if (doorWasLocked && !this.door.locked) {
+                this.enemies = spawns.map((p, i) => new Enemy(
+                    p.x, p.y, hpBase, spdBase, dmgBase, types[i], this.stage,
+                ));
+                this.projectiles = [];
+
+                // Effects
+                triggerShake(6, 0.9);
+                Audio.playBossRoar();
+            } else {
+                // Room truly cleared — play unlock effects and spawn reward orb
                 if (this.secondWaveActive) this.secondWaveActive = false;
                 Audio.playDoorUnlock();
                 this.particles.doorUnlock(
                     this.door.x + this.door.width / 2,
                     this.door.y + this.door.height / 2,
                 );
+
+                // Spawn reward orb at room center
+                this._spawnRewardOrb();
+                this._rewardOrbPending = true;
+            }
+        }
+
+        // Update door (manualLock keeps it locked until reward orb is picked)
+        this.door.update(dt, allFoes, this.trainingMode);
+
+        // ── Update Reward Orb ──
+        if (this.rewardOrb && !this.rewardOrb.collected) {
+            this.rewardOrb.update(dt);
+            if (this.rewardOrb.checkCollision(this.player)) {
+                this.rewardOrb.collected = true;
+                this._rewardOrbPending = false;
+                // Unlock the door now that reward is picked
+                this.door.manualLock = false;
+                // Build reward choices using performance-influenced rarity
+                this._cachedLevelUpChoices = this._getRewardChoices();
+                this.upgradeIndex = 0;
+                this._levelUpSpaceReady = false;
+                this.state = STATE_LEVEL_UP;
+                Audio.playMenuSelect();
+                return;
             }
         }
 
@@ -4822,13 +4910,13 @@ export class Game {
         }
 
         // Use cached choices (computed at state transition to avoid random mismatch with render)
-        const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
+        const choices = this._cachedLevelUpChoices || this._getRewardChoices();
         const count = choices.length;
 
         // ── Reroll Token: press R to reroll choices ──
         if (wasPressed('KeyR') && this.rerollTokenCount > 0) {
             this.rerollTokenCount--;
-            this._cachedLevelUpChoices = this._getLevelUpChoices();
+            this._cachedLevelUpChoices = this._getRewardChoices();
             this.upgradeIndex = 0;
             this._levelUpSpaceReady = false;
             showToast('Rerolled! 🔄 (' + this.rerollTokenCount + ' left)', '#2196f3', '🔄');
@@ -4880,46 +4968,29 @@ export class Game {
 
         const chosen = choices[choiceIdx];
         if (chosen.type === 'base') {
-            this.player.levelUp(chosen.id);
+            // Apply stat boost without level bookkeeping (levels are now passive)
+            this.player.applyStatBoost(chosen.id);
         } else if (chosen.type === 'node') {
-            // Apply upgrade node from UpgradeEngine
-            UpgradeEngine.applyNode(chosen.nodeId || chosen.id, 'levelup');
-            // Still do the level-up stat bookkeeping (level counter, xp)
-            this.player.level++;
-            this.player.xp -= this.player.xpToNext;
-            this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
+            // Apply upgrade node from UpgradeEngine (no level bookkeeping)
+            UpgradeEngine.applyNode(chosen.nodeId || chosen.id, 'reward');
             // Sync Glass Cannon HP reduction + dash charges
             this._syncUpgradeEffects();
         } else if (chosen.type === 'runUpgrade') {
-            // Activate run upgrade
+            // Activate run upgrade (no level bookkeeping)
             this.runUpgradesActive[chosen.id] = true;
-            // Apply immediate effects
             this._applyRunUpgrade(chosen.id);
-            // Still do the level-up stat bookkeeping (level counter, xp)
-            this.player.level++;
-            this.player.xp -= this.player.xpToNext;
-            this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
         }
-
-        // ── Achievement event: player level changed (blocked by cheats) ──
-        if (!this.cheatsUsedThisRun) {
-            achEmit('player_level_changed', { level: this.player.level });
-        }
-
-        // ── Talent points: sync available points with new level ──
-        this._syncTalentPoints();
 
         this.upgradeIndex = 0;
         this._levelUpSpaceReady = false;
 
-        // Chain level-ups
-        if (this.player.xp >= this.player.xpToNext) {
-            this._cachedLevelUpChoices = this._getLevelUpChoices();
-            this.state = STATE_LEVEL_UP;
-        } else {
-            this._cachedLevelUpChoices = null;
-            this._afterLevelUpChain();
+        // No chain level-ups — one reward per room. Return to gameplay.
+        this._cachedLevelUpChoices = null;
+        // Grant brief invulnerability when returning to gameplay
+        if (this.player) {
+            this.player.invulnTimer = Math.max(this.player.invulnTimer, 1000);
         }
+        this._afterLevelUpChain();
     }
 
     /** Transition logic after all chained level-ups are resolved. */
@@ -4968,6 +5039,100 @@ export class Game {
         }
 
         return choices;
+    }
+
+    /**
+     * Build reward choices for the room-clear reward orb.
+     * Uses performance-tier-influenced rarity weights.
+     */
+    _getRewardChoices() {
+        const context = this._getUpgradeContext();
+        const choices = UpgradeEngine.buildRewardChoices(context, this.player, this.performanceTier);
+
+        // Also offer an unlocked run upgrade if available (as extra 4th option)
+        const unlocked = getUnlockedRunUpgradeIds();
+        const available = unlocked.filter(id => !this.runUpgradesActive[id]);
+        if (available.length > 0) {
+            const id = available[Math.floor(Math.random() * available.length)];
+            const def = RUN_UPGRADE_DEFINITIONS[id];
+            if (def) {
+                choices.push({
+                    type: 'runUpgrade',
+                    id,
+                    label: `${def.icon} ${def.name}: ${def.desc}`,
+                    color: def.color,
+                });
+            }
+        }
+
+        return choices;
+    }
+
+    /**
+     * Spawn a reward orb after all enemies are cleared.
+     * Tries the room center first; if that tile is a wall or hazard,
+     * spirals outward to find the nearest safe floor tile.
+     */
+    _spawnRewardOrb() {
+        this.performanceTier = this._computePerformanceTier();
+
+        // Build a set of hazard tiles for O(1) lookup
+        const hazardTiles = new Set();
+        for (const h of this.hazards) {
+            hazardTiles.add(`${h.col},${h.row}`);
+        }
+
+        const isSafe = (col, row) => {
+            if (row < 0 || row >= this.grid.length) return false;
+            if (col < 0 || col >= this.grid[0].length) return false;
+            if (this.grid[row][col]) return false;              // wall
+            if (hazardTiles.has(`${col},${row}`)) return false;  // hazard
+            return true;
+        };
+
+        // Preferred position: room center tile
+        const centerCol = Math.floor(CANVAS_WIDTH / 2 / TILE_SIZE);
+        const centerRow = Math.floor(CANVAS_HEIGHT / 2 / TILE_SIZE);
+
+        let bestCol = centerCol;
+        let bestRow = centerRow;
+
+        if (!isSafe(centerCol, centerRow)) {
+            // Spiral outward from center to find nearest safe tile
+            let found = false;
+            for (let radius = 1; radius < 10 && !found; radius++) {
+                for (let dr = -radius; dr <= radius && !found; dr++) {
+                    for (let dc = -radius; dc <= radius && !found; dc++) {
+                        if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue; // only ring
+                        const c = centerCol + dc;
+                        const r = centerRow + dr;
+                        if (isSafe(c, r)) {
+                            bestCol = c;
+                            bestRow = r;
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        const orbX = bestCol * TILE_SIZE + TILE_SIZE / 2;
+        const orbY = bestRow * TILE_SIZE + TILE_SIZE / 2;
+
+        this.rewardOrb = new RewardOrb(orbX, orbY, this.performanceTier);
+    }
+
+    /**
+     * Compute the current performance tier based on room XP vs baseline.
+     * Higher combo play → more XP → better tier → rarer reward nodes.
+     */
+    _computePerformanceTier() {
+        if (this.roomXPBaseline <= 0) return PERF_TIER_BRONZE;
+        const ratio = this.roomXP / this.roomXPBaseline;
+        if (ratio >= PERF_DIAMOND_THRESHOLD) return PERF_TIER_DIAMOND;
+        if (ratio >= PERF_GOLD_THRESHOLD)    return PERF_TIER_GOLD;
+        if (ratio >= PERF_SILVER_THRESHOLD)  return PERF_TIER_SILVER;
+        return PERF_TIER_BRONZE;
     }
 
     /** Build the context object used by UpgradeEngine for node eligibility checks. */
@@ -5183,30 +5348,36 @@ export class Game {
         this.player.hp = this.player.maxHp;
         this.player.overHeal = 0;
 
-        // Award boss XP (may trigger level-up chain)
+        // Award boss XP — passive leveling (no overlay interrupt)
         const bossXpMult = this.cheats.xpboost ? 10 : 1;
         const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
         const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
         const shopXpMult = this._getShopXpMultiplier();
         const talentXpMult = this.player.talentXpMult || 1;
         const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult * talentXpMult);
-        if (this.player.addXp(xp)) {
+        this.player.addXp(xp);
+        // Process passive level-ups from boss XP
+        while (this.player.xp >= this.player.xpToNext) {
+            this.player.autoLevelUp();
             Audio.playLevelUp();
             this.particles.levelUp(this.player.x, this.player.y);
-            // Relic: heal on level-up
             if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
                 const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
                 this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
             }
-            this.upgradeIndex = 0;
-            this._cachedLevelUpChoices = this._getLevelUpChoices();
-            // Open shop after every boss, flag it for after level-up chain
-            this._pendingRunShop = true;
-            this.state = STATE_LEVEL_UP;
-            return;
+            this._syncTalentPoints();
+            if (!this.cheatsUsedThisRun) {
+                achEmit('player_level_changed', { level: this.player.level });
+            }
+            this.levelUpBanners.push({
+                text: `⬆ Level ${this.player.level}!`,
+                color: '#ffd700',
+                timer: 2000,
+                maxTimer: 2000,
+            });
         }
 
-        // No level-up: scroll → shop → playing (via _afterLevelUpChain logic)
+        // Skip level-up overlay — go directly to boss scroll → shop → playing
         this._pendingRunShop = true;
         this._afterLevelUpChain();
     }
@@ -5409,6 +5580,12 @@ export class Game {
         }
 
         this.door.render(ctx);
+
+        // ── Reward Orb ──
+        if (this.rewardOrb && !this.rewardOrb.collected) {
+            this.rewardOrb.render(ctx);
+        }
+
         // Enemies: hidden if outside light in darkness rooms
         for (const e of this.enemies) {
             if (!e.dead && isDarknessActive() && !isInsideLight(e.x, e.y)) continue;
@@ -5499,6 +5676,39 @@ export class Game {
                   this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
                   biomeName, biomeColor,
                   this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
+
+        // ── Performance Meter (room XP rating) ──
+        if (!this.trainingMode && !isBossRoom && this.roomXPBaseline > 0) {
+            const isCleared = this._roomCleared || this._rewardOrbPending;
+            renderPerformanceMeter(ctx, this.roomXP, this.roomXPBaseline, this.performanceTier, isCleared);
+        }
+
+        // ── Level-Up Banners (non-blocking popups) ──
+        const bannerDt = this._lastBannerTime ? (performance.now() - this._lastBannerTime) : 16.67;
+        this._lastBannerTime = performance.now();
+        for (let i = this.levelUpBanners.length - 1; i >= 0; i--) {
+            const b = this.levelUpBanners[i];
+            b.timer -= bannerDt;
+            if (b.timer <= 0) {
+                this.levelUpBanners.splice(i, 1);
+                continue;
+            }
+            const progress = 1 - (b.timer / b.maxTimer);
+            const fadeIn = Math.min(1, progress * 5);           // fast fade in
+            const fadeOut = Math.min(1, b.timer / 500);         // fade out last 500ms
+            const alpha = fadeIn * fadeOut;
+            const slideY = CANVAS_HEIGHT / 2 - 80 - (1 - fadeIn) * 20 - i * 30;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 16px monospace';
+            ctx.fillStyle = b.color;
+            ctx.shadowColor = b.color;
+            ctx.shadowBlur = 8;
+            ctx.fillText(b.text, CANVAS_WIDTH / 2, slideY);
+            ctx.restore();
+        }
 
         // ── Trial timer banner ──
         if (this.trialActive && this.eventState && this.eventState.phase === 'challenge') {
@@ -5639,8 +5849,8 @@ export class Game {
         if (this.state === STATE_PAUSED) {
             this._renderPauseOverlay(ctx);
         } else if (this.state === STATE_LEVEL_UP) {
-            const choices = this._cachedLevelUpChoices || this._getLevelUpChoices();
-            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady, this.rerollTokenCount);
+            const choices = this._cachedLevelUpChoices || this._getRewardChoices();
+            renderLevelUpOverlay(ctx, this.player, this.upgradeIndex, choices, this._levelUpSpaceReady, this.rerollTokenCount, this.performanceTier);
             // Talent point notification
             if (this.talentState && this.talentState.points > 0) {
                 ctx.save();

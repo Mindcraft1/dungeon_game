@@ -11,10 +11,16 @@ export class Door {
         this.height = TILE_SIZE;
         this.locked = true;
         this.pulseTime = 0;
+        this.manualLock = false; // When true, door stays locked even if enemies are dead (reward orb pending)
     }
 
     update(dt, enemies, forceUnlock = false) {
-        this.locked = forceUnlock ? false : enemies.some(e => !e.dead);
+        if (this.manualLock) {
+            // Stay locked regardless of enemies — waiting for reward orb pickup
+            this.locked = true;
+        } else {
+            this.locked = forceUnlock ? false : enemies.some(e => !e.dead);
+        }
         if (!this.locked) this.pulseTime += dt;
     }
 

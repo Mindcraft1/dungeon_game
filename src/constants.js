@@ -641,6 +641,49 @@ export const ROOM_TYPE_EVENT    = 'event';
 export const ROOM_TYPE_TRAINING = 'training';
 export const ROOM_TYPE_DARKNESS = 'darkness';
 
+// ── Performance Tier (Room XP Rating) ──
+// Tracks combat performance per room to influence reward quality.
+// Ratio = roomXP earned / baseline XP for that room's enemy count & stage.
+export const PERF_TIER_BRONZE  = 'bronze';
+export const PERF_TIER_SILVER  = 'silver';
+export const PERF_TIER_GOLD    = 'gold';
+export const PERF_TIER_DIAMOND = 'diamond';
+
+export const PERF_SILVER_THRESHOLD  = 0.6;   // 60% of baseline
+export const PERF_GOLD_THRESHOLD    = 1.0;   // 100% of baseline
+export const PERF_DIAMOND_THRESHOLD = 1.5;   // 150%+ (requires combos)
+
+export const PERF_TIER_COLORS = {
+    [PERF_TIER_BRONZE]:  '#cd7f32',
+    [PERF_TIER_SILVER]:  '#c0c0c0',
+    [PERF_TIER_GOLD]:    '#ffd700',
+    [PERF_TIER_DIAMOND]: '#b9f2ff',
+};
+
+export const PERF_TIER_ICONS = {
+    [PERF_TIER_BRONZE]:  '🥉',
+    [PERF_TIER_SILVER]:  '🥈',
+    [PERF_TIER_GOLD]:    '🥇',
+    [PERF_TIER_DIAMOND]: '💎',
+};
+
+// Rarity weight shift per performance tier (higher = more rare nodes)
+export const PERF_RARITY_SHIFT = {
+    [PERF_TIER_BRONZE]:  0,
+    [PERF_TIER_SILVER]:  0.10,
+    [PERF_TIER_GOLD]:    0.20,
+    [PERF_TIER_DIAMOND]: 0.30,
+};
+
+// ── Auto Level-Up (passive stat gains on level threshold) ──
+export const AUTO_LEVEL_HP     = 10;
+export const AUTO_LEVEL_DAMAGE = 3;
+export const AUTO_LEVEL_SPEED  = 5;
+
+// ── Reward Orb ──
+export const REWARD_ORB_RADIUS         = 16;
+export const REWARD_ORB_COLLECT_RADIUS = 30;
+
 // ── Darkness Room ──
 export const DARKNESS_CONFIG = {
     lightRadius: 130,           // px around player that is visible

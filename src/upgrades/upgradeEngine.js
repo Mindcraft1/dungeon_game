@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { NODE_DEFINITIONS, NODE_IDS, getNode, createDefaultCombatMods } from './nodes.js';
-import { NODE_RARITY_COMMON, NODE_RARITY_UNCOMMON, NODE_RARITY_RARE, NODE_RARITY_EPIC, NODE_RARITY_LEGENDARY } from '../constants.js';
+import { NODE_RARITY_COMMON, NODE_RARITY_UNCOMMON, NODE_RARITY_RARE, NODE_RARITY_EPIC, NODE_RARITY_LEGENDARY, PERF_RARITY_SHIFT, PERF_TIER_BRONZE } from '../constants.js';
 import * as MetaStore from '../meta/metaStore.js';
 
 // ── Rarity base weights for random selection ──
@@ -29,19 +29,22 @@ const RARITY_UNLOCK_STAGE = {
  * Get rarity weights adjusted for current stage.
  * Higher stages shift weight toward rarer tiers.
  * @param {number} stage - current game stage (1+)
+ * @param {number} [rarityBonus=0] - additional shift toward rarer tiers (0-1, from performance)
  * @returns {Record<string, number>}
  */
-function getRarityWeights(stage = 1) {
+export function getRarityWeights(stage = 1, rarityBonus = 0) {
     const s = Math.max(1, stage);
     // Scale factor: how much to boost rarer tiers (0 at stage 1, ~1.0 at stage 50)
     const progression = Math.min(1.0, (s - 1) / 49);
+    // Performance bonus: shifts weight further toward rarer tiers
+    const bonus = Math.max(0, Math.min(1, rarityBonus));
 
     return {
-        [NODE_RARITY_COMMON]:    Math.max(10, 50 - progression * 28),  // 50 → 22
-        [NODE_RARITY_UNCOMMON]:  35 + progression * 5,                 // 35 → 40
-        [NODE_RARITY_RARE]:      12 + progression * 10,                // 12 → 22
-        [NODE_RARITY_EPIC]:      s >= RARITY_UNLOCK_STAGE[NODE_RARITY_EPIC]      ? 3 + progression * 10  : 0,  // 0 → 13
-        [NODE_RARITY_LEGENDARY]: s >= RARITY_UNLOCK_STAGE[NODE_RARITY_LEGENDARY] ? Math.max(0, (s - 25) * 0.4) : 0,  // 0 → ~5 at stage 37, ~10 at stage 50
+        [NODE_RARITY_COMMON]:    Math.max(5, 50 - progression * 28 - bonus * 15),  // 50 → 22 → lower with bonus
+        [NODE_RARITY_UNCOMMON]:  35 + progression * 5 + bonus * 5,                  // 35 → 40 → 45 with bonus
+        [NODE_RARITY_RARE]:      12 + progression * 10 + bonus * 8,                 // 12 → 22 → 30 with bonus
+        [NODE_RARITY_EPIC]:      s >= RARITY_UNLOCK_STAGE[NODE_RARITY_EPIC]      ? 3 + progression * 10 + bonus * 10  : 0,
+        [NODE_RARITY_LEGENDARY]: s >= RARITY_UNLOCK_STAGE[NODE_RARITY_LEGENDARY] ? Math.max(0, (s - 25) * 0.4) + bonus * 5 : 0,
     };
 }
 
@@ -370,6 +373,82 @@ export function buildForgeChoices(category, context, count = 3) {
 }
 
 /**
+ * Build reward choices for the room-clear reward orb.
+ * Same structure as buildLevelUpChoices but with rarity shifted by performance tier.
+ * @param {object} context - { equippedAbilities, equippedProcs, stage }
+ * @param {object} player - player object for stat display
+ * @param {string} [perfTier='bronze'] - performance tier from room XP rating
+ * @returns {Array<{ type: 'node'|'base'|'runUpgrade', id, label, color, icon, nodeId?, rarity? }>}
+ */
+export function buildRewardChoices(context, player, perfTier = PERF_TIER_BRONZE) {
+    const rarityBonus = PERF_RARITY_SHIFT[perfTier] || 0;
+    const choices = [];
+
+    // 1) Two general nodes from melee/dagger/dash/global pools (with perf-shifted rarity)
+    const generalPools = ['melee', 'dagger', 'dash', 'global'];
+    const allGeneral = [];
+    for (const pool of generalPools) {
+        allGeneral.push(...getEligibleNodes(pool, context));
+    }
+
+    const generalPicks = _weightedPickNWithBonus(allGeneral, 2, context.stage || 1, rarityBonus);
+    for (const def of generalPicks) {
+        choices.push({
+            type: 'node',
+            id: def.id,
+            nodeId: def.id,
+            label: `${def.icon} ${def.name}: ${def.desc}`,
+            color: def.color,
+            rarity: def.rarity,
+        });
+    }
+
+    // 2) One synergy node (ability or proc specific) if available
+    const synergyPools = [];
+    for (const abId of (context.equippedAbilities || [])) {
+        synergyPools.push(...getEligibleNodes('all', context).filter(d => d.category === `ability:${abId}`));
+    }
+    for (const prId of (context.equippedProcs || [])) {
+        synergyPools.push(...getEligibleNodes('all', context).filter(d => d.category === `proc:${prId}`));
+    }
+
+    const pickedIds = new Set(choices.map(c => c.id));
+    const synergyFiltered = synergyPools.filter(d => !pickedIds.has(d.id));
+
+    if (synergyFiltered.length > 0) {
+        const synPick = _weightedPickNWithBonus(synergyFiltered, 1, context.stage || 1, rarityBonus);
+        for (const def of synPick) {
+            choices.push({
+                type: 'node',
+                id: def.id,
+                nodeId: def.id,
+                label: `${def.icon} ${def.name}: ${def.desc}`,
+                color: def.color,
+                rarity: def.rarity,
+            });
+        }
+    }
+
+    // 3) Base stat fallback if fewer than 3 choices
+    if (choices.length < 3) {
+        const baseOptions = _getBaseStatChoices(player);
+        while (choices.length < 3 && baseOptions.length > 0) {
+            choices.push(baseOptions.shift());
+        }
+    }
+
+    // If we got 3+ node choices, still add one base stat as a 4th option
+    if (choices.length === 3 && choices.every(c => c.type === 'node')) {
+        const baseOptions = _getBaseStatChoices(player);
+        if (baseOptions.length > 0) {
+            choices.push(baseOptions[Math.floor(Math.random() * baseOptions.length)]);
+        }
+    }
+
+    return choices;
+}
+
+/**
  * Get all categories available for forge selection based on loadout.
  * @param {object} context
  * @returns {Array<{id: string, label: string, color: string}>}
@@ -414,6 +493,28 @@ function _shuffle(arr) {
 function _weightedPickN(pool, n, stage = 1) {
     if (pool.length <= n) return _shuffle(pool);
     const weights = getRarityWeights(stage);
+    const selected = [];
+    const remaining = [...pool];
+    for (let i = 0; i < n && remaining.length > 0; i++) {
+        const totalWeight = remaining.reduce((sum, def) => sum + (weights[def.rarity] || 5), 0);
+        let roll = Math.random() * totalWeight;
+        let picked = remaining.length - 1;
+        for (let j = 0; j < remaining.length; j++) {
+            roll -= (weights[remaining[j].rarity] || 5);
+            if (roll <= 0) { picked = j; break; }
+        }
+        selected.push(remaining[picked]);
+        remaining.splice(picked, 1);
+    }
+    return selected;
+}
+
+/**
+ * Like _weightedPickN but with an additional rarity bonus shift (from performance tier).
+ */
+function _weightedPickNWithBonus(pool, n, stage = 1, rarityBonus = 0) {
+    if (pool.length <= n) return _shuffle(pool);
+    const weights = getRarityWeights(stage, rarityBonus);
     const selected = [];
     const remaining = [...pool];
     for (let i = 0; i < n && remaining.length > 0; i++) {

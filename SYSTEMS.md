@@ -30,6 +30,7 @@
 22. [Waffen-Typen](#22-waffen-typen)
 23. [Charakter-Anpassung (Kosmetik)](#23-charakter-anpassung-kosmetik)
 24. [Talent Tree (Per-Run)](#24-talent-tree-per-run)
+25. [Reward Orb & Performance System](#25-reward-orb--performance-system)
 
 ---
 
@@ -207,11 +208,11 @@ Hazards werden dynamisch pro Raum platziert. Schaden skaliert +10% pro Stage üb
 | 30 | 32 | 42 | 65 |
 | 40 | 38 | 50 | 77 |
 
-**Level-Up Optionen:** 2 General-Nodes + 1 Synergy-Node + Base-Stat Fallback
+**Level-Up:** Passives Auto-Leveling (siehe [Sektion 25](#25-reward-orb--performance-system)). Upgrade-Auswahl erfolgt über Reward Orb nach Raum-Clear.
 
-**Level-skalierende Base-Upgrades:**
+**Level-skalierende Base-Upgrades (Reward Orb Auswahl):**
 
-Base-Stat-Upgrades wachsen mit dem Spieler-Level, damit jedes Level-Up im Endgame spürbar bleibt:
+Base-Stat-Upgrades wachsen mit dem Spieler-Level, damit jede Belohnung im Endgame spürbar bleibt:
 
 | Upgrade | Formel | Level 1 | Level 10 | Level 20 | Level 30 |
 |---------|--------|---------|----------|----------|----------|
@@ -311,7 +312,7 @@ Jeder besiegte Gegner hat **25% Chance** einen Pickup zu droppen. Drops hängen 
 
 ## 10. Upgrade-Nodes (In-Run Builds)
 
-Nodes werden bei **Level-Up**, **Events** und im **Shop** erworben. Jeder Node hat eine Rarität und Stack-Limit.
+Nodes werden bei **Reward Orb Pickup**, **Events** und im **Shop** erworben. Jeder Node hat eine Rarität und Stack-Limit.
 
 ### 10.1 Rarity System (5 Tiers)
 
@@ -341,12 +342,13 @@ Gewichte skalieren dynamisch mit dem aktuellen Stage. Höhere Stages verschieben
 - **Legendary** nodes werden erst ab **Stage 25** verfügbar, Gewicht steigt linear mit `(stage - 25) × 0.4`
 - `getEligibleNodes()` filtert Nodes raus, deren Rarity-Unlock-Stage noch nicht erreicht ist
 
-### 10.3 Level-Up Selection
+### 10.3 Reward Selection (ehemals Level-Up Selection)
 
-`buildLevelUpChoices()` bietet **3 Optionen** an:
-- **2 General Picks** — aus dem gesamten Pool (stage-weighted rarity)
+`buildRewardChoices()` bietet **3 Optionen** beim Reward Orb Pickup an:
+- **2 General Picks** — aus dem gesamten Pool (stage-weighted rarity + Performance-Bonus)
 - **1 Synergy Pick** — aus der Kategorie der aktuellen Waffe/Ability/Proc (bevorzugt passende Nodes)
 - Duplikate werden gefiltert, Forge/Reroll Tokens können den Pool verändern
+- Performance-Tier verschiebt Rarity-Gewichte (siehe [Sektion 25.3](#253-room-xp-performance-system))
 
 ---
 
@@ -977,6 +979,209 @@ Talent-Multiplikatoren werden auf den `Player` als Properties gesetzt und greife
 | `src/entities/player.js` | 15 Talent-Modifier Properties + Integration |
 | `src/entities/pickup.js` | Pickup-Radius-Multiplikator |
 | `src/game.js` | State-Management, Punkt-Sync, Modifier-Anwendung |
+
+---
+
+## 25. Reward Orb & Performance System
+
+> **Design-Inspiration:** Hades — Belohnungen sind räumliche Objekte, die der Spieler aktiv einsammelt. Kein Gameplay-Interrupt mehr durch Level-Up Overlays.
+
+### 25.1 Überblick — Neuer Progressions-Flow
+
+Der alte Flow (Kill → XP → Level-Up Interrupt → Wahl) wurde ersetzt durch einen flüssigeren, Hades-inspirierten Flow:
+
+```
+Kill Enemies → XP fließt (passives Auto-Leveling) → Raum gecleart
+   → Reward Orb spawnt in Raum-Mitte → Spieler läuft zum Orb
+   → Belohnungs-Overlay (3 Optionen) → Tür öffnet sich → Weiter
+```
+
+**Kernprinzipien:**
+1. **Kein Gameplay-Interrupt:** Level-Ups passieren passiv im Hintergrund (nicht-blockierende Banner)
+2. **Räumliche Belohnung:** Spieler muss zum leuchtenden Orb laufen (bewusste Entscheidung)
+3. **Performance wird belohnt:** XP-Rating im Raum beeinflusst die Qualität der Belohnungsoptionen
+4. **Tür bleibt gesperrt** bis der Reward Orb eingesammelt wurde (kein Überspringen)
+
+### 25.2 Passives Auto-Leveling
+
+Wenn der Spieler genug XP sammelt, steigt er **automatisch** auf — ohne Overlay, ohne Pause.
+
+**Ablauf pro Kill:**
+1. `player.addXp(xp)` — XP wird hinzugefügt
+2. `roomXP += xp` — Room XP-Counter steigt
+3. **While** `player.xp >= threshold`: `player.autoLevelUp()` wird aufgerufen
+4. Performance-Tier wird neu berechnet
+
+**Auto-Level Stat-Gains (kleine, passive Boosts):**
+
+| Stat | Wert pro Level | Beschreibung |
+|------|----------------|--------------|
+| ❤️ Max HP | +10 | `AUTO_LEVEL_HP` — kleiner HP-Boost |
+| ⚔️ Damage | +3 | `AUTO_LEVEL_DAMAGE` — kleiner DMG-Boost |
+| 👢 Speed | +5 | `AUTO_LEVEL_SPEED` — kleiner Speed-Boost |
+
+**Level-Up Banner:**
+- Nicht-blockierendes, goldenes Banner „⬆ LEVEL X!" erscheint über dem Spieler
+- Fade-In (schnell, ×5), Fade-Out (letzte 500ms), Slide-Up Animation
+- Dauer: 2000ms pro Banner
+- Mehrere Banner können gestapelt werden (Offset: -30px pro Banner)
+
+### 25.3 Room XP Performance System
+
+Jeder Raum hat ein XP-Baseline basierend auf den gespawnten Gegnern. Die XP, die der Spieler im Raum sammelt, werden mit dieser Baseline verglichen.
+
+**Baseline-Berechnung:**
+```
+roomXPBaseline = enemyCount × ENEMY_XP × (1 + (stage - 1) × ENEMY_XP_STAGE_SCALE)
+```
+
+**Performance Tiers:**
+
+| Tier | Icon | Farbe | Schwelle (Ratio) | Rarity-Bonus |
+|------|------|-------|-------------------|--------------|
+| 🥉 Bronze | 🥉 | `#cd7f32` | < 0.6 (< 60%) | +0% |
+| 🥈 Silver | 🥈 | `#c0c0c0` | ≥ 0.6 (≥ 60%) | +10% |
+| 🥇 Gold | 🥇 | `#ffd700` | ≥ 1.0 (≥ 100%) | +20% |
+| 💎 Diamond | 💎 | `#b9f2ff` | ≥ 1.5 (≥ 150%) | +30% |
+
+**Wie erreicht man über 100%?**
+- Combo-Multiplikator gibt Bonus-XP
+- Zweite Welle gibt zusätzliche Gegner
+- Spezielle XP-Buffs und Procs
+
+**Rarity-Bonus Mechanik:**
+Der Performance-Tier verschiebt die Rarity-Gewichte bei der Reward-Orb Auswahl:
+
+| Rarität | Ohne Bonus | +10% (Silver) | +20% (Gold) | +30% (Diamond) |
+|---------|------------|---------------|-------------|-----------------|
+| Common | Basis | -1.5 | -3.0 | -4.5 |
+| Uncommon | Basis | +0.5 | +1.0 | +1.5 |
+| Rare | Basis | +0.8 | +1.6 | +2.4 |
+| Epic | Basis | +1.0 | +2.0 | +3.0 |
+| Legendary | Basis | +0.5 | +1.0 | +1.5 |
+
+> Die Stage-basierte Rarity bleibt erhalten — der Performance-Bonus ist ein **zusätzlicher Shift** obendrauf.
+
+### 25.4 Performance Meter (HUD)
+
+Ein Echtzeit-Meter oben rechts im HUD zeigt den Performance-Fortschritt:
+
+- **Position:** Oben rechts (unterhalb der Standardposition)
+- **Anzeige:** Tier-Icon + Label, Fortschrittsbalken (0–200% der Baseline)
+- **Schwellen-Marker:** Vertikale Linien bei Silver (60%), Gold (100%), Diamond (150%)
+- **Farbcodierung:** Balken wechselt Farbe je nach aktuellem Tier
+- **XP-Zähler:** Aktuelle Room-XP wird angezeigt
+- **Visibility:** Nur in normalen Räumen (nicht Training, nicht Boss)
+- **Freeze bei Clear:** Meter friert ein wenn der Raum gecleart ist
+
+### 25.5 Reward Orb (Entity)
+
+Der Reward Orb ist ein visuelles Entity, das nach dem Raum-Clear in der Raum-Mitte spawnt.
+
+**Visuelles Design:**
+- Pulsierender Glow-Effekt (Sinus-Animation, Frequenz 3Hz)
+- Tier-farbiger Kern (Bronze/Silver/Gold/Diamond-Farbe)
+- Spawn Pop-In mit `easeOutBack` (Overshoot-Animation)
+- Schwebendes Bob (vertikale Oszillation)
+- Tier-Icon über dem Orb
+- "REWARD" Label unter dem Orb
+
+**Konstanten:**
+
+| Konstante | Wert | Beschreibung |
+|-----------|------|--------------|
+| `REWARD_ORB_RADIUS` | 16 | Visuelle Größe des Orbs |
+| `REWARD_ORB_COLLECT_RADIUS` | 30 | Einsammel-Radius (größer für Komfort) |
+
+**Collision-Check:**
+```
+distance(player, orb) < REWARD_ORB_COLLECT_RADIUS + player.radius
+```
+
+### 25.6 Reward-Auswahl (Level-Up Overlay)
+
+Wenn der Spieler den Orb einsammelt, öffnet sich das bestehende Level-Up Overlay mit **Performance-beeinflussten Optionen**:
+
+**Auswahl-Generierung:** `buildRewardChoices(context, player, perfTier)`
+- Identische Struktur wie `buildLevelUpChoices()` (2 General + 1 Synergy)
+- Rarity-Gewichte werden um `PERF_RARITY_SHIFT[perfTier]` verschoben
+- Stage-basierte Basis-Gewichte bleiben erhalten
+
+**Choice-Typen:**
+
+| Typ | Anwendung | Level-Bookkeeping |
+|-----|-----------|-------------------|
+| `base` (HP/Speed/DMG) | `player.applyStatBoost(id)` | Nein — keine Level-Änderung |
+| `node` (Upgrade-Node) | `UpgradeEngine.applyNode(id, 'reward')` | Nein — Node wird direkt angewandt |
+| `runUpgrade` | `_applyRunUpgrade(id)` | Nein — direkter Effekt |
+
+> **Wichtig:** Im Gegensatz zum alten System verändert die Reward-Auswahl **nicht** das Spieler-Level. Leveling ist vollständig passiv.
+
+**Nach der Wahl:**
+1. `door.manualLock = false` — Tür wird freigeschaltet
+2. 1 Sekunde Unverwundbarkeit wird gewährt
+3. Spieler kann zur Tür laufen und den nächsten Raum betreten
+
+### 25.7 Door Manual Lock
+
+Die Tür hat ein neues `manualLock` Property:
+
+- **Aktivierung:** `door.manualLock = true` in `loadRoom()` für normale Räume (nicht Boss, nicht Training)
+- **Effekt:** Tür bleibt gesperrt unabhängig vom Gegner-Status
+- **Deaktivierung:** `door.manualLock = false` nach Orb-Pickup
+- **Boss-Räume:** Kein `manualLock` — normaler Flow über `STATE_BOSS_VICTORY`
+- **Training:** Kein `manualLock` — Tür ist immer offen
+
+### 25.8 Boss-Raum Progression
+
+Boss-Räume nutzen weiterhin den bestehenden Flow, aber XP wird passiv verarbeitet:
+
+1. Boss stirbt → `bossVictoryDelay` läuft
+2. Boss-XP wird vergeben + passives Auto-Leveling (mit Bannern)
+3. `STATE_BOSS_VICTORY` — Boss Scroll + Victory Overlay
+4. Kein Level-Up Overlay nach Boss — direkter Übergang zu Boss Scroll → Shop → Playing
+
+### 25.9 Room Clear Detection
+
+Die Raum-Clear-Erkennung nutzt ein `_roomCleared` Flag statt der Tür-Transition:
+
+1. Jeder Frame: Prüfe ob alle Feinde tot sind
+2. Wenn erstmals alle tot und `!_roomCleared`:
+   - Flag setzen: `_roomCleared = true`
+   - **Second Wave Check** (wenn Stage ≥ Minimum und nicht schon getriggert):
+     - Zufalls-Roll → Wave 2 spawnt → `_roomCleared = false` (zurücksetzen)
+   - **Sonst:** Tür-Unlock-Effekte + Reward Orb spawnen
+3. Door.update() wird *danach* aufgerufen — `manualLock` hält Tür gesperrt
+
+### 25.10 Dateien & Änderungen
+
+| Datei | Rolle |
+|-------|-------|
+| `src/constants.js` | `PERF_TIER_*`, `PERF_*_THRESHOLD`, `PERF_TIER_COLORS`, `PERF_TIER_ICONS`, `PERF_RARITY_SHIFT`, `AUTO_LEVEL_*`, `REWARD_ORB_*` |
+| `src/entities/rewardOrb.js` | **NEU** — `RewardOrb` Klasse (spawn, update, render, collision) |
+| `src/entities/player.js` | `autoLevelUp()` (passiv), `applyStatBoost(choice)` (Reward-Stat-Boost) |
+| `src/entities/door.js` | `manualLock` Property für Reward-Gate |
+| `src/upgrades/upgradeEngine.js` | `buildRewardChoices()`, `_weightedPickNWithBonus()`, `getRarityWeights(bonus)` |
+| `src/ui/hud.js` | `renderPerformanceMeter()` — Echtzeit Performance-Meter |
+| `src/game.js` | State-Variablen, XP-Flow, Door/Reward-Logik, Helper-Methoden, Render |
+
+### 25.11 Konstanten-Referenz
+
+| Konstante | Wert | Beschreibung |
+|-----------|------|--------------|
+| `PERF_TIER_BRONZE` | `'bronze'` | Niedrigster Tier |
+| `PERF_TIER_SILVER` | `'silver'` | Ab 60% Baseline |
+| `PERF_TIER_GOLD` | `'gold'` | Ab 100% Baseline |
+| `PERF_TIER_DIAMOND` | `'diamond'` | Ab 150% Baseline |
+| `PERF_SILVER_THRESHOLD` | 0.6 | 60% der Baseline |
+| `PERF_GOLD_THRESHOLD` | 1.0 | 100% der Baseline |
+| `PERF_DIAMOND_THRESHOLD` | 1.5 | 150% der Baseline |
+| `PERF_RARITY_SHIFT` | `{bronze: 0, silver: 0.10, gold: 0.20, diamond: 0.30}` | Rarity-Bonus pro Tier |
+| `AUTO_LEVEL_HP` | 10 | Passiver HP-Gain pro Level |
+| `AUTO_LEVEL_DAMAGE` | 3 | Passiver DMG-Gain pro Level |
+| `AUTO_LEVEL_SPEED` | 5 | Passiver Speed-Gain pro Level |
+| `REWARD_ORB_RADIUS` | 16 | Visuelle Orb-Größe |
+| `REWARD_ORB_COLLECT_RADIUS` | 30 | Einsammel-Radius |
 
 ---
 

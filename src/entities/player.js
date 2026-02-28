@@ -8,6 +8,7 @@ import {
     XP_BASE, XP_MULTIPLIER, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     XP_SOFT_CAP_LEVEL, XP_MULT_FLOOR, XP_MULT_DECAY,
     UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL,
+    AUTO_LEVEL_HP, AUTO_LEVEL_DAMAGE, AUTO_LEVEL_SPEED,
     MAX_ACTIVE_BUFFS, BUFF_DURATION_SHORT, BUFF_DURATION_LONG,
     BUFF_RAGE_DAMAGE_MULT, BUFF_HEAL_AMOUNT,
     BUFF_PIERCING_RANGE_MULT, BUFF_PIERCING_DAMAGE_MULT,
@@ -726,6 +727,59 @@ export class Player {
         this.xpToNext = Math.floor(this.xpToNext * mult);
 
         // Level-scaling upgrades: grow with player level so they stay impactful
+        const hpGain  = UPGRADE_HP     + Math.floor(lvl * UPGRADE_HP_PER_LEVEL);
+        const spdGain = UPGRADE_SPEED  + Math.floor(lvl * UPGRADE_SPEED_PER_LEVEL);
+        const dmgGain = UPGRADE_DAMAGE + Math.floor(lvl * UPGRADE_DAMAGE_PER_LEVEL);
+
+        switch (choice) {
+            case 'hp':
+                this._baseMaxHp += hpGain;
+                this.maxHp = Math.round(this._baseMaxHp * this.talentMaxHpMult);
+                this.hp = Math.min(this.hp + Math.floor(hpGain * 0.6), this.maxHp);
+                break;
+            case 'speed':
+                this.speed += spdGain;
+                break;
+            case 'damage':
+                this.damage += dmgGain;
+                break;
+        }
+    }
+
+    /**
+     * Passive auto-level-up: small stat gains, no player choice needed.
+     * Called when XP crosses the threshold during the new reward orb flow.
+     * Handles level counter, XP threshold recalculation, and minor stat boosts.
+     */
+    autoLevelUp() {
+        this.level++;
+        this.xp -= this.xpToNext;
+
+        // Same soft-cap XP curve as the manual level-up
+        const lvl = this.level;
+        let mult;
+        if (lvl <= XP_SOFT_CAP_LEVEL) {
+            mult = XP_MULTIPLIER;
+        } else {
+            mult = Math.max(XP_MULT_FLOOR, XP_MULTIPLIER - (lvl - XP_SOFT_CAP_LEVEL) * XP_MULT_DECAY);
+        }
+        this.xpToNext = Math.floor(this.xpToNext * mult);
+
+        // Small automatic stat gains (much smaller than the old manual choices)
+        this._baseMaxHp += AUTO_LEVEL_HP;
+        this.maxHp = Math.round(this._baseMaxHp * this.talentMaxHpMult);
+        this.hp = Math.min(this.hp + AUTO_LEVEL_HP, this.maxHp);
+        this.damage += AUTO_LEVEL_DAMAGE;
+        this.speed += AUTO_LEVEL_SPEED;
+    }
+
+    /**
+     * Apply a base stat boost from a reward choice (no level bookkeeping).
+     * Used by the reward orb system when player picks a stat upgrade.
+     * @param {'hp'|'speed'|'damage'} choice
+     */
+    applyStatBoost(choice) {
+        const lvl = this.level;
         const hpGain  = UPGRADE_HP     + Math.floor(lvl * UPGRADE_HP_PER_LEVEL);
         const spdGain = UPGRADE_SPEED  + Math.floor(lvl * UPGRADE_SPEED_PER_LEVEL);
         const dmgGain = UPGRADE_DAMAGE + Math.floor(lvl * UPGRADE_DAMAGE_PER_LEVEL);

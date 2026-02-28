@@ -1,12 +1,13 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
-    UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL } from '../constants.js';
+    UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL,
+    PERF_TIER_COLORS, PERF_TIER_ICONS, PERF_TIER_BRONZE } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
  * @param {Array} [choices] – dynamic choices array from game.js, or null for default
  */
-export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null, spaceConfirmReady = false, rerollTokenCount = 0) {
+export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = null, spaceConfirmReady = false, rerollTokenCount = 0, performanceTier = PERF_TIER_BRONZE) {
     // Backdrop
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -54,13 +55,16 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     ctx.textAlign = 'center';
 
     // Title
-    ctx.fillStyle = '#ffd700';
+    const tierColor = PERF_TIER_COLORS[performanceTier] || '#ffd700';
+    const tierIcon  = PERF_TIER_ICONS[performanceTier]  || '🎁';
+    ctx.fillStyle = tierColor;
     ctx.font = 'bold 24px monospace';
-    ctx.fillText('LEVEL UP!', CANVAS_WIDTH / 2, by + 40);
+    ctx.fillText(`${tierIcon} ROOM REWARD`, CANVAS_WIDTH / 2, by + 40);
 
+    const tierLabel = performanceTier.charAt(0).toUpperCase() + performanceTier.slice(1);
     ctx.fillStyle = '#aaa';
     ctx.font = '14px monospace';
-    ctx.fillText(`Level ${player.level} → ${player.level + 1}`, CANVAS_WIDTH / 2, by + 65);
+    ctx.fillText(`${tierLabel} rating  ·  Lv ${player.level}`, CANVAS_WIDTH / 2, by + 65);
 
     // Options — use dynamic choices if provided, else base options
     const opts = choices

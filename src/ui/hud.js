@@ -1,4 +1,8 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIMEOUT } from '../constants.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIMEOUT,
+         PERF_TIER_BRONZE, PERF_TIER_SILVER, PERF_TIER_GOLD, PERF_TIER_DIAMOND,
+         PERF_TIER_COLORS, PERF_TIER_ICONS,
+         PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
+       } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
 
 /**
@@ -391,4 +395,80 @@ export function renderBossHPBar(ctx, boss) {
     }
 
     ctx.textAlign = 'left';
+}
+
+/**
+ * Render the room performance meter — shows current XP performance tier during combat.
+ * Displayed in the top-right area of the HUD.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} roomXP - XP accumulated in current room
+ * @param {number} baseline - expected baseline XP for this room
+ * @param {string} currentTier - current performance tier
+ * @param {boolean} roomCleared - if true, show the final tier with emphasis
+ */
+export function renderPerformanceMeter(ctx, roomXP, baseline, currentTier, roomCleared = false) {
+    if (baseline <= 0) return;
+
+    const ratio = roomXP / baseline;
+    const x = CANVAS_WIDTH - 200;
+    const y = 12;
+    const barW = 140;
+    const barH = 10;
+
+    ctx.save();
+
+    // Background panel
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(x - 8, y - 6, barW + 48, 42);
+
+    // Tier icon + label
+    const tierColor = PERF_TIER_COLORS[currentTier] || PERF_TIER_COLORS[PERF_TIER_BRONZE];
+    const tierIcon = PERF_TIER_ICONS[currentTier] || PERF_TIER_ICONS[PERF_TIER_BRONZE];
+    const tierLabel = currentTier.charAt(0).toUpperCase() + currentTier.slice(1);
+
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = tierColor;
+    if (roomCleared) {
+        const pulse = 0.8 + Math.sin(Date.now() * 0.006) * 0.2;
+        ctx.globalAlpha = pulse;
+    }
+    ctx.fillText(`${tierIcon} ${tierLabel}`, x, y + 8);
+    ctx.globalAlpha = 1;
+
+    // Performance bar background
+    const barY = y + 16;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x, barY, barW, barH);
+
+    // Tier threshold markers
+    const thresholds = [
+        { t: PERF_SILVER_THRESHOLD, c: PERF_TIER_COLORS[PERF_TIER_SILVER] },
+        { t: PERF_GOLD_THRESHOLD, c: PERF_TIER_COLORS[PERF_TIER_GOLD] },
+        { t: PERF_DIAMOND_THRESHOLD, c: PERF_TIER_COLORS[PERF_TIER_DIAMOND] },
+    ];
+    const maxRatio = 2.0; // bar shows up to 200% of baseline
+    for (const th of thresholds) {
+        const tx = x + barW * Math.min(th.t / maxRatio, 1);
+        ctx.fillStyle = th.c + '66';
+        ctx.fillRect(tx - 1, barY, 2, barH);
+    }
+
+    // Fill bar
+    const fillW = barW * Math.min(ratio / maxRatio, 1);
+    ctx.fillStyle = tierColor;
+    ctx.fillRect(x, barY, fillW, barH);
+
+    // Bar border
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, barY, barW, barH);
+
+    // XP count label
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#888';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${roomXP}/${Math.round(baseline)}`, x + barW, barY + barH + 10);
+
+    ctx.restore();
 }
