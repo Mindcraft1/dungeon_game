@@ -372,7 +372,7 @@ export const BOSS_TYPE_JUGGERNAUT = 'juggernaut';
 export const BOSS_TYPE_OVERLORD   = 'overlord';
 
 // Boss base stats (scaled per encounter)
-export const BOSS_BASE_HP     = 550;
+export const BOSS_BASE_HP     = 700;
 export const BOSS_BASE_SPEED   = 55;
 export const BOSS_BASE_DAMAGE  = 18;
 
@@ -388,8 +388,8 @@ export const BOSS_STAGE_SPD_SCALE = 0.008;      // +0.8% speed per game stage
 
 // Boss type-specific multipliers
 export const BOSS_BRUTE_HP_MULT   = 1.3;
-export const BOSS_BRUTE_SPD_MULT  = 0.8;
-export const BOSS_BRUTE_DMG_MULT  = 1.4;
+export const BOSS_BRUTE_SPD_MULT  = 0.85;
+export const BOSS_BRUTE_DMG_MULT  = 1.5;
 export const BOSS_BRUTE_RADIUS    = 28;
 export const BOSS_WARLOCK_HP_MULT  = 0.9;
 export const BOSS_WARLOCK_SPD_MULT = 0.85;
@@ -411,9 +411,9 @@ export const BOSS_OVERLORD_DMG_MULT = 1.3;
 export const BOSS_OVERLORD_RADIUS   = 26;
 
 // Boss attack timings (ms)
-export const BOSS_ATTACK_COOLDOWN   = 2000;
+export const BOSS_ATTACK_COOLDOWN   = 1500;
 export const BOSS_SLAM_WINDUP       = 900;
-export const BOSS_SLAM_RADIUS       = 90;
+export const BOSS_SLAM_RADIUS       = 100;
 export const BOSS_CHARGE_WINDUP     = 500;
 export const BOSS_CHARGE_DURATION   = 800;
 export const BOSS_CHARGE_SPEED_MULT = 3.5;
@@ -454,7 +454,7 @@ export const BOSS_EMP_WINDUP           = 900;
 export const BOSS_EMP_RADIUS           = 130;   // px EMP blast radius
 export const BOSS_PLASMA_FAN_WINDUP   = 600;
 
-export const BOSS_HIT_COOLDOWN      = 1000;
+export const BOSS_HIT_COOLDOWN      = 750;
 
 // Boss rewards
 export const BOSS_XP_REWARD     = 80;           // base XP award
