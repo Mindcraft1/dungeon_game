@@ -12,6 +12,7 @@ import './roomTypes/normal.js';
 import './roomTypes/boss.js';
 import './roomTypes/event.js';
 import './roomTypes/darkness.js';
+import './roomTypes/shop.js';
 
 // Re-export the registry API for convenience
 export { getRoomType, callHook, hasRoomType, getAllRoomTypeIds } from './roomRegistry.js';

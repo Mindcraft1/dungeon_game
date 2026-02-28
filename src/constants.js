@@ -640,6 +640,12 @@ export const ROOM_TYPE_BOSS     = 'boss';
 export const ROOM_TYPE_EVENT    = 'event';
 export const ROOM_TYPE_TRAINING = 'training';
 export const ROOM_TYPE_DARKNESS = 'darkness';
+export const ROOM_TYPE_SHOP     = 'shop';
+
+// ── Boss Reward Orb ──
+// After killing a boss, the reward orb uses a fixed high tier
+// so the player always gets premium choices from boss kills.
+export const BOSS_REWARD_ORB_TIER = 'diamond';   // always diamond after boss
 
 // ── Performance Tier (Room XP Rating) ──
 // Tracks combat performance per room to influence reward quality.

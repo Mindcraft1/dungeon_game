@@ -31,7 +31,8 @@ import {
     HAZARD_TAR_SLOW,
     HAZARD_TYPE_LASER_WALL,
     CANYON_FALL_HP_PENALTY, CANYON_FALL_COIN_PENALTY, CANYON_INTRO_STAGE,
-    ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS,
+    ROOM_TYPE_NORMAL, ROOM_TYPE_BOSS, ROOM_TYPE_EVENT, ROOM_TYPE_DARKNESS, ROOM_TYPE_SHOP,
+    BOSS_REWARD_ORB_TIER,
     DARKNESS_CONFIG,
     PERF_TIER_BRONZE, PERF_TIER_SILVER, PERF_TIER_GOLD, PERF_TIER_DIAMOND,
     PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
@@ -40,7 +41,7 @@ import {
     REWARD_ORB_RADIUS,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom, getMenuHoverGrid, getTabHover } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom, parseShopRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { pushOutOfAABB } from './collision.js';
 import { Player } from './entities/player.js';
@@ -48,6 +49,7 @@ import { Enemy } from './entities/enemy.js';
 import { Projectile, PlayerProjectile, RocketProjectile, Explosion } from './entities/projectile.js';
 import { Door } from './entities/door.js';
 import { RewardOrb } from './entities/rewardOrb.js';
+import { ShopItem } from './entities/shopItem.js';
 import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO, CoinPickup } from './entities/pickup.js';
 import { ParticleSystem } from './entities/particle.js';
@@ -190,6 +192,11 @@ export class Game {
         this.levelUpBanners = [];         // [{text, color, timer, maxTimer}] non-blocking level-up popups
         this._rewardOrbPending = false;   // true after enemies cleared but before orb picked up
         this._roomCleared = false;        // true after all enemies die for the first time in a room
+
+        // ── Spatial Shop Room ──
+        this.shopItems = [];              // ShopItem entities in the shop room
+        this._isShopRoom = false;         // true when current room is a shop room
+        this._pendingShopRoom = false;    // true after boss to load shop as next room
 
         // Pause menu selection
         this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
@@ -617,6 +624,10 @@ export class Game {
         this._roomCleared = false;
         this.performanceTier = PERF_TIER_BRONZE;
         this.levelUpBanners = [];
+        // Reset shop room state
+        this.shopItems = [];
+        this._isShopRoom = false;
+        this._pendingShopRoom = false;
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
         setMenuBiome(null);  // clear menu particles for new run
@@ -1214,6 +1225,19 @@ export class Game {
         // ── Room type lifecycle: exit previous room ──
         const prevDef = getRoomType(this.currentRoomType);
         callHook(prevDef, 'onExit');
+        // Clean up shop room state when leaving
+        if (this._isShopRoom) {
+            this._isShopRoom = false;
+            this.shopItems = [];
+        }
+
+        // ── Post-boss: load spatial shop room ──
+        if (this._pendingShopRoom) {
+            this._pendingShopRoom = false;
+            this.currentRoomType = ROOM_TYPE_SHOP;
+            this._loadShopRoom();
+            return;
+        }
 
         if (this._isBossStage(this.stage)) {
             this.currentRoomType = ROOM_TYPE_BOSS;
@@ -1303,6 +1327,54 @@ export class Game {
         }
     }
 
+    _loadShopRoom() {
+        const { grid, spawnPos, doorPos, pedestalPositions } = parseShopRoom();
+        this.grid = grid;
+        this._currentSpawnPos = spawnPos;
+        this._placePlayer(spawnPos);
+        this.door = new Door(doorPos.col, doorPos.row);
+        this.door.manualLock = false; // shop door is always open
+        this.enemies = [];
+        this.projectiles = [];
+        this.explosions = [];
+        this.playerProjectiles = [];
+        this._fireZones = [];
+        this.hazards = [];
+        this.pickups = [];
+        this.coinPickups = [];
+        this.particles.clear();
+        this.boss = null;
+        this.bossVictoryDelay = 0;
+        this._isShopRoom = true;
+        this._roomCleared = true; // no enemies to kill
+        this._rewardOrbPending = false;
+        this.rewardOrb = null;
+        this.roomXP = 0;
+        this.roomXPBaseline = 0;
+
+        // Place shop items on pedestals
+        this.shopItems = [];
+        const hasForge = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
+        const itemIds = [...RUN_SHOP_ITEM_IDS]; // 6 items
+        for (let i = 0; i < pedestalPositions.length && i < itemIds.length; i++) {
+            const pos = pedestalPositions[i];
+            const itemDef = RUN_SHOP_ITEMS[itemIds[i]];
+            this.shopItems.push(new ShopItem(pos.col, pos.row, itemDef));
+        }
+        // Add forge token on a remaining pedestal if available
+        if (hasForge && pedestalPositions.length > itemIds.length) {
+            const pos = pedestalPositions[itemIds.length];
+            this.shopItems.push(new ShopItem(pos.col, pos.row, null, true, SHOP_FORGE_TOKEN_COST));
+        }
+
+        // Enter the shop room type lifecycle
+        const shopDef = getRoomType(ROOM_TYPE_SHOP);
+        callHook(shopDef, 'onEnter');
+
+        // Keep the current biome's music (calmer after boss)
+        this.controlsHintTimer = 3000;
+    }
+
     _returnFromTraining() {
         this.state = STATE_MENU;
         this.menuIndex = 0;
@@ -1340,6 +1412,10 @@ export class Game {
         this._roomCleared = false;
         this.performanceTier = PERF_TIER_BRONZE;
         this.levelUpBanners = [];
+        // Reset shop room state
+        this.shopItems = [];
+        this._isShopRoom = false;
+        this._pendingShopRoom = false;
         // ── Room type cleanup ──
         const restartDef = getRoomType(this.currentRoomType);
         callHook(restartDef, 'onExit');
@@ -2326,6 +2402,72 @@ export class Game {
         this.state = STATE_PLAYING;
     }
 
+    /** Buy a spatial shop item (in the shop room). Reuses _buyRunShopItem logic. */
+    _buyShopItem(shopItem) {
+        if (shopItem.purchased) return;
+
+        if (shopItem.isForgeToken) {
+            if (this.runCoins < shopItem.cost) {
+                showToast('Not enough coins!', '#e74c3c', '✗');
+                return;
+            }
+            this.runCoins -= shopItem.cost;
+            shopItem.purchased = true;
+            Audio.playMenuSelect();
+            this._openForgeUI();
+            return;
+        }
+
+        const item = shopItem.itemDef;
+        if (!item) return;
+        if (this.runCoins < item.cost) {
+            showToast('Not enough coins!', '#e74c3c', '✗');
+            return;
+        }
+        this.runCoins -= item.cost;
+        shopItem.purchased = true;
+        Audio.playMenuSelect();
+
+        // Achievement event
+        if (!this.cheatsUsedThisRun) {
+            achEmit('shop_purchase_run_item', { itemId: item.id, costCoins: item.cost });
+        }
+
+        // Apply item effect (same logic as _buyRunShopItem)
+        switch (item.id) {
+            case 'run_item_max_hp_boost':
+                if (this.player) {
+                    this.player._baseMaxHp += 15;
+                    this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
+                    this.player.hp = Math.min(this.player.hp + 15, this.player.maxHp);
+                }
+                break;
+            case 'run_item_repair_armor':
+                this.metaBoosterShieldCharges++;
+                break;
+            case 'run_item_sharpen_blade':
+                this.runShopDamageMult *= 1.08;
+                break;
+            case 'run_item_light_boots':
+                this.runShopSpeedMult *= 1.05;
+                if (this.player) {
+                    this.player.speed = Math.floor(this.player.speed * 1.05);
+                }
+                break;
+            case 'run_item_bomb':
+                this.bombCharges++;
+                break;
+            case 'run_item_trap_resist':
+                this.runShopTrapResistMult *= 0.85;
+                if (this.player) {
+                    this.player.shopTrapResistMult = this.runShopTrapResistMult;
+                }
+                break;
+        }
+        showToast(`Purchased: ${item.name}`, item.color, item.icon);
+        this.particles.levelUp(shopItem.x, shopItem.y);
+    }
+
     /** Open the Forge upgrade UI directly (used when acquiring a forge token). */
     _openForgeUI() {
         const context = this._getUpgradeContext();
@@ -2600,15 +2742,8 @@ export class Game {
             }
             Audio.playMenuSelect();
             this.scrollChoices = null;
-            // Proceed to run shop or playing
-            if (this._pendingRunShop) {
-                this._pendingRunShop = false;
-                this.runShopCursor = 0;
-                this.hasForgeTokenInShop = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
-                this.state = STATE_SHOP_RUN;
-            } else {
-                this.state = STATE_PLAYING;
-            }
+            // Proceed to boss reward orb (spatial) or playing
+            this._afterLevelUpChain();
         }
 
         if (wasPressed('Escape')) {
@@ -3504,8 +3639,8 @@ export class Game {
         // Update active persistent abilities (blade_storm, gravity_pull)
         this.abilitySystem.update(effectiveDt, combatContext);
 
-        // Attack (Space or Left Click)
-        if (isDown('Space') || isMouseDown(0)) {
+        // Attack (Space or Left Click) — disabled in shop rooms
+        if (!this._isShopRoom && (isDown('Space') || isMouseDown(0))) {
             const targets = allBosses.length > 0
                 ? [...this.enemies, ...allBosses]
                 : this.enemies;
@@ -4521,6 +4656,20 @@ export class Game {
             }
         }
 
+        // ── Update Shop Items (spatial shop room) ──
+        if (this._isShopRoom && this.shopItems.length > 0) {
+            for (const item of this.shopItems) {
+                item.update(dt, this.player);
+            }
+            // Buy nearest item on Space/Enter (only if not attacking)
+            if (wasPressed('Space') || wasPressed('Enter')) {
+                const nearbyItem = this.shopItems.find(i => i.nearby && !i.purchased);
+                if (nearbyItem) {
+                    this._buyShopItem(nearbyItem);
+                }
+            }
+        }
+
         if (this.trainingMode) {
             // In training the door is always open and returns to game/menu
             if (this.door.checkCollision(this.player)) {
@@ -5003,12 +5152,14 @@ export class Game {
             this.state = STATE_BOSS_SCROLL;
             return;
         }
-        // Run shop pending?
-        if (this._pendingRunShop) {
-            this._pendingRunShop = false;
-            this.runShopCursor = 0;
-            this.hasForgeTokenInShop = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
-            this.state = STATE_SHOP_RUN;
+        // Boss reward orb: spawn diamond-tier orb in boss room, let player walk to it
+        if (this._pendingShopRoom && !this._rewardOrbPending && !this.rewardOrb) {
+            this._spawnRewardOrb(BOSS_REWARD_ORB_TIER);
+            this._rewardOrbPending = true;
+            // Unlock the door — player can choose to grab orb or leave
+            // But we want them to grab the orb, so keep door locked via manualLock
+            if (this.door) this.door.manualLock = true;
+            this.state = STATE_PLAYING;
             return;
         }
         this.state = STATE_PLAYING;
@@ -5073,8 +5224,8 @@ export class Game {
      * Tries the room center first; if that tile is a wall or hazard,
      * spirals outward to find the nearest safe floor tile.
      */
-    _spawnRewardOrb() {
-        this.performanceTier = this._computePerformanceTier();
+    _spawnRewardOrb(tierOverride) {
+        this.performanceTier = tierOverride || this._computePerformanceTier();
 
         // Build a set of hazard tiles for O(1) lookup
         const hazardTiles = new Set();
@@ -5377,8 +5528,9 @@ export class Game {
             });
         }
 
-        // Skip level-up overlay — go directly to boss scroll → shop → playing
-        this._pendingRunShop = true;
+        // After boss: spawn a diamond-tier reward orb in the boss room
+        // (instead of the old dialog shop). The next room will be the spatial shop.
+        this._pendingShopRoom = true;
         this._afterLevelUpChain();
     }
 
@@ -5586,6 +5738,13 @@ export class Game {
             this.rewardOrb.render(ctx);
         }
 
+        // ── Shop Items (spatial shop room) ──
+        if (this._isShopRoom) {
+            for (const item of this.shopItems) {
+                item.render(ctx);
+            }
+        }
+
         // Enemies: hidden if outside light in darkness rooms
         for (const e of this.enemies) {
             if (!e.dead && isDarknessActive() && !isInsideLight(e.x, e.y)) continue;
@@ -5678,9 +5837,26 @@ export class Game {
                   this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
 
         // ── Performance Meter (room XP rating) ──
-        if (!this.trainingMode && !isBossRoom && this.roomXPBaseline > 0) {
+        if (!this.trainingMode && !isBossRoom && !this._isShopRoom && this.roomXPBaseline > 0) {
             const isCleared = this._roomCleared || this._rewardOrbPending;
             renderPerformanceMeter(ctx, this.roomXP, this.roomXPBaseline, this.performanceTier, isCleared);
+        }
+
+        // ── Shop Room: item tooltips + coin display ──
+        if (this._isShopRoom) {
+            for (const item of this.shopItems) {
+                item.renderTooltip(ctx);
+            }
+            // Large coin counter at top center
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 20px monospace';
+            ctx.fillText(`🪙 ${this.runCoins} Coins`, CANVAS_WIDTH / 2, 30);
+            ctx.fillStyle = '#aaa';
+            ctx.font = '12px monospace';
+            ctx.fillText('Walk to items · Space to buy · Door to leave', CANVAS_WIDTH / 2, 48);
+            ctx.restore();
         }
 
         // ── Level-Up Banners (non-blocking popups) ──

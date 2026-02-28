@@ -351,6 +351,42 @@ export function parseTrainingRoom() {
     return _parse(TRAINING_TEMPLATE);
 }
 
+// Shop room – open room with 6 pedestals (marked P) for shop items
+// P tiles are parsed as floor but their positions are returned separately
+const SHOP_TEMPLATE = [
+    '####################',
+    '#..................#',
+    '#..####....####....#',
+    '#..#..#....#..#....#',
+    '#..####....####....#',
+    '#..................#',
+    '#......P..P..P.....#',
+    '#S................D#',
+    '#......P..P..P.....#',
+    '#..................#',
+    '#..####....####....#',
+    '#..#..#....#..#....#',
+    '#..####....####....#',
+    '#..................#',
+    '####################',
+];
+
+/** Parse the dedicated shop room. Returns grid, spawnPos, doorPos, and pedestalPositions. */
+export function parseShopRoom() {
+    const result = _parse(SHOP_TEMPLATE);
+    // Extract pedestal positions (P characters in template)
+    const pedestals = [];
+    for (let row = 0; row < SHOP_TEMPLATE.length; row++) {
+        for (let col = 0; col < SHOP_TEMPLATE[row].length; col++) {
+            if (SHOP_TEMPLATE[row][col] === 'P') {
+                pedestals.push({ col, row });
+            }
+        }
+    }
+    result.pedestalPositions = pedestals;
+    return result;
+}
+
 function _parse(template) {
     const grid = [];
     let spawnPos = null;

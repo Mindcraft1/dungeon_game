@@ -31,6 +31,7 @@
 23. [Charakter-Anpassung (Kosmetik)](#23-charakter-anpassung-kosmetik)
 24. [Talent Tree (Per-Run)](#24-talent-tree-per-run)
 25. [Reward Orb & Performance System](#25-reward-orb--performance-system)
+26. [Spatial Shop Room (Boss-Belohnungs-Raum)](#26-spatial-shop-room-boss-belohnungs-raum)
 
 ---
 
@@ -1132,14 +1133,37 @@ Die Tür hat ein neues `manualLock` Property:
 - **Boss-Räume:** Kein `manualLock` — normaler Flow über `STATE_BOSS_VICTORY`
 - **Training:** Kein `manualLock` — Tür ist immer offen
 
-### 25.8 Boss-Raum Progression
+### 25.8 Boss-Raum Progression (mit Reward Orb)
 
-Boss-Räume nutzen weiterhin den bestehenden Flow, aber XP wird passiv verarbeitet:
+Boss-Räume nutzen einen erweiterten Flow — nach dem Boss-Kill spawnt ein **Diamond-Tier Reward Orb** direkt im Boss-Raum:
 
-1. Boss stirbt → `bossVictoryDelay` läuft
-2. Boss-XP wird vergeben + passives Auto-Leveling (mit Bannern)
-3. `STATE_BOSS_VICTORY` — Boss Scroll + Victory Overlay
-4. Kein Level-Up Overlay nach Boss — direkter Übergang zu Boss Scroll → Shop → Playing
+```
+Boss stirbt → 1.2s Freeze → STATE_BOSS_VICTORY (HP/DMG/SPD Wahl)
+   → Boss Scroll (falls vorhanden) → 💎 Diamond Reward Orb spawnt im Boss-Raum
+   → Spieler läuft zum Orb → Belohnungs-Overlay (Diamond-Qualität!)
+   → Tür öffnet sich → Spieler geht durch Tür → 🏪 Shop-Raum (siehe §26)
+```
+
+**Schlüssel-Details:**
+1. Boss stirbt → `bossVictoryDelay` (1.2s) läuft ab
+2. `STATE_BOSS_VICTORY` — Spieler wählt HP, Damage oder Speed Boost + Full Heal
+3. Boss-XP wird vergeben + passives Auto-Leveling (mit Bannern)
+4. `_pendingShopRoom = true` wird gesetzt
+5. `_afterLevelUpChain()` prüft: Boss Scroll zuerst → dann Diamond Reward Orb
+6. `_spawnRewardOrb(BOSS_REWARD_ORB_TIER)` — Orb spawnt mit **erzwungenem Diamond-Tier**
+7. `door.manualLock = true` — Spieler muss Orb einsammeln
+8. Nach Orb-Pickup: `door.manualLock = false` → Tür führt zum **Shop-Raum** (§26)
+
+**Boss Reward Orb vs. normaler Reward Orb:**
+
+| Eigenschaft | Normaler Orb | Boss Orb |
+|-------------|-------------|----------|
+| Tier | Performance-basiert (Bronze–Diamond) | **Immer Diamond** |
+| Rarity-Bonus | 0–30% je nach Tier | **+30% (Diamond fest)** |
+| Spawn-Trigger | Raum gecleart (alle Feinde tot) | `_afterLevelUpChain()` nach Boss Victory |
+| Nächster Raum | Normaler/Boss/Event Raum | **Shop-Raum** (§26) |
+
+**Konstante:** `BOSS_REWARD_ORB_TIER = 'diamond'` (in `constants.js`)
 
 ### 25.9 Room Clear Detection
 
@@ -1182,6 +1206,226 @@ Die Raum-Clear-Erkennung nutzt ein `_roomCleared` Flag statt der Tür-Transition
 | `AUTO_LEVEL_SPEED` | 5 | Passiver Speed-Gain pro Level |
 | `REWARD_ORB_RADIUS` | 16 | Visuelle Orb-Größe |
 | `REWARD_ORB_COLLECT_RADIUS` | 30 | Einsammel-Radius |
+
+---
+
+## 26. Spatial Shop Room (Boss-Belohnungs-Raum)
+
+> **Design-Inspiration:** Hades — Nach jedem Boss öffnet sich ein ruhiger Shop-Raum, in dem der Spieler frei herumlaufen und Items auf Podesten kaufen kann. Kein Dialog-Overlay — alles ist räumlich.
+
+### 26.1 Überblick — Shop-Raum Flow
+
+Der alte Flow (Boss Kill → Dialog-Overlay mit Shop-Items) wurde durch einen **räumlichen Shop-Raum** ersetzt:
+
+```
+Boss Kill → Diamond Reward Orb (§25.8) → Spieler sammelt Orb ein
+   → Tür öffnet sich → Spieler betritt Shop-Raum
+   → 🏪 Items auf Podesten im Raum → Spieler läuft herum, kauft mit [SPACE]
+   → Tür ist offen → Spieler geht durch Tür → Nächstes Biome (normaler Raum)
+```
+
+**Kernprinzipien:**
+1. **Kein Dialog-Interrupt:** Shop ist ein begehbarer Raum, kein Overlay
+2. **Räumliche Items:** Items schweben auf leuchtenden Podesten — Spieler muss hinlaufen
+3. **Optionales Shopping:** Tür ist sofort offen — Spieler kann alles kaufen oder direkt weitergehen
+4. **Kein Kampf:** Melee-Angriffe sind im Shop-Raum deaktiviert (`!_isShopRoom` Guard)
+5. **Ruhige Atmosphäre:** Eingangs-Banner „🏪 SHOP" mit Fade-Out
+
+### 26.2 Room Template
+
+Der Shop-Raum hat ein eigenes ASCII-Template in `rooms.js`:
+
+```
+####################
+####################
+##..............####
+#................###
+#.................##
+#..................#
+#.....P...P...P...#
+#..................#
+#.....P...P...P...#
+#..................#
+#S................D#
+#..................#
+##................##
+###..............###
+####################
+```
+
+| Symbol | Bedeutung |
+|--------|-----------|
+| `#` | Wand |
+| `.` | Boden |
+| `S` | Spieler-Spawn (links) |
+| `D` | Tür (rechts) |
+| `P` | Podest-Position (Item-Platzierung) |
+
+**6 Podest-Positionen:** Zwei Reihen à 3, symmetrisch angeordnet:
+- Reihe 1 (Row 6): Spalten 6, 10, 14
+- Reihe 2 (Row 8): Spalten 6, 10, 14
+
+Die Funktion `parseShopRoom()` gibt zurück:
+```js
+{ grid, spawnPos, doorPos, pedestalPositions: [{col, row}, ...] }
+```
+
+### 26.3 ShopItem Entity
+
+Jedes Item im Shop-Raum ist ein `ShopItem` Entity (`src/entities/shopItem.js`):
+
+**Visuelles Design:**
+- Leuchtender Glow-Kreis als Podest (pulsierend, biome-farbig)
+- Item-Icon schwebt über dem Podest (Bob-Animation, Frequenz 2Hz)
+- Preis-Tag unterhalb: „🪙 X" in goldenem Text
+- Item-Name über dem Icon
+- **Nähe-Prompt:** „[SPACE] Buy" erscheint wenn Spieler nah genug ist
+- **Tooltip:** Beim Hovern/Nähe wird Item-Beschreibung angezeigt
+- **SOLD-Marker:** Gekaufte Items zeigen „SOLD" in grau
+
+**Interaktion:**
+- `INTERACT_RADIUS = 36` px — Spieler muss innerhalb dieses Radius sein
+- `nearby` Flag wird per Frame aktualisiert via `update(dt, player)`
+- Kauf: `wasPressed('Space')` oder `wasPressed('Enter')` wenn `nearby && !purchased`
+
+**Konstruktor:**
+```js
+new ShopItem(col, row, itemDef, isForgeToken, forgeTokenCost)
+```
+
+| Parameter | Beschreibung |
+|-----------|-------------|
+| `col, row` | Podest-Position (Grid-Koordinaten) |
+| `itemDef` | Item-Definition aus `RUN_SHOP_ITEMS` (name, icon, cost, effect) |
+| `isForgeToken` | `true` wenn Forge Token (spezielles Handling) |
+| `forgeTokenCost` | Kosten des Forge Tokens (falls zutreffend) |
+
+### 26.4 Shop-Raum Lebenszyklus
+
+Der Shop-Raum nutzt das Room-Type-Registry-System (`src/rooms/roomTypes/shop.js`):
+
+| Hook | Verhalten |
+|------|-----------|
+| `onEnter` | Setzt Banner-Timer auf 3 Sekunden |
+| `onUpdate(dt, ctx)` | Zählt Banner-Timer herunter |
+| `onRender(ctx, game)` | Zeichnet „🏪 SHOP" Eingangs-Banner mit Fade-Out |
+| `isComplete()` | Gibt immer `true` zurück (keine Gegner) |
+| `onExit` | Löscht Banner-Timer |
+
+**Registrierung:** `ROOM_TYPE_SHOP = 'shop'` in `roomRegistry` via `src/rooms/init.js`
+
+### 26.5 Shop-Raum Laden — `_loadShopRoom()`
+
+Die Methode in `game.js` richtet den Shop-Raum ein:
+
+1. **Template parsen:** `parseShopRoom()` → Grid, Spawn, Door, Pedestals
+2. **Spieler positionieren:** Auf Spawn-Tile (`S`)
+3. **Tür erstellen:** Mit `forceUnlock = true` (Shop-Tür ist immer offen)
+4. **Raum leeren:** Keine Feinde, Projektile, Hazards, Pickups
+5. **Flags setzen:**
+   - `_isShopRoom = true`
+   - `_roomCleared = true` (kein Clear nötig)
+   - `_rewardOrbPending = false`
+   - `rewardOrb = null`
+6. **ShopItems platzieren:** Aus `RUN_SHOP_ITEMS` + optionaler Forge Token
+7. **Room-Type Hook:** `onEnter()` aufrufen für Banner-Timer
+
+### 26.6 Kauf-Logik — `_buyShopItem(shopItem)`
+
+Wenn der Spieler [SPACE] drückt und nah genug an einem ungekauften Item ist:
+
+1. **Coin-Check:** `this.coins >= shopItem.cost` — sonst Toast „Nicht genug Coins"
+2. **Coins abziehen:** `this.coins -= shopItem.cost`
+3. **Item als gekauft markieren:** `shopItem.purchased = true`
+4. **Effekt anwenden:** Gleiche Logik wie der alte Dialog-Shop (`_buyRunShopItem`)
+5. **Toast anzeigen:** Kauf-Bestätigung mit Item-Icon und Name
+6. **Partikel spawnen:** Goldene Partikel an Item-Position
+
+**Forge Token Sonderbehandlung:** Öffnet die Forge-UI (gezieltes Upgrade wählen)
+
+### 26.7 Rendering im Shop-Raum
+
+Der Shop-Raum hat zusätzliche Render-Elemente in `game.js`:
+
+| Element | Position | Beschreibung |
+|---------|----------|-------------|
+| 🏪 SHOP Banner | Oben Mitte | Fade-Out nach 3s (via Room-Type onRender) |
+| Coin-Zähler (groß) | Oben Mitte | „🪙 X" in großer Schrift |
+| Instruktions-Text | Oben Mitte (unter Coins) | „Walk to items — [SPACE] to buy" |
+| Shop Items | Podest-Positionen | ShopItem.render() für jedes Item |
+| Item Tooltips | Über nahegelegenem Item | ShopItem.renderTooltip() |
+| Performance Meter | **Versteckt** | Wird im Shop-Raum nicht angezeigt |
+
+### 26.8 Kampf-Sperre im Shop
+
+Um zu verhindern, dass der Spieler bei jedem Kauf die Waffe schwingt:
+
+```js
+// In _updatePlaying():
+if (!this._isShopRoom && (isDown('Space') || isMouseDown(0))) {
+    // ... Attack-Code ...
+}
+```
+
+Space/Enter löst im Shop-Raum **nur** den Kauf aus — kein Angriff.
+
+### 26.9 Kompletter Boss-zu-Biome Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    BOSS RAUM (Stage 10, 20, ...)            │
+│  Boss stirbt → 1.2s Freeze → STATE_BOSS_VICTORY            │
+│  Spieler wählt HP/DMG/SPD → Boss Scroll (falls vorhanden)  │
+│  💎 Diamond Reward Orb spawnt → Spieler sammelt ein         │
+│  Tür öffnet sich → Spieler geht durch Tür                  │
+└────────────────────────┬────────────────────────────────────┘
+                         │ _pendingShopRoom = true
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    🏪 SHOP RAUM                             │
+│  6 Podeste mit Items (RUN_SHOP_ITEMS + Forge Token)         │
+│  Spieler läuft herum → [SPACE] kauft nahes Item             │
+│  Tür ist offen → Spieler kann jederzeit weitergehen         │
+└────────────────────────┬────────────────────────────────────┘
+                         │ nextRoom() → normaler Raum
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              NÄCHSTES BIOME (normaler Raum)                 │
+│  Biome wechselt alle 10 Stages                              │
+│  Neues visuelles Theme, neue Gegner-Gewichtung              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 26.10 State-Variablen in `game.js`
+
+| Variable | Default | Beschreibung |
+|----------|---------|-------------|
+| `shopItems` | `[]` | Array aller `ShopItem` Entities im aktuellen Shop-Raum |
+| `_isShopRoom` | `false` | `true` während sich der Spieler im Shop-Raum befindet |
+| `_pendingShopRoom` | `false` | `true` nach Boss-Kill — signalisiert dass der nächste Raum ein Shop sein soll |
+
+**Reset in:** Constructor, `_startGame()`, `restart()`, `nextRoom()` (Shop-Cleanup)
+
+### 26.11 Dateien & Änderungen
+
+| Datei | Rolle | Status |
+|-------|-------|--------|
+| `src/constants.js` | `ROOM_TYPE_SHOP`, `BOSS_REWARD_ORB_TIER` | Erweitert |
+| `src/rooms.js` | `SHOP_TEMPLATE`, `parseShopRoom()` | Erweitert |
+| `src/entities/shopItem.js` | **NEU** — `ShopItem` Klasse (Entity, Render, Tooltip, Kauf) | Neu erstellt |
+| `src/rooms/roomTypes/shop.js` | **NEU** — Shop Room-Type Lifecycle Hooks | Neu erstellt |
+| `src/rooms/init.js` | Import von `shop.js` hinzugefügt | Erweitert |
+| `src/game.js` | `_loadShopRoom()`, `_buyShopItem()`, Shop-Rendering, Boss-Flow, Attack-Guard | Stark erweitert |
+| `src/ui/levelup.js` | „🏪 ROOM REWARD" Titel mit Tier-Info (aus §25) | Bereits angepasst |
+| `src/entities/rewardOrb.js` | `_spawnRewardOrb(tierOverride)` — optionaler Tier-Override | Erweitert |
+
+### 26.12 Konstanten-Referenz
+
+| Konstante | Wert | Beschreibung |
+|-----------|------|--------------|
+| `ROOM_TYPE_SHOP` | `'shop'` | Room-Type Identifier für den Shop-Raum |
+| `BOSS_REWARD_ORB_TIER` | `'diamond'` | Erzwungener Tier für Boss Reward Orbs |
+| `INTERACT_RADIUS` (in ShopItem) | `36` | Nähe-Radius für Kauf-Interaktion |
 
 ---
 
