@@ -105,9 +105,9 @@ export const XP_MULT_DECAY = 0.015;            // mult decrease per level past s
 // Enemy XP grows with stage so tougher enemies = more reward
 export const ENEMY_XP_STAGE_SCALE = 0.04;      // +4% enemy XP per stage
 // Base stat upgrades scale with player level to stay impactful
-export const UPGRADE_HP_PER_LEVEL = 2;          // extra HP per player level on upgrade
-export const UPGRADE_SPEED_PER_LEVEL = 0.5;     // extra speed per player level on upgrade
-export const UPGRADE_DAMAGE_PER_LEVEL = 1.5;    // extra damage per player level on upgrade
+export const UPGRADE_HP_PER_LEVEL = 1;          // extra HP per player level on upgrade
+export const UPGRADE_SPEED_PER_LEVEL = 0.3;     // extra speed per player level on upgrade
+export const UPGRADE_DAMAGE_PER_LEVEL = 0.8;    // extra damage per player level on upgrade
 
 // ── Door ──
 export const DOOR_COLOR_LOCKED = '#c0392b';
@@ -372,9 +372,9 @@ export const BOSS_TYPE_JUGGERNAUT = 'juggernaut';
 export const BOSS_TYPE_OVERLORD   = 'overlord';
 
 // Boss base stats (scaled per encounter)
-export const BOSS_BASE_HP     = 400;
+export const BOSS_BASE_HP     = 550;
 export const BOSS_BASE_SPEED   = 55;
-export const BOSS_BASE_DAMAGE  = 15;
+export const BOSS_BASE_DAMAGE  = 18;
 
 // Boss scaling per encounter (0, 1, 2, ...) — tuned for 10-room acts
 export const BOSS_HP_SCALE  = 0.55;             // +55% HP per encounter (wider gaps)
@@ -382,8 +382,8 @@ export const BOSS_DMG_SCALE = 0.35;             // +35% damage per encounter
 export const BOSS_SPD_SCALE = 0.14;             // +14% speed per encounter
 
 // Boss scaling per stage (stacks with encounter scaling) — gentle slope
-export const BOSS_STAGE_HP_SCALE  = 0.02;       // +2% HP per game stage (halved)
-export const BOSS_STAGE_DMG_SCALE = 0.012;      // +1.2% damage per game stage
+export const BOSS_STAGE_HP_SCALE  = 0.025;      // +2.5% HP per game stage
+export const BOSS_STAGE_DMG_SCALE = 0.015;      // +1.5% damage per game stage
 export const BOSS_STAGE_SPD_SCALE = 0.008;      // +0.8% speed per game stage
 
 // Boss type-specific multipliers
@@ -655,6 +655,7 @@ export const PERF_TIER_SILVER  = 'silver';
 export const PERF_TIER_GOLD    = 'gold';
 export const PERF_TIER_DIAMOND = 'diamond';
 
+export const PERF_BASELINE_MULT     = 1.25;  // baseline inflation — Gold requires combo play
 export const PERF_SILVER_THRESHOLD  = 0.6;   // 60% of baseline
 export const PERF_GOLD_THRESHOLD    = 1.0;   // 100% of baseline
 export const PERF_DIAMOND_THRESHOLD = 1.5;   // 150%+ (requires combos)
@@ -682,9 +683,9 @@ export const PERF_RARITY_SHIFT = {
 };
 
 // ── Auto Level-Up (passive stat gains on level threshold) ──
-export const AUTO_LEVEL_HP     = 10;
-export const AUTO_LEVEL_DAMAGE = 3;
-export const AUTO_LEVEL_SPEED  = 5;
+export const AUTO_LEVEL_HP     = 5;
+export const AUTO_LEVEL_DAMAGE = 1;
+export const AUTO_LEVEL_SPEED  = 2;
 
 // ── Reward Orb ──
 export const REWARD_ORB_RADIUS         = 16;

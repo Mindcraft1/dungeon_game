@@ -37,6 +37,7 @@ import {
     PERF_TIER_BRONZE, PERF_TIER_SILVER, PERF_TIER_GOLD, PERF_TIER_DIAMOND,
     PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
     PERF_TIER_COLORS, PERF_TIER_ICONS, PERF_RARITY_SHIFT,
+    PERF_BASELINE_MULT,
     ENEMY_XP_STAGE_SCALE,
     REWARD_ORB_RADIUS,
 } from './constants.js';
@@ -796,7 +797,15 @@ export class Game {
         // Compute baseline XP for performance rating
         const enemyCount = this.enemies.length;
         const baseXpPerEnemy = ENEMY_XP * (1 + (Math.max(1, this.stage) - 1) * ENEMY_XP_STAGE_SCALE);
-        this.roomXPBaseline = enemyCount * baseXpPerEnemy;
+        // Include active XP multipliers in baseline so they don't inflate the tier;
+        // PERF_BASELINE_MULT makes Gold require combo play, not just killing everything.
+        const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
+        const runXpMult = (this.runUpgradesActive && this.runUpgradesActive.upgrade_xp_magnet) ? 1.15 : 1;
+        const shopXpMult = this._getShopXpMultiplier();
+        const talentXpMult = (this.player && this.player.talentXpMult) ? this.player.talentXpMult : 1;
+        const darkXpMult = this.darknessXpMult || 1;
+        const activeMults = metaXpMult * runXpMult * shopXpMult * talentXpMult * darkXpMult;
+        this.roomXPBaseline = enemyCount * baseXpPerEnemy * PERF_BASELINE_MULT * activeMults;
         // Enable manual lock on the door so it stays locked until reward is picked
         // (only for non-training, non-boss rooms — boss rooms use their own flow)
         if (!this.trainingMode && !this._isBossStage(this.stage)) {
