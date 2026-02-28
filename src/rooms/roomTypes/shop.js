@@ -1,12 +1,11 @@
-// ── Shop Room Type Definition ────────────────────────────────
-// A friendly room that appears after boss fights. No enemies.
-// Shop items are placed on pedestals for the player to buy
-// by walking up and pressing Space/Enter.
+// ── Reward Room Type Definition ───────────────────────────────
+// A post-boss reward room with stat pedestals, scroll pedestals,
+// shop items, healing fountain, and an exit door.
 //
 // Lifecycle:
 //   onEnter   → show banner, play ambient music
-//   onUpdate  → (no combat, just shop interaction)
-//   onRender  → render "SHOP" banner and coin counter
+//   onUpdate  → (no combat, just reward interactions)
+//   onRender  → render "REWARDS" banner
 //   isComplete → always true (no enemies to kill)
 //   onExit    → cleanup
 // ─────────────────────────────────────────────────────────────
@@ -22,7 +21,7 @@ let _bannerTimer = 0;
 
 registerRoomType(ROOM_TYPE_SHOP, {
     id:    ROOM_TYPE_SHOP,
-    name:  'Shop',
+    name:  'Rewards',
     color: '#ffd700',
 
     onEnter(ctx) {
@@ -45,10 +44,10 @@ registerRoomType(ROOM_TYPE_SHOP, {
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 28px monospace';
-            ctx.fillText('🏪 SHOP', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 6);
+            ctx.fillText('� REWARDS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 6);
             ctx.fillStyle = '#ccc';
             ctx.font = '13px monospace';
-            ctx.fillText('Walk to items to buy · Door to continue', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
+            ctx.fillText('Claim your rewards · Door to continue', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
             ctx.restore();
         }
     },

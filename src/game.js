@@ -317,7 +317,6 @@ export class Game {
         this.hasForgeTokenInShop = false;   // whether forge token appears in current shop visit
         this.trialActive = false;           // true while trial challenge is in progress
         this._pendingForge = false;          // true when forge UI should open after current event
-        this._pendingBossScroll = null;     // scroll choices deferred until after boss rewards
 
         // ── Room Type System ──
         this.currentRoomType = ROOM_TYPE_NORMAL;   // active room type id
@@ -695,7 +694,6 @@ export class Game {
         this.hasForgeTokenInShop = false;
         this.trialActive = false;
         this._pendingForge = false;
-        this._pendingBossScroll = null;
 
         // ── Talent Tree: reset for new run ──
         this.talentState = createTalentState();
@@ -1235,17 +1233,19 @@ export class Game {
         // ── Room type lifecycle: exit previous room ──
         const prevDef = getRoomType(this.currentRoomType);
         callHook(prevDef, 'onExit');
-        // Clean up shop room state when leaving
-        if (this._isShopRoom) {
-            this._isShopRoom = false;
+        // Clean up reward room state when leaving
+        if (this._isRewardRoom) {
+            this._isRewardRoom = false;
             this.shopItems = [];
+            this.rewardPedestals = [];
+            this.healingFountains = [];
         }
 
-        // ── Post-boss: load spatial shop room ──
-        if (this._pendingShopRoom) {
-            this._pendingShopRoom = false;
+        // ── Post-boss: load spatial reward room ──
+        if (this._pendingRewardRoom) {
+            this._pendingRewardRoom = false;
             this.currentRoomType = ROOM_TYPE_SHOP;
-            this._loadShopRoom();
+            this._loadRewardRoom();
             return;
         }
 
@@ -1337,13 +1337,13 @@ export class Game {
         }
     }
 
-    _loadShopRoom() {
-        const { grid, spawnPos, doorPos, pedestalPositions } = parseShopRoom();
+    _loadRewardRoom() {
+        const { grid, spawnPos, doorPos, pedestalPositions, rewardPositions, scrollPositions, fountainPositions } = parseRewardRoom();
         this.grid = grid;
         this._currentSpawnPos = spawnPos;
         this._placePlayer(spawnPos);
         this.door = new Door(doorPos.col, doorPos.row);
-        this.door.manualLock = false; // shop door is always open
+        this.door.manualLock = false; // reward room door is always open
         this.enemies = [];
         this.projectiles = [];
         this.explosions = [];
@@ -1355,14 +1355,42 @@ export class Game {
         this.particles.clear();
         this.boss = null;
         this.bossVictoryDelay = 0;
-        this._isShopRoom = true;
+        this._isRewardRoom = true;
         this._roomCleared = true; // no enemies to kill
         this._rewardOrbPending = false;
         this.rewardOrb = null;
         this.roomXP = 0;
         this.roomXPBaseline = 0;
 
-        // Place shop items on pedestals
+        // ── Stat reward pedestals (HP / DMG / SPD) ──
+        this.rewardPedestals = [];
+        const statChoices = [
+            { id: 'hp', name: '+HP', icon: '❤️', color: '#e74c3c', desc: `+${BOSS_REWARD_HP} Max HP` },
+            { id: 'damage', name: '+DMG', icon: '⚔️', color: '#f39c12', desc: `+${BOSS_REWARD_DAMAGE} Damage` },
+            { id: 'speed', name: '+SPD', icon: '💨', color: '#3498db', desc: `+${BOSS_REWARD_SPEED} Speed` },
+        ];
+        for (let i = 0; i < rewardPositions.length && i < statChoices.length; i++) {
+            const pos = rewardPositions[i];
+            this.rewardPedestals.push(new RewardPedestal(pos.col, pos.row, 'stat', statChoices[i], 'stat'));
+        }
+
+        // ── Scroll pedestals (if boss dropped a scroll) ──
+        if (this._rewardRoomScrolls && this._rewardRoomScrolls.length > 0) {
+            for (let i = 0; i < scrollPositions.length && i < this._rewardRoomScrolls.length; i++) {
+                const pos = scrollPositions[i];
+                const scroll = this._rewardRoomScrolls[i];
+                this.rewardPedestals.push(new RewardPedestal(pos.col, pos.row, 'scroll', scroll, 'scroll'));
+            }
+        }
+        this._rewardRoomScrolls = null;
+
+        // ── Healing fountain(s) ──
+        this.healingFountains = [];
+        for (const pos of fountainPositions) {
+            this.healingFountains.push(new HealingFountain(pos.col, pos.row));
+        }
+
+        // ── Shop items on pedestals ──
         this.shopItems = [];
         const hasForge = Math.random() < SHOP_FORGE_TOKEN_CHANCE;
         const itemIds = [...RUN_SHOP_ITEM_IDS]; // 6 items
@@ -2481,6 +2509,50 @@ export class Game {
         this.particles.levelUp(shopItem.x, shopItem.y);
     }
 
+    /** Claim a reward pedestal in the spatial reward room. */
+    _claimRewardPedestal(pedestal) {
+        if (pedestal.claimed || pedestal.disabled) return;
+
+        pedestal.claimed = true;
+        Audio.playMenuSelect();
+        this.particles.levelUp(pedestal.x, pedestal.y);
+
+        // Disable siblings in the same group (mutual exclusion)
+        for (const p of this.rewardPedestals) {
+            if (p !== pedestal && p.groupId === pedestal.groupId) {
+                p.disabled = true;
+            }
+        }
+
+        if (pedestal.kind === 'stat') {
+            // Apply permanent boss stat reward
+            switch (pedestal.data.id) {
+                case 'hp':
+                    this.player._baseMaxHp += BOSS_REWARD_HP;
+                    this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
+                    this.player.hp = Math.min(this.player.hp + BOSS_REWARD_HP, this.player.maxHp);
+                    showToast(`+${BOSS_REWARD_HP} Max HP`, '#e74c3c', '❤️');
+                    break;
+                case 'damage':
+                    this.player.damage += BOSS_REWARD_DAMAGE;
+                    showToast(`+${BOSS_REWARD_DAMAGE} Damage`, '#f39c12', '⚔️');
+                    break;
+                case 'speed':
+                    this.player.speed += BOSS_REWARD_SPEED;
+                    showToast(`+${BOSS_REWARD_SPEED} Speed`, '#3498db', '💨');
+                    break;
+            }
+        } else if (pedestal.kind === 'scroll') {
+            // Apply boss scroll unlock (permanently unlock ability/proc/node)
+            const result = applyBossScrollChoice(pedestal.data);
+            if (result) {
+                const typeLabel = result.type === 'ability' ? 'Ability' : result.type === 'proc' ? 'Passive' : 'Node';
+                showBigToast(`${typeLabel} Unlocked: ${result.name}`, result.color, result.icon);
+                Audio.playRelicUnlock();
+            }
+        }
+    }
+
     /** Open the Forge upgrade UI directly (used when acquiring a forge token). */
     _openForgeUI() {
         const context = this._getUpgradeContext();
@@ -3279,9 +3351,49 @@ export class Game {
             this.bossVictoryDelay -= dt * 1000;
             if (this.bossVictoryDelay <= 0) {
                 Audio.playBossVictory();
-                this.bossRewardIndex = 0;
                 clearToasts();
-                this.state = STATE_BOSS_VICTORY;
+
+                // Full heal after boss kill
+                this.player.hp = this.player.maxHp;
+                this.player.overHeal = 0;
+
+                // Award boss XP — passive leveling (no overlay interrupt)
+                const bossXpMult = this.cheats.xpboost ? 10 : 1;
+                const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
+                const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
+                const shopXpMult = this._getShopXpMultiplier();
+                const talentXpMult = this.player.talentXpMult || 1;
+                const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult * talentXpMult);
+                this.player.addXp(xp);
+                while (this.player.xp >= this.player.xpToNext) {
+                    this.player.autoLevelUp();
+                    Audio.playLevelUp();
+                    this.particles.levelUp(this.player.x, this.player.y);
+                    if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
+                        const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
+                        this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                    }
+                    this._syncTalentPoints();
+                    if (!this.cheatsUsedThisRun) {
+                        achEmit('player_level_changed', { level: this.player.level });
+                    }
+                    this.levelUpBanners.push({
+                        text: `⬆ Level ${this.player.level}!`,
+                        color: '#ffd700',
+                        timer: 2000,
+                        maxTimer: 2000,
+                    });
+                }
+
+                // Save boss reward data for the spatial reward room
+                this._rewardRoomBossData = {
+                    bossName: this.boss.name,
+                    bossColor: this.boss.color,
+                };
+                this._pendingRewardRoom = true;
+
+                // Unlock boss room door — player walks through to reward room
+                if (this.door) this.door.manualLock = false;
             }
             return;
         }
@@ -3653,7 +3765,7 @@ export class Game {
         this.abilitySystem.update(effectiveDt, combatContext);
 
         // Attack (Space or Left Click) — disabled in shop rooms
-        if (!this._isShopRoom && (isDown('Space') || isMouseDown(0))) {
+        if (!this._isRewardRoom && (isDown('Space') || isMouseDown(0))) {
             const targets = allBosses.length > 0
                 ? [...this.enemies, ...allBosses]
                 : this.enemies;
@@ -4308,10 +4420,10 @@ export class Game {
                     }
                 }
 
-                // Boss scroll drop chance
+                // Boss scroll drop chance — save for spatial reward room
                 const scrollChoices = generateBossScrollChoices();
                 if (scrollChoices) {
-                    this._pendingBossScroll = scrollChoices;
+                    this._rewardRoomScrolls = scrollChoices;
                     showToast('📜 Ancient Scroll dropped!', '#ffd700', '📜');
                 }
 
@@ -4669,16 +4781,43 @@ export class Game {
             }
         }
 
-        // ── Update Shop Items (spatial shop room) ──
-        if (this._isShopRoom && this.shopItems.length > 0) {
+        // ── Update Reward Room entities ──
+        if (this._isRewardRoom) {
+            // Update reward pedestals
+            for (const ped of this.rewardPedestals) {
+                ped.update(dt, this.player);
+            }
+            // Update healing fountains
+            for (const ftn of this.healingFountains) {
+                ftn.update(dt, this.player);
+            }
+            // Update shop items
             for (const item of this.shopItems) {
                 item.update(dt, this.player);
             }
-            // Buy nearest item on Space/Enter (only if not attacking)
+            // Interact on Space / Enter
             if (wasPressed('Space') || wasPressed('Enter')) {
-                const nearbyItem = this.shopItems.find(i => i.nearby && !i.purchased);
-                if (nearbyItem) {
-                    this._buyShopItem(nearbyItem);
+                // Priority 1: Nearby reward pedestal
+                const nearbyPed = this.rewardPedestals.find(p => p.nearby && !p.claimed && !p.disabled);
+                if (nearbyPed) {
+                    this._claimRewardPedestal(nearbyPed);
+                } else {
+                    // Priority 2: Nearby healing fountain
+                    const nearbyFtn = this.healingFountains.find(f => f.nearby && !f.used);
+                    if (nearbyFtn) {
+                        const healed = nearbyFtn.tryHeal(this.player);
+                        if (healed > 0) {
+                            this.particles.levelUp(this.player.x, this.player.y);
+                            showToast(`+${healed} HP (Fountain)`, '#44ccff', '⛲');
+                            Audio.playMenuSelect();
+                        }
+                    } else {
+                        // Priority 3: Nearby shop item
+                        const nearbyItem = this.shopItems.find(i => i.nearby && !i.purchased);
+                        if (nearbyItem) {
+                            this._buyShopItem(nearbyItem);
+                        }
+                    }
                 }
             }
         }
@@ -5157,24 +5296,6 @@ export class Game {
 
     /** Transition logic after all chained level-ups are resolved. */
     _afterLevelUpChain() {
-        // Boss scroll pending?
-        if (this._pendingBossScroll) {
-            this.scrollChoices = this._pendingBossScroll;
-            this._pendingBossScroll = null;
-            this.scrollCursor = 0;
-            this.state = STATE_BOSS_SCROLL;
-            return;
-        }
-        // Boss reward orb: spawn diamond-tier orb in boss room, let player walk to it
-        if (this._pendingShopRoom && !this._rewardOrbPending && !this.rewardOrb) {
-            this._spawnRewardOrb(BOSS_REWARD_ORB_TIER);
-            this._rewardOrbPending = true;
-            // Unlock the door — player can choose to grab orb or leave
-            // But we want them to grab the orb, so keep door locked via manualLock
-            if (this.door) this.door.manualLock = true;
-            this.state = STATE_PLAYING;
-            return;
-        }
         this.state = STATE_PLAYING;
     }
 
@@ -5465,86 +5586,10 @@ export class Game {
         }
     }
 
+    /** @deprecated — Boss stat choice is now spatial (reward pedestals). Kept as fallback. */
     _updateBossVictory() {
-        const choices = ['hp', 'damage', 'speed'];
-
-        if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
-            this.bossRewardIndex = (this.bossRewardIndex - 1 + 3) % 3;
-            Audio.playMenuNav();
-        }
-        if (wasPressed('KeyS') || wasPressed('ArrowDown')) {
-            this.bossRewardIndex = (this.bossRewardIndex + 1) % 3;
-            Audio.playMenuNav();
-        }
-        // Mouse hover (boss victory: bh=320+extraH, centred, startY=by+132+extraH, rowH=46)
-        // Approximate: assume no extra unlocks for hover region
-        const _bvBh = 320;
-        const _bvBy = (CANVAS_HEIGHT - _bvBh) / 2;
-        const _bvStartY = _bvBy + 132;
-        const _bvmh = getMenuHover(_bvStartY, 3, 46, 40, 380);
-        if (_bvmh >= 0 && _bvmh !== this.bossRewardIndex) { this.bossRewardIndex = _bvmh; Audio.playMenuNav(); }
-
-        let choice = null;
-        if (wasPressed('Enter') || wasPressed('Space') || wasMousePressed(0)) {
-            choice = choices[this.bossRewardIndex];
-        } else if (wasPressed('Digit1')) { choice = 'hp'; }
-        else if (wasPressed('Digit2')) { choice = 'damage'; }
-        else if (wasPressed('Digit3')) { choice = 'speed'; }
-
-        if (!choice) return;
-        Audio.playMenuSelect();
-
-        // Apply permanent reward
-        switch (choice) {
-            case 'hp':
-                this.player._baseMaxHp += BOSS_REWARD_HP;
-                this.player.maxHp = Math.round(this.player._baseMaxHp * this.player.talentMaxHpMult);
-                break;
-            case 'damage':
-                this.player.damage += BOSS_REWARD_DAMAGE;
-                break;
-            case 'speed':
-                this.player.speed += BOSS_REWARD_SPEED;
-                break;
-        }
-
-        // Full heal
-        this.player.hp = this.player.maxHp;
-        this.player.overHeal = 0;
-
-        // Award boss XP — passive leveling (no overlay interrupt)
-        const bossXpMult = this.cheats.xpboost ? 10 : 1;
-        const metaXpMult = this.metaModifiers ? this.metaModifiers.xpMultiplier : 1;
-        const runXpMult = this.runUpgradesActive.upgrade_xp_magnet ? 1.15 : 1;
-        const shopXpMult = this._getShopXpMultiplier();
-        const talentXpMult = this.player.talentXpMult || 1;
-        const xp = Math.floor(this.boss.xpValue * bossXpMult * metaXpMult * runXpMult * shopXpMult * talentXpMult);
-        this.player.addXp(xp);
-        // Process passive level-ups from boss XP
-        while (this.player.xp >= this.player.xpToNext) {
-            this.player.autoLevelUp();
-            Audio.playLevelUp();
-            this.particles.levelUp(this.player.x, this.player.y);
-            if (this.metaModifiers && this.metaModifiers.healOnLevelUpPct > 0) {
-                const healAmt = Math.floor(this.player.maxHp * this.metaModifiers.healOnLevelUpPct);
-                this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
-            }
-            this._syncTalentPoints();
-            if (!this.cheatsUsedThisRun) {
-                achEmit('player_level_changed', { level: this.player.level });
-            }
-            this.levelUpBanners.push({
-                text: `⬆ Level ${this.player.level}!`,
-                color: '#ffd700',
-                timer: 2000,
-                maxTimer: 2000,
-            });
-        }
-
-        // After boss: spawn a diamond-tier reward orb in the boss room
-        // (instead of the old dialog shop). The next room will be the spatial shop.
-        this._pendingShopRoom = true;
-        this._afterLevelUpChain();
+        // Shouldn't normally be reached — fall back to playing
+        this.state = STATE_PLAYING;
     }
 
     // ── Adaptive Music ───────────────────────────────────
@@ -5751,11 +5796,11 @@ export class Game {
             this.rewardOrb.render(ctx);
         }
 
-        // ── Shop Items (spatial shop room) ──
-        if (this._isShopRoom) {
-            for (const item of this.shopItems) {
-                item.render(ctx);
-            }
+        // ── Reward Room entities (pedestals, fountains, shop items) ──
+        if (this._isRewardRoom) {
+            for (const ped of this.rewardPedestals) ped.render(ctx);
+            for (const ftn of this.healingFountains) ftn.render(ctx);
+            for (const item of this.shopItems) item.render(ctx);
         }
 
         // Enemies: hidden if outside light in darkness rooms
@@ -5850,16 +5895,15 @@ export class Game {
                   this.runCoins, this.metaBoosterShieldCharges, this.bombCharges);
 
         // ── Performance Meter (room XP rating) ──
-        if (!this.trainingMode && !isBossRoom && !this._isShopRoom && this.roomXPBaseline > 0) {
+        if (!this.trainingMode && !isBossRoom && !this._isRewardRoom && this.roomXPBaseline > 0) {
             const isCleared = this._roomCleared || this._rewardOrbPending;
             renderPerformanceMeter(ctx, this.roomXP, this.roomXPBaseline, this.performanceTier, isCleared);
         }
 
-        // ── Shop Room: item tooltips + coin display ──
-        if (this._isShopRoom) {
-            for (const item of this.shopItems) {
-                item.renderTooltip(ctx);
-            }
+        // ── Reward Room: tooltips + coin display ──
+        if (this._isRewardRoom) {
+            for (const ped of this.rewardPedestals) ped.renderTooltip(ctx);
+            for (const item of this.shopItems) item.renderTooltip(ctx);
             // Large coin counter at top center
             ctx.save();
             ctx.textAlign = 'center';
@@ -5868,7 +5912,7 @@ export class Game {
             ctx.fillText(`🪙 ${this.runCoins} Coins`, CANVAS_WIDTH / 2, 30);
             ctx.fillStyle = '#aaa';
             ctx.font = '12px monospace';
-            ctx.fillText('Walk to items · Space to buy · Door to leave', CANVAS_WIDTH / 2, 48);
+            ctx.fillText('Walk to rewards · Space to claim · Door to continue', CANVAS_WIDTH / 2, 48);
             ctx.restore();
         }
 
