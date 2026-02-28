@@ -41,7 +41,7 @@ import {
     REWARD_ORB_RADIUS,
 } from './constants.js';
 import { isDown, wasPressed, getMovement, getLastKey, getActivatedCheat, isMouseDown, wasMousePressed, getMousePos, isMouseActive, getMenuHover, getMenuHoverCustom, getMenuHoverGrid, getTabHover } from './input.js';
-import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom, parseShopRoom } from './rooms.js';
+import { parseRoom, parseTrainingRoom, getEnemySpawns, generateHazards, ROOM_NAMES, TRAINING_ROOM_NAME, getRoomCount, parseBossRoom, BOSS_ROOM_NAME, generateProceduralRoom, parseRewardRoom } from './rooms.js';
 import { renderRoom, renderAtmosphere } from './render.js';
 import { pushOutOfAABB } from './collision.js';
 import { Player } from './entities/player.js';
@@ -50,6 +50,8 @@ import { Projectile, PlayerProjectile, RocketProjectile, Explosion } from './ent
 import { Door } from './entities/door.js';
 import { RewardOrb } from './entities/rewardOrb.js';
 import { ShopItem } from './entities/shopItem.js';
+import { RewardPedestal } from './entities/rewardPedestal.js';
+import { HealingFountain } from './entities/healingFountain.js';
 import { Boss } from './entities/boss.js';
 import { trySpawnPickup, PICKUP_INFO, CoinPickup } from './entities/pickup.js';
 import { ParticleSystem } from './entities/particle.js';
@@ -193,10 +195,14 @@ export class Game {
         this._rewardOrbPending = false;   // true after enemies cleared but before orb picked up
         this._roomCleared = false;        // true after all enemies die for the first time in a room
 
-        // ── Spatial Shop Room ──
-        this.shopItems = [];              // ShopItem entities in the shop room
-        this._isShopRoom = false;         // true when current room is a shop room
-        this._pendingShopRoom = false;    // true after boss to load shop as next room
+        // ── Spatial Reward Room (post-boss) ──
+        this.shopItems = [];              // ShopItem entities in the reward room
+        this.rewardPedestals = [];        // RewardPedestal entities (stat + scroll choices)
+        this.healingFountains = [];       // HealingFountain entities
+        this._isRewardRoom = false;       // true when current room is the post-boss reward room
+        this._pendingRewardRoom = false;  // true after boss to load reward room as next room
+        this._rewardRoomScrolls = null;   // scroll choices to place in reward room
+        this._rewardRoomBossData = null;  // { xpValue, name, color } saved from boss for reward room
 
         // Pause menu selection
         this.pauseIndex = 0;  // 0 = Resume, 1 = Menu
@@ -624,10 +630,14 @@ export class Game {
         this._roomCleared = false;
         this.performanceTier = PERF_TIER_BRONZE;
         this.levelUpBanners = [];
-        // Reset shop room state
+        // Reset reward room state
         this.shopItems = [];
-        this._isShopRoom = false;
-        this._pendingShopRoom = false;
+        this.rewardPedestals = [];
+        this.healingFountains = [];
+        this._isRewardRoom = false;
+        this._pendingRewardRoom = false;
+        this._rewardRoomScrolls = null;
+        this._rewardRoomBossData = null;
         this._updateBiome();
         this.biomeAnnounceTimer = 3000;  // announce first biome
         setMenuBiome(null);  // clear menu particles for new run
@@ -1412,11 +1422,14 @@ export class Game {
         this._roomCleared = false;
         this.performanceTier = PERF_TIER_BRONZE;
         this.levelUpBanners = [];
-        // Reset shop room state
+        // Reset reward room state
         this.shopItems = [];
-        this._isShopRoom = false;
-        this._pendingShopRoom = false;
-        // ── Room type cleanup ──
+        this.rewardPedestals = [];
+        this.healingFountains = [];
+        this._isRewardRoom = false;
+        this._pendingRewardRoom = false;
+        this._rewardRoomScrolls = null;
+        this._rewardRoomBossData = null;
         const restartDef = getRoomType(this.currentRoomType);
         callHook(restartDef, 'onExit');
         this.currentRoomType = ROOM_TYPE_NORMAL;

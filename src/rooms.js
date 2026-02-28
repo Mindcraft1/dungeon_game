@@ -351,39 +351,51 @@ export function parseTrainingRoom() {
     return _parse(TRAINING_TEMPLATE);
 }
 
-// Shop room – open room with 6 pedestals (marked P) for shop items
-// P tiles are parsed as floor but their positions are returned separately
-const SHOP_TEMPLATE = [
+// Reward room – post-boss room with all rewards laid out spatially:
+//   R = stat reward pedestal (HP/DMG/SPD)
+//   L = scroll pedestal (lore/unlock)
+//   F = healing fountain
+//   P = shop item pedestal
+//   S = spawn, D = door
+// All special chars parse as floor; positions are extracted separately.
+const REWARD_ROOM_TEMPLATE = [
     '####################',
+    '#..P............P.D#',
     '#..................#',
-    '#..####....####....#',
-    '#..#..#....#..#....#',
-    '#..####....####....#',
+    '#P....R..R..R.....P#',
     '#..................#',
-    '#......P..P..P.....#',
-    '#S................D#',
-    '#......P..P..P.....#',
+    '#.....L..F..L......#',
     '#..................#',
-    '#..####....####....#',
-    '#..#..#....#..#....#',
-    '#..####....####....#',
+    '#S.......L.........#',
+    '#..................#',
+    '#P................P#',
+    '#..................#',
+    '#..P............P..#',
+    '#..................#',
     '#..................#',
     '####################',
 ];
 
-/** Parse the dedicated shop room. Returns grid, spawnPos, doorPos, and pedestalPositions. */
-export function parseShopRoom() {
-    const result = _parse(SHOP_TEMPLATE);
-    // Extract pedestal positions (P characters in template)
-    const pedestals = [];
-    for (let row = 0; row < SHOP_TEMPLATE.length; row++) {
-        for (let col = 0; col < SHOP_TEMPLATE[row].length; col++) {
-            if (SHOP_TEMPLATE[row][col] === 'P') {
-                pedestals.push({ col, row });
-            }
+/** Parse the dedicated reward room. Returns grid, positions for all interactable spots. */
+export function parseRewardRoom() {
+    const result = _parse(REWARD_ROOM_TEMPLATE);
+    const pedestals = [];  // P — shop items
+    const rewards = [];    // R — stat reward pedestals
+    const scrolls = [];    // L — scroll pedestals
+    const fountains = [];  // F — healing fountains
+    for (let row = 0; row < REWARD_ROOM_TEMPLATE.length; row++) {
+        for (let col = 0; col < REWARD_ROOM_TEMPLATE[row].length; col++) {
+            const ch = REWARD_ROOM_TEMPLATE[row][col];
+            if (ch === 'P') pedestals.push({ col, row });
+            if (ch === 'R') rewards.push({ col, row });
+            if (ch === 'L') scrolls.push({ col, row });
+            if (ch === 'F') fountains.push({ col, row });
         }
     }
     result.pedestalPositions = pedestals;
+    result.rewardPositions = rewards;
+    result.scrollPositions = scrolls;
+    result.fountainPositions = fountains;
     return result;
 }
 
