@@ -1008,6 +1008,12 @@ export class Boss {
 
     takeDamage(amount, kbX = 0, kbY = 0, isCrit = false) {
         if (this.dead) return;
+
+        // Vulnerability multiplier (from Singularity / Absolute Zero / Gravity Crush)
+        if (this._vulnerabilityMult && this._vulnerabilityMult > 1) {
+            amount = Math.floor(amount * this._vulnerabilityMult);
+        }
+
         this.hp -= amount;
         this.damageFlashTimer = 120;
         playHit();

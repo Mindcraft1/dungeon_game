@@ -50,7 +50,13 @@ export class ProcSystem {
             const mods = procMods[procId] || {};
 
             if (def.trigger === 'onHit') {
-                const chanceBonus = mods.chanceBonus || 0;
+                let chanceBonus = mods.chanceBonus || 0;
+                // Proc Amplifier (global node): flat bonus to all proc chances
+                if (globalMods.procChanceBonus) chanceBonus += globalMods.procChanceBonus;
+                // Storm Caller (synergy node): ability use temporarily boosts proc chance
+                if (event.source && event.source._stormCallerTimer > 0 && event.source._stormCallerProcBonus) {
+                    chanceBonus += event.source._stormCallerProcBonus;
+                }
                 if (Math.random() < (def.chance + chanceBonus)) {
                     // Pass mods + globalMods into context so proc can use them
                     def.onProc(event, { ...context, procMods: mods, globalMods });

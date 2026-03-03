@@ -84,6 +84,11 @@ export const ABILITY_DEFINITIONS = {
                     }
                 }
 
+                // ── Tremor: shockwave slows all hit enemies ──
+                if (abilityMods.slowOnHit && !e.dead) {
+                    applySlow(e, abilityMods.slowDuration || 1500, abilityMods.slowFactor || 0.5);
+                }
+
                 // Track kills for chain reaction
                 if (e.dead && hpBefore > 0) killed.push(e);
 
@@ -146,6 +151,22 @@ export const ABILITY_DEFINITIONS = {
                 }, secondDelay);
             }
 
+            // ── Fortify: shockwave grants player damage reduction ──
+            if (abilityMods.fortify) {
+                player._fortifyDR = abilityMods.fortifyDR || 0.15;
+                player._fortifyTimer = abilityMods.fortifyDuration || 3000;
+            }
+
+            // ── Scorched Earth: store pending fire zone for game.js to spawn ──
+            if (abilityMods.groundFire) {
+                player._pendingFireZone = {
+                    x: player.x, y: player.y,
+                    dps: abilityMods.groundFireDps || 3,
+                    duration: abilityMods.groundFireDuration || 3000,
+                    radius: Math.floor(effectiveRadius * 0.5),
+                };
+            }
+
             return hitCount;
         },
     },
@@ -187,6 +208,8 @@ export const ABILITY_DEFINITIONS = {
                 state.active = false;
                 // Stop the looping blade storm sound
                 stopBladeStorm();
+                // Clear speed buff
+                player._bladestormSpeedMult = 1;
 
                 // ── Blade Eruption: massive explosion on end ──
                 if (abilityMods.endExplosion) {
@@ -211,10 +234,30 @@ export const ABILITY_DEFINITIONS = {
                 return state;
             }
 
+            // ── Eye of the Storm: boost player speed during storm ──
+            if (abilityMods.speedBoost) {
+                player._bladestormSpeedMult = abilityMods.speedMult || 1.20;
+            }
+
+            // ── Vacuum Vortex: pull enemies inward each frame ──
+            if (abilityMods.vacuum) {
+                const vacForce = (abilityMods.vacuumForce || 80) * dt;
+                const vTargets = boss && !boss.dead ? [...enemies, boss] : enemies;
+                for (const e of vTargets) {
+                    if (e.dead) continue;
+                    const dx = player.x - e.x;
+                    const dy = player.y - e.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > effectiveRadius + (e.radius || 12) || dist < 10) continue;
+                    e.x += (dx / dist) * vacForce;
+                    e.y += (dy / dist) * vacForce;
+                }
+            }
+
             // Tick damage
             if (state.tickTimer <= 0) {
                 state.tickTimer = ABILITY_BLADESTORM_TICK;
-                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
+                const tickDmg = Math.floor(player.damage * ABILITY_BLADESTORM_DMG_MULT * (abilityMods.dmgMult || 1) * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
 
                 let tickHits = 0;
@@ -241,6 +284,11 @@ export const ABILITY_DEFINITIONS = {
                     // ── Shredding Blades: apply bleed (burn) per tick ──
                     if (abilityMods.bleedOnTick) {
                         applyBurn(e, abilityMods.bleedDuration || 2000, abilityMods.bleedDps || 3);
+                    }
+
+                    // ── Frozen Blades: slow enemies per tick ──
+                    if (abilityMods.slowOnTick) {
+                        applySlow(e, abilityMods.slowDuration || 800, abilityMods.slowFactor || 0.7);
                     }
 
                     if (procSystem) {
@@ -275,11 +323,13 @@ export const ABILITY_DEFINITIONS = {
         desc: `Pull enemies for ${ABILITY_GRAVITY_PULL_DURATION}s, then slow`,
 
         onUse(ctx) {
+            const { abilityMods = {} } = ctx;
             Impact.bigImpact(80, 10, 0.90);
             Impact.screenFlash('#7c4dff', 0.3, 0.004);
+            const bonusDuration = abilityMods.durationBonus || 0;
             return {
                 active: true,
-                pullRemaining: ABILITY_GRAVITY_PULL_DURATION,
+                pullRemaining: ABILITY_GRAVITY_PULL_DURATION + bonusDuration,
                 slowApplied: false,
             };
         },
@@ -295,6 +345,7 @@ export const ABILITY_DEFINITIONS = {
                 // Pull phase: drag enemies toward player
                 const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
                 let pulling = 0;
+                const pullForce = ABILITY_GRAVITY_FORCE * (abilityMods.forceMult || 1);
                 for (const e of targets) {
                     if (e.dead) continue;
                     const dx = player.x - e.x;
@@ -303,15 +354,36 @@ export const ABILITY_DEFINITIONS = {
                     if (dist > effectiveRadius + (e.radius || 12)) continue;
                     if (dist < 5) continue; // don't pull into player center
 
-                    const pullStr = ABILITY_GRAVITY_FORCE * dt;
+                    const pullStr = pullForce * dt;
                     e.x += (dx / dist) * pullStr;
                     e.y += (dy / dist) * pullStr;
                     pulling++;
+
+                    // ── Crushing Gravity: deal DPS to pulled enemies ──
+                    if (abilityMods.pullDps) {
+                        const tickDmg = Math.ceil(abilityMods.pullDps * dt);
+                        if (tickDmg > 0) e.takeDamage(tickDmg, 0, 0);
+                    }
 
                     // ── Singularity: mark pulled enemies as vulnerable ──
                     if (abilityMods.singularity) {
                         e._vulnerabilityMult = abilityMods.singularityVulnMult || 1.25;
                         e._vulnerabilityTimer = (abilityMods.singularityDuration || 3000) / 1000; // seconds
+                    }
+                }
+
+                // ── Gravity Crush: tightly grouped enemies take more damage ──
+                if (abilityMods.crushBonus) {
+                    const crushR = abilityMods.crushRadius || 50;
+                    for (const e of targets) {
+                        if (e.dead) continue;
+                        const dx = player.x - e.x;
+                        const dy = player.y - e.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist <= crushR) {
+                            e._vulnerabilityMult = Math.max(e._vulnerabilityMult || 1, abilityMods.crushVulnMult || 1.20);
+                            e._vulnerabilityTimer = Math.max(e._vulnerabilityTimer || 0, 1.0);
+                        }
                     }
                 }
                 // Continuous rumble while pulling
@@ -372,7 +444,7 @@ export const ABILITY_DEFINITIONS = {
         onUse(ctx) {
             const { player, enemies, boss, particles, procSystem, abilityMods = {}, globalMods = {} } = ctx;
             const targets = boss && !boss.dead ? [...enemies, boss] : enemies;
-            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
+            const dmg = Math.floor(player.damage * ABILITY_FREEZE_DMG_MULT * (abilityMods.dmgMult || 1) * (globalMods.damageMult || 1) * (globalMods.abilityDmgMult || 1));
             const effectiveRadius = ABILITY_FREEZE_RADIUS * (abilityMods.radiusMult || 1);
             const freezeDuration = ABILITY_FREEZE_DURATION + (abilityMods.durationBonus || 0);
             let hitCount = 0;
@@ -438,6 +510,22 @@ export const ABILITY_DEFINITIONS = {
                     dmgMult: abilityMods.shatterDmgMult || 0.6,
                     timer: freezeDuration + 1, // active while freeze lasts + buffer
                 };
+            }
+
+            // ── Ice Armor: grant player damage reduction on freeze pulse use ──
+            if (abilityMods.iceArmor) {
+                player._iceArmorDR = abilityMods.iceArmorDR || 0.20;
+                player._iceArmorTimer = abilityMods.iceArmorDuration || 3000;
+            }
+
+            // ── Frostbite: store DPS info for game.js to apply to frozen enemies ──
+            if (abilityMods.frostbiteDps) {
+                player._frostbiteDps = abilityMods.frostbiteDps;
+            }
+
+            // ── Brittle: store crit multiplier for game.js crit system on frozen targets ──
+            if (abilityMods.brittleCritMult) {
+                player._brittleCritMult = abilityMods.brittleCritMult;
             }
 
             Impact.bigImpact(90, 12, 0.90);

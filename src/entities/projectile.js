@@ -124,6 +124,8 @@ export class PlayerProjectile {
         this._shadowSpawned = false;
         this._shadowTimer = 0;
         this._isShadow = modOpts._isShadow || false; // shadow copies don't spawn more shadows
+        this._isChainThrow = modOpts._isChainThrow || false; // chain throw copies don't chain again
+        this.phaseThrough = modOpts.phaseThrough || false; // spectral daggers pass through walls
     }
 
     update(dt, enemies, boss, grid) {
@@ -236,23 +238,25 @@ export class PlayerProjectile {
             }
         }
 
-        // Wall collision (ricochet support)
-        const col = Math.floor(this.x / TILE_SIZE);
-        const row = Math.floor(this.y / TILE_SIZE);
-        if (isWall(grid, col, row)) {
-            if (this.ricochetRemaining > 0) {
-                this.ricochetRemaining--;
-                // Reflect off the wall — determine which axis to flip
-                const prevCol = Math.floor((this.x - this.dirX * this.speed * dt) / TILE_SIZE);
-                const prevRow = Math.floor((this.y - this.dirY * this.speed * dt) / TILE_SIZE);
-                if (prevCol !== col) this.dirX = -this.dirX;
-                if (prevRow !== row) this.dirY = -this.dirY;
-                // Push out of wall
-                this.x += this.dirX * this.speed * dt * 2;
-                this.y += this.dirY * this.speed * dt * 2;
-            } else {
-                this.dead = true;
-                return;
+        // Wall collision (ricochet support) — spectral daggers phase through walls
+        if (!this.phaseThrough) {
+            const col = Math.floor(this.x / TILE_SIZE);
+            const row = Math.floor(this.y / TILE_SIZE);
+            if (isWall(grid, col, row)) {
+                if (this.ricochetRemaining > 0) {
+                    this.ricochetRemaining--;
+                    // Reflect off the wall — determine which axis to flip
+                    const prevCol = Math.floor((this.x - this.dirX * this.speed * dt) / TILE_SIZE);
+                    const prevRow = Math.floor((this.y - this.dirY * this.speed * dt) / TILE_SIZE);
+                    if (prevCol !== col) this.dirX = -this.dirX;
+                    if (prevRow !== row) this.dirY = -this.dirY;
+                    // Push out of wall
+                    this.x += this.dirX * this.speed * dt * 2;
+                    this.y += this.dirY * this.speed * dt * 2;
+                } else {
+                    this.dead = true;
+                    return;
+                }
             }
         }
 

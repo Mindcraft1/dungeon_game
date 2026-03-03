@@ -1608,6 +1608,154 @@ export class ParticleSystem {
     }
 
     /**
+     * Weapon-specific slash overlay on a hit enemy.
+     * - Sword: random diagonal slashes (\ or /), big and impactful
+     * - Spear: forward thrust line toward the enemy
+     * - Hammer: radial cross (+ shape) impact slam
+     * @param {number} ex - enemy x
+     * @param {number} ey - enemy y
+     * @param {string} weaponId - 'sword' | 'spear' | 'hammer'
+     * @param {number} dirX - hit direction x (player→enemy)
+     * @param {number} dirY - hit direction y (player→enemy)
+     * @param {string} color - weapon theme color
+     * @param {number} parity - 0 or 1, used for sword alternation
+     * @param {boolean} isCrit - whether this hit is a critical strike
+     */
+    weaponSlash(ex, ey, weaponId, dirX, dirY, color, parity = 0, isCrit = false) {
+        // ── Crit override: orange / red tones ──
+        const critColor  = Math.random() > 0.4 ? '#ff6d00' : '#ff1744'; // orange or red
+        const critGlow   = '#d50000';
+        const mainColor  = isCrit ? critColor : color;
+        const glowColor  = isCrit ? critGlow : color;
+        const accentColor = isCrit ? '#ffffff' : '#ffffff';
+        const sizeMult   = isCrit ? 1.35 : 1.0;   // crits are even bigger
+
+        if (weaponId === 'sword') {
+            // ── Sword: big diagonal slash, randomly picks \ or / direction ──
+            const baseAngle = Math.atan2(dirY, dirX);
+            // Randomly choose slash direction each hit (sometimes \, sometimes /)
+            const dir = Math.random() > 0.5 ? 1 : -1;
+            const slashAngle = baseAngle + dir * (Math.PI * 0.25 + Math.random() * 0.15);
+
+            // Primary slash — big and bold
+            this._impactSlashes.push({
+                x: ex, y: ey,
+                angle: slashAngle,
+                length: (38 + Math.random() * 10) * sizeMult,
+                timer: 320,
+                maxTimer: 320,
+                color: mainColor,
+                width: 4.0 * sizeMult,
+            });
+            // Secondary trailing slash (offset for motion feel)
+            const offset = dir * 5;
+            this._impactSlashes.push({
+                x: ex + Math.cos(slashAngle + Math.PI * 0.5) * offset,
+                y: ey + Math.sin(slashAngle + Math.PI * 0.5) * offset,
+                angle: slashAngle,
+                length: (24 + Math.random() * 6) * sizeMult,
+                timer: 260,
+                maxTimer: 260,
+                color: accentColor,
+                width: 2.2 * sizeMult,
+            });
+            // Sparks along the slash line
+            const sparkCount = isCrit ? 8 : 5;
+            for (let i = 0; i < sparkCount; i++) {
+                const t = (Math.random() - 0.5) * 34 * sizeMult;
+                const px = ex + Math.cos(slashAngle) * t;
+                const py = ey + Math.sin(slashAngle) * t;
+                const perpX = -Math.sin(slashAngle);
+                const perpY = Math.cos(slashAngle);
+                const speed = 50 + Math.random() * 80;
+                this.particles.push(new Particle(
+                    px, py,
+                    perpX * speed * (Math.random() > 0.5 ? 1 : -1),
+                    perpY * speed * (Math.random() > 0.5 ? 1 : -1),
+                    1.2 + Math.random() * 2, mainColor,
+                    120 + Math.random() * 100,
+                    { friction: 0.85, glow: true, glowColor: glowColor, shape: 'spark' },
+                ));
+            }
+        } else if (weaponId === 'spear') {
+            // ── Spear: forward thrust line from player toward enemy ──
+            const thrustAngle = Math.atan2(dirY, dirX);
+            // Main thrust line (long, narrow)
+            this._impactSlashes.push({
+                x: ex, y: ey,
+                angle: thrustAngle,
+                length: (38 + Math.random() * 10) * sizeMult,
+                timer: 280,
+                maxTimer: 280,
+                color: mainColor,
+                width: 3.0 * sizeMult,
+            });
+            // Thin pierce line (extends further)
+            this._impactSlashes.push({
+                x: ex + dirX * 8, y: ey + dirY * 8,
+                angle: thrustAngle,
+                length: (22 + Math.random() * 6) * sizeMult,
+                timer: 220,
+                maxTimer: 220,
+                color: accentColor,
+                width: 1.8 * sizeMult,
+            });
+            // Directional sparks along thrust path
+            const sparkCount = isCrit ? 8 : 5;
+            for (let i = 0; i < sparkCount; i++) {
+                const t = Math.random() * 24;
+                const px = ex + dirX * t;
+                const py = ey + dirY * t;
+                const speed = 70 + Math.random() * 90;
+                this.particles.push(new Particle(
+                    px, py,
+                    dirX * speed + (Math.random() - 0.5) * 30,
+                    dirY * speed + (Math.random() - 0.5) * 30,
+                    1.4 + Math.random() * 1.5, mainColor,
+                    90 + Math.random() * 110,
+                    { friction: 0.84, glow: true, glowColor: glowColor, shape: 'spark' },
+                ));
+            }
+        } else if (weaponId === 'hammer') {
+            // ── Hammer: radial cross (+ shape) slam with ground ring ──
+            const baseAngle = Math.atan2(dirY, dirX);
+            for (let i = 0; i < 4; i++) {
+                const angle = baseAngle + (Math.PI * 0.5) * i;
+                this._impactSlashes.push({
+                    x: ex, y: ey,
+                    angle: angle,
+                    length: (24 + Math.random() * 10) * sizeMult,
+                    timer: 350,
+                    maxTimer: 350,
+                    color: i % 2 === 0 ? mainColor : accentColor,
+                    width: (i % 2 === 0 ? 4.0 : 2.5) * sizeMult,
+                });
+            }
+            // Heavy ground-pound particles (burst outward)
+            const burstCount = isCrit ? 12 : 8;
+            for (let i = 0; i < burstCount; i++) {
+                const angle = (Math.PI * 2 / burstCount) * i + Math.random() * 0.3;
+                const speed = 55 + Math.random() * 80;
+                this.particles.push(new Particle(
+                    ex, ey,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    2.5 + Math.random() * 2.5, mainColor,
+                    180 + Math.random() * 140,
+                    { friction: 0.87, glow: true, glowColor: glowColor, shape: 'square' },
+                ));
+            }
+            // Central heavy flash (bigger than normal)
+            this.particles.push(new Particle(
+                ex, ey, 0, 0,
+                14, '#ffffff',
+                120,
+                { shrink: true, glow: true, glowColor: color },
+            ));
+        }
+    }
+
+    /**
      * Impact ring — expanding ring of particles at the point of impact.
      * Gives hits a satisfying radial burst at contact point.
      */

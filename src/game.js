@@ -96,7 +96,7 @@ import { ProcSystem } from './combat/procSystem.js';
 import * as Impact from './combat/impactSystem.js';
 import { ABILITY_IDS, ABILITY_DEFINITIONS } from './combat/abilities.js';
 import { PROC_IDS, PROC_DEFINITIONS } from './combat/procs.js';
-import { applyFreeze as applyFreezeStatus, applyBurn as applyBurnStatus, applySlow } from './combat/statusEffects.js';
+import { applyFreeze as applyFreezeStatus, applyBurn as applyBurnStatus, applySlow, setStatusDmgMult } from './combat/statusEffects.js';
 import { renderAbilityBar, updateProcNotifs } from './ui/uiAbilityBar.js';
 import { ABILITY_ORDER, PROC_ORDER, TOTAL_LOADOUT_ITEMS, isAbilityUnlocked, isProcUnlocked, sanitizeLoadout, checkBossUnlocks } from './combat/combatUnlocks.js';
 import { renderLoadoutScreen } from './ui/loadoutScreen.js';
@@ -1225,6 +1225,13 @@ export class Game {
                 showToast(`+${healAmt} HP (Second Wind)`, '#4caf50', '💚');
             }
         }
+
+        // ── Soul Collector reset — bonus damage resets each new room ──
+        this.player._soulCollectorBonus = 0;
+        // ── Impact Armor reset ──
+        this.player._impactArmorStacks = 0;
+        // ── Rampage kill counter persists but timer resets ──
+        this.player._rampageKillCount = 0;
 
         // ── Achievement events: stage entered + biome (blocked by cheats) ──
         if (!this.cheatsUsedThisRun) {
@@ -3581,6 +3588,9 @@ export class Game {
         const _dashMods   = _cmods.dash   || {};
         const _globalMods = _cmods.global || {};
 
+        // ── Elemental Mastery: set global status damage multiplier ──
+        setStatusDmgMult(_globalMods.statusDmgMult || 1);
+
         // Track dash state before update (for end-of-dash effects)
         const wasDashing = this.player.dashing;
 
@@ -3600,6 +3610,153 @@ export class Game {
                 this.player.hp = Math.min(this.player.hp + 1, this.player.maxHp);
             }
         }
+
+        // ── Aura of Decay (global node) — nearby enemies take DPS ──
+        if (_globalMods.auraDecay) {
+            if (!this._auraDecayTick) this._auraDecayTick = 0;
+            this._auraDecayTick += dt * 1000;
+            if (this._auraDecayTick >= 250) { // tick every 250ms
+                this._auraDecayTick -= 250;
+                const auraR = _globalMods.auraDecayRadius || 80;
+                const auraDmg = Math.ceil((_globalMods.auraDecayDps || 2) * 0.25);
+                const auraBosses = this._allBosses();
+                const auraTargets = auraBosses.length > 0 ? [...this.enemies, ...auraBosses] : this.enemies;
+                for (const e of auraTargets) {
+                    if (e.dead) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (dx * dx + dy * dy <= (auraR + (e.radius || 12)) ** 2) {
+                        e.takeDamage(auraDmg, 0, 0);
+                    }
+                }
+            }
+        }
+
+        // ── Adrenaline Rush timer decay ──
+        if (this.player._adrenalineTimer > 0) {
+            this.player._adrenalineTimer -= dt * 1000;
+            if (this.player._adrenalineTimer <= 0) {
+                this.player._adrenalineStacks = 0;
+            }
+        }
+
+        // ── Rampage timer decay ──
+        if (this.player._rampageTimer > 0) {
+            this.player._rampageTimer -= dt * 1000;
+            if (this.player._rampageTimer <= 0) {
+                this.player._rampageSpeedMult = 1;
+                this.player._rampageDmgMult = 1;
+            }
+        }
+
+        // ── Riposte timer decay ──
+        if (this.player._riposteTimer > 0) {
+            this.player._riposteTimer -= dt * 1000;
+        }
+
+        // ── Impact Armor timer decay ──
+        if (this.player._impactArmorTimer > 0) {
+            this.player._impactArmorTimer -= dt * 1000;
+            if (this.player._impactArmorTimer <= 0) {
+                this.player._impactArmorStacks = 0;
+            }
+        }
+
+        // ── Crit Momentum timer decay ──
+        if (this.player._critMomentumTimer > 0) {
+            this.player._critMomentumTimer -= dt * 1000;
+        }
+
+        // ── Momentum Strike timer decay ──
+        if (this.player._momentumStrikeTimer > 0) {
+            this.player._momentumStrikeTimer -= dt * 1000;
+            if (this.player._momentumStrikeTimer <= 0) {
+                this.player._momentumStrikeReady = false;
+            }
+        }
+
+        // ── Fortify DR timer decay (shockwave node) ──
+        if (this.player._fortifyTimer > 0) {
+            this.player._fortifyTimer -= dt * 1000;
+            if (this.player._fortifyTimer <= 0) {
+                this.player._fortifyDR = 0;
+            }
+        }
+
+        // ── Ice Armor DR timer decay (freeze pulse node) ──
+        if (this.player._iceArmorTimer > 0) {
+            this.player._iceArmorTimer -= dt * 1000;
+            if (this.player._iceArmorTimer <= 0) {
+                this.player._iceArmorDR = 0;
+            }
+        }
+
+        // ── Storm Caller timer decay (synergy node) ──
+        if (this.player._stormCallerTimer > 0) {
+            this.player._stormCallerTimer -= dt * 1000;
+        }
+
+        // ── Scorched Earth: pick up pending fire zone from shockwave ──
+        if (this.player._pendingFireZone) {
+            const fz = this.player._pendingFireZone;
+            this._spawnFireZone(fz.x, fz.y, fz.dps, fz.duration, fz.radius);
+            this.player._pendingFireZone = null;
+        }
+
+        // ── Vulnerability timer decay on boss (enemies handle their own in enemy.update) ──
+        if (this.boss && !this.boss.dead && this.boss._vulnerabilityTimer > 0) {
+            this.boss._vulnerabilityTimer -= dt;
+            if (this.boss._vulnerabilityTimer <= 0) {
+                this.boss._vulnerabilityMult = 1;
+            }
+        }
+
+        // ── Frostbite DPS: deal cold damage to frozen enemies each tick ──
+        if (this.player._frostbiteDps) {
+            const fbDmg = Math.ceil(this.player._frostbiteDps * dt);
+            if (fbDmg > 0) {
+                for (const e of this.enemies) {
+                    if (e.dead) continue;
+                    if (e._status && e._status.frozenUntil > 0) {
+                        e.takeDamage(fbDmg, 0, 0);
+                    }
+                }
+                if (this.boss && !this.boss.dead && this.boss._status && this.boss._status.frozenUntil > 0) {
+                    this.boss.takeDamage(fbDmg, 0, 0);
+                }
+            }
+        }
+
+        // ── Dagger Rain: auto-fire daggers in all directions periodically ──
+        if (_daggerMods.autoRain) {
+            if (!this._daggerRainTimer) this._daggerRainTimer = 0;
+            this._daggerRainTimer += dt * 1000;
+            const interval = _daggerMods.autoRainInterval || 8000;
+            if (this._daggerRainTimer >= interval) {
+                this._daggerRainTimer -= interval;
+                const count = _daggerMods.autoRainCount || 8;
+                const rainDmg = Math.floor(this.player.damage * (_daggerMods.autoRainDmgMult || 0.30));
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const dx = Math.cos(angle);
+                    const dy = Math.sin(angle);
+                    const throwArr = this.player.tryThrow(_daggerMods, _globalMods, { overrideDirX: dx, overrideDirY: dy, overrideDmg: rainDmg });
+                    if (throwArr && throwArr.length > 0) {
+                        // Only spawn the first dagger per direction for rain
+                        const td = throwArr[0];
+                        const dagger = new PlayerProjectile(
+                            td.x, td.y, td.dirX, td.dirY,
+                            td.speed, td.damage, td.radius, td.color,
+                            td.maxDist, td.knockback,
+                            { pierce: td.pierce, ricochet: td.ricochet, critBonus: td.critBonus, owner: this.player },
+                        );
+                        this.playerProjectiles.push(dagger);
+                    }
+                }
+            }
+        }
+
+        // ── Soul Collector resets on new room (handled by nextRoom) ──
 
         // Dash trail particles while dashing
         if (this.player.dashing) {
@@ -3658,6 +3815,58 @@ export class Game {
                     force: _dashMods.voidRiftForce || 150,
                 });
             }
+
+            // ── Phase Strike (dash node): dashing through enemies damages them ──
+            if (_dashMods.phaseStrike) {
+                if (!this._dashPhaseHit) this._dashPhaseHit = new Set();
+                const psDmg = Math.floor(this.player.damage * (_dashMods.phaseStrikeDmgMult || 0.50) * (_globalMods.damageMult || 1));
+                const psTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of psTargets) {
+                    if (e.dead || this._dashPhaseHit.has(e)) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (Math.sqrt(dx * dx + dy * dy) <= this.player.radius + (e.radius || 12) + 4) {
+                        e.takeDamage(psDmg, 0, 0);
+                        Impact.flashEntity(e, 50);
+                        this._dashPhaseHit.add(e);
+                    }
+                }
+            }
+
+            // ── Afterburn (dash node): enemies near dash path take damage ──
+            if (_dashMods.afterburn) {
+                if (!this._dashAfterburnHit) this._dashAfterburnHit = new Set();
+                const abDmg = _dashMods.afterburnDamage || 15;
+                const abR = _dashMods.afterburnRadius || 40;
+                const abTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of abTargets) {
+                    if (e.dead || this._dashAfterburnHit.has(e)) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (Math.sqrt(dx * dx + dy * dy) <= abR + (e.radius || 12)) {
+                        e.takeDamage(abDmg, 0, 0);
+                        this._dashAfterburnHit.add(e);
+                    }
+                }
+            }
+
+            // ── Dash Melee / Blitz Strike (synergy): dashing through enemies auto-melees ──
+            if (_globalMods.dashMelee) {
+                if (!this._dashMeleeHit) this._dashMeleeHit = new Set();
+                const dmDmg = Math.floor(this.player.damage * (_globalMods.dashMeleeDmgMult || 0.50) * (_globalMods.damageMult || 1));
+                const dmTargets = this._allBosses().length > 0 ? [...this.enemies, ...this._allBosses()] : this.enemies;
+                for (const e of dmTargets) {
+                    if (e.dead || this._dashMeleeHit.has(e)) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (Math.sqrt(dx * dx + dy * dy) <= this.player.radius + (e.radius || 12) + 6) {
+                        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+                        e.takeDamage(dmDmg, (dx / d) * 6, (dy / d) * 6);
+                        Impact.flashEntity(e, 60);
+                        this._dashMeleeHit.add(e);
+                    }
+                }
+            }
         }
 
         // Dash just ended — check for end-of-dash effects
@@ -3698,8 +3907,42 @@ export class Game {
             }
             // Clear dash collision tracking
             if (this._dashStunnedEnemies) this._dashStunnedEnemies.clear();
+            if (this._dashPhaseHit) this._dashPhaseHit.clear();
+            if (this._dashAfterburnHit) this._dashAfterburnHit.clear();
+            if (this._dashMeleeHit) this._dashMeleeHit.clear();
             this._phantomTrailTimer = 0;
             this._voidRiftSpawnedThisDash = false;
+
+            // ── Shadow Step (dash node): brief invulnerability after dash ends ──
+            if (_dashMods.postInvuln) {
+                this.player.invulnTimer = Math.max(this.player.invulnTimer, _dashMods.postInvulnDuration || 300);
+            }
+
+            // ── Momentum Strike (dash node): first melee after dash does extra DMG ──
+            if (_dashMods.momentumStrike) {
+                this.player._momentumStrikeReady = true;
+                this.player._momentumStrikeMult = _dashMods.momentumStrikeMult || 1.40;
+                // Auto-expire after window
+                this.player._momentumStrikeTimer = _dashMods.momentumStrikeWindow || 1500;
+            }
+
+            // ── Assassin's Path (synergy): dash auto-fires a dagger forward ──
+            if (_globalMods.dashDagger) {
+                const dd = _globalMods.dashDaggerDmgMult || 0.60;
+                const ddDmg = Math.floor(this.player.damage * dd * (_globalMods.damageMult || 1));
+                const ddX = this.player.dashDirX || this.player.facingX;
+                const ddY = this.player.dashDirY || this.player.facingY;
+                const ddLen = Math.sqrt(ddX * ddX + ddY * ddY) || 1;
+                const spawnOff = this.player.radius + 6;
+                const dagger = new PlayerProjectile(
+                    this.player.x + (ddX / ddLen) * spawnOff,
+                    this.player.y + (ddY / ddLen) * spawnOff,
+                    ddX / ddLen, ddY / ddLen,
+                    350, ddDmg, 5, '#26a69a', 300, 3,
+                    { owner: this.player },
+                );
+                this.playerProjectiles.push(dagger);
+            }
         }
 
         // ── Update Phantom Trail afterimages ──
@@ -3823,6 +4066,12 @@ export class Game {
                         this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
                     }
 
+                    // ── Determine crit early so slash visuals can use it ──
+                    const _procMods = _cmods.procs || {};
+                    const _keenEyeBonus = (_procMods.heavy_crit && _procMods.heavy_crit.globalCritBonus) || 0;
+                    const _critStreakBonus = this.player.critStreakBonus || 0;
+                    const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus + _keenEyeBonus + _critStreakBonus);
+
                     // Compute average hit direction for directional shake
                     let avgDirX = 0, avgDirY = 0;
 
@@ -3841,21 +4090,26 @@ export class Game {
                             const contactX = this.player.x + ndx * (this.player.radius + e.radius * 0.5);
                             const contactY = this.player.y + ndy * (this.player.radius + e.radius * 0.5);
                             this.particles.impactRing(contactX, contactY, this.player.weaponColor || '#ffd700', 15);
+                            // Weapon-specific slash effect over the enemy
+                            this.particles.weaponSlash(
+                                e.x, e.y,
+                                this.player.weaponId,
+                                ndx, ndy,
+                                this.player.weaponColor || '#ffd700',
+                                this.player.meleeSwingParity,
+                                isCrit,
+                            );
                             // Flash the hit enemy
                             Impact.flashEntity(e, 100);
                         }
                     }
+                    // Alternate swing parity for sword slash direction
+                    this.player.meleeSwingParity = 1 - this.player.meleeSwingParity;
 
                     // Normalize average direction
                     const avgLen = Math.sqrt(avgDirX * avgDirX + avgDirY * avgDirY) || 1;
                     avgDirX /= avgLen;
                     avgDirY /= avgLen;
-
-                    // ── Proc dispatch on melee hits ──
-                    const _procMods = _cmods.procs || {};
-                    const _keenEyeBonus = (_procMods.heavy_crit && _procMods.heavy_crit.globalCritBonus) || 0;
-                    const _critStreakBonus = this.player.critStreakBonus || 0;
-                    const isCrit = Math.random() < (this.player.critChance + this.player.talentCritBonus + _keenEyeBonus + _critStreakBonus);
 
                     // Reset crit streak on non-crit
                     if (!isCrit && _critStreakBonus > 0) {
@@ -3869,6 +4123,16 @@ export class Game {
                             if (!e.dead) {
                                 const extraDmg = Math.floor(this.player.getEffectiveDamage() * critExtraMult);
                                 e.takeDamage(extraDmg, 0, 0);
+                            }
+                        }
+                    }
+
+                    // Brittle (freeze pulse node): bonus crit damage vs frozen enemies
+                    if (isCrit && this.player._brittleCritMult > 1) {
+                        for (const e of hitEnemies) {
+                            if (!e.dead && e._status && e._status.frozenUntil > 0) {
+                                const brittleDmg = Math.floor(this.player.getEffectiveDamage() * (this.player._brittleCritMult - 1));
+                                e.takeDamage(brittleDmg, 0, 0);
                             }
                         }
                     }
@@ -3981,6 +4245,83 @@ export class Game {
                         }
                     }
 
+                    // ── Siphon Strike (melee node) — kills restore % maxHP ──
+                    if (_meleeMods.killHealPct && killedEnemies.length > 0) {
+                        const healAmt = Math.max(1, Math.floor(this.player.maxHp * _meleeMods.killHealPct * killedEnemies.length));
+                        this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                    }
+
+                    // ── Bloodthirst (global node) — kills heal % maxHP ──
+                    if (_globalMods.killHealPct && killedEnemies.length > 0) {
+                        const healAmt = Math.max(1, Math.floor(this.player.maxHp * _globalMods.killHealPct * killedEnemies.length));
+                        this.player.hp = Math.min(this.player.hp + healAmt, this.player.maxHp);
+                    }
+
+                    // ── Adrenaline Rush (global node) — kills grant speed stacks ──
+                    if (_globalMods.adrenaline && killedEnemies.length > 0) {
+                        const maxStacks = Math.floor((_globalMods.adrenalineMax || 0.25) / (_globalMods.adrenalineSpeedPer || 0.05));
+                        this.player._adrenalineStacks = Math.min((this.player._adrenalineStacks || 0) + killedEnemies.length, maxStacks);
+                        this.player._adrenalineTimer = _globalMods.adrenalineDuration || 3000;
+                    }
+
+                    // ── Soul Collector (global node) — room kills grant stacking DMG ──
+                    if (_globalMods.soulCollector && killedEnemies.length > 0) {
+                        const perKill = _globalMods.soulCollectorPer || 0.02;
+                        const max = _globalMods.soulCollectorMax || 0.20;
+                        this.player._soulCollectorBonus = Math.min((this.player._soulCollectorBonus || 0) + perKill * killedEnemies.length, max);
+                    }
+
+                    // ── Rampage (global node) — every N kills triggers speed+dmg buff ──
+                    if (_globalMods.rampage && killedEnemies.length > 0) {
+                        this.player._rampageKillCount = (this.player._rampageKillCount || 0) + killedEnemies.length;
+                        const needed = _globalMods.rampageKillsNeeded || 5;
+                        if (this.player._rampageKillCount >= needed) {
+                            this.player._rampageKillCount -= needed;
+                            this.player._rampageTimer = _globalMods.rampageDuration || 3000;
+                            this.player._rampageSpeedMult = _globalMods.rampageSpeedMult || 1.40;
+                            this.player._rampageDmgMult = _globalMods.rampageDmgMult || 1.40;
+                        }
+                    }
+
+                    // ── Shield on Kill (global node) — kills grant a temporary shield ──
+                    if (_globalMods.shieldOnKill && killedEnemies.length > 0) {
+                        const shieldMax = _globalMods.shieldMax || 30;
+                        const shieldPerKill = _globalMods.shieldOnKillAmount || 10;
+                        this.player._nodeShield = Math.min((this.player._nodeShield || 0) + shieldPerKill * killedEnemies.length, shieldMax);
+                    }
+
+                    // ── Blade Dance (synergy node) — melee kills boost next dagger ──
+                    if (_globalMods.bladeDance && killedEnemies.length > 0) {
+                        this.player._bladeDanceReady = true;
+                        this.player._bladeDanceMult = _globalMods.bladeDanceDmgMult || 1.30;
+                    }
+
+                    // ── Combo Master (synergy node) — track last attack type ──
+                    if (_globalMods.comboMaster) {
+                        this.player._lastAttackType = 'melee';
+                    }
+
+                    // ── Impact Armor (melee node) — gain DR stacks from melee hits ──
+                    if (_meleeMods.impactArmor && hitCount > 0) {
+                        const maxStacks = Math.floor((_meleeMods.impactArmorMax || 0.15) / (_meleeMods.impactArmorPer || 0.03));
+                        this.player._impactArmorStacks = Math.min((this.player._impactArmorStacks || 0) + hitCount, maxStacks);
+                        this.player._impactArmorTimer = _meleeMods.impactArmorDuration || 2000;
+                    }
+
+                    // ── Relentless (melee node) — hitting 3+ enemies resets attack cooldown ──
+                    if (_meleeMods.relentlessThreshold && hitCount >= _meleeMods.relentlessThreshold) {
+                        this.player.attackTimer = 0;
+                    }
+
+                    // ── Crit Momentum (global node) — crits grant speed buff ──
+                    if (isCrit && _globalMods.critMomentum) {
+                        this.player._critMomentumTimer = _globalMods.critMomentumDuration || 2000;
+                        this.player._critMomentumSpeed = _globalMods.critMomentumSpeed || 0.08;
+                    }
+
+                    // ── Focus (global node) — extra crit chance is applied in player.attack via globalMods ──
+                    // (critBonus is read by proc system, no extra wiring needed)
+
                     // ── Impact feedback: scale with number of hits + crits ──
                     if (isCrit) {
                         Impact.critImpact(avgDirX, avgDirY);
@@ -4066,6 +4407,7 @@ export class Game {
                             venomSlow: throwData.venomSlow,
                             venomSlowFactor: throwData.venomSlowFactor,
                             venomSlowDuration: throwData.venomSlowDuration,
+                            phaseThrough: throwData.phaseThrough,
                         },
                     );
                     // Meta relic: Boss Hunter — extra damage vs bosses
@@ -4080,6 +4422,11 @@ export class Game {
                     throwDataArr[0].x, throwDataArr[0].y,
                     throwDataArr[0].dirX, throwDataArr[0].dirY,
                 );
+
+                // ── Combo Master (synergy node) — track last attack type ──
+                if (_globalMods.comboMaster) {
+                    this.player._lastAttackType = 'dagger';
+                }
             }
         }
 
@@ -4146,6 +4493,7 @@ export class Game {
                     if (isElite || Math.random() < COIN_DROP_CHANCE * talentCoinMult) {
                         let coinValue = isElite ? COIN_REWARD_ELITE_ENEMY : COIN_REWARD_NORMAL_ENEMY;
                         if (this.metaBoosterScavengerActive) coinValue = Math.ceil(coinValue * 1.3);
+                        if (_globalMods.coinGainMult) coinValue = Math.ceil(coinValue * _globalMods.coinGainMult);
                         this.coinPickups.push(new CoinPickup(e.x, e.y, coinValue));
                     }
                 }
@@ -4158,7 +4506,8 @@ export class Game {
                     const shopXpMult = this._getShopXpMultiplier();
                     const darkXpMult = this.darknessXpMult;
                     const talentXpMult = this.player.talentXpMult || 1;
-                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult * talentXpMult);
+                    const nodeXpMult = _globalMods.xpGainMult || 1;
+                    const xp = Math.floor(e.xpValue * this.comboMultiplier * xpMult * metaXpMult * runXpMult * shopXpMult * darkXpMult * talentXpMult * nodeXpMult);
                     this.player.addXp(xp);
                     this.roomXP += xp;  // track room performance
 
@@ -4535,6 +4884,74 @@ export class Game {
                 d.pendingVenomTargets = [];
             }
 
+            // ── Dagger on-hit node effects (applied when dagger hits a new target) ──
+            if (d.hitTarget && d.hitTarget !== prevHitTarget && d.hitTarget.entity && !d.hitTarget.entity.dead) {
+                const hitE = d.hitTarget.entity;
+
+                // Frozen Tips: freeze on hit
+                if (_daggerMods.freezeOnHit) {
+                    applyFreezeStatus(hitE, _daggerMods.freezeDuration || 400);
+                }
+
+                // Serrated Daggers: bleed (burn) on hit
+                if (_daggerMods.bleedOnHit) {
+                    applyBurnStatus(hitE, _daggerMods.bleedDuration || 1500, _daggerMods.bleedDps || 3);
+                }
+
+                // Magnetic Daggers: pull enemy toward player
+                if (_daggerMods.pullOnHit) {
+                    const pdx = this.player.x - hitE.x;
+                    const pdy = this.player.y - hitE.y;
+                    const pDist = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+                    const pullF = _daggerMods.pullForce || 20;
+                    hitE.x += (pdx / pDist) * pullF;
+                    hitE.y += (pdy / pDist) * pullF;
+                }
+
+                // Assassin's Mark: bonus damage to low HP enemies
+                if (_daggerMods.executeMult && _daggerMods.executeThreshold) {
+                    if (!hitE.dead && hitE.hp / hitE.maxHp <= _daggerMods.executeThreshold) {
+                        const bonusDmg = Math.floor((d.damage || this.player.damage) * (_daggerMods.executeMult - 1));
+                        if (bonusDmg > 0) hitE.takeDamage(bonusDmg, 0, 0);
+                    }
+                }
+
+                // Burning Blades synergy: bonus dagger damage vs burning enemies
+                if (_globalMods.burningBladesMult && hitE._status && hitE._status.burnUntil > 0) {
+                    const bonusDmg = Math.floor((d.damage || this.player.damage) * (_globalMods.burningBladesMult - 1));
+                    if (bonusDmg > 0) hitE.takeDamage(bonusDmg, 0, 0);
+                }
+
+                // Chain Throw: spawn extra dagger at nearest uninjured enemy
+                if (_daggerMods.chainThrow && !d._isChainThrow) {
+                    let nearestE = null;
+                    let minD = Infinity;
+                    const chainTargets = this.boss && !this.boss.dead ? [...this.enemies, this.boss] : this.enemies;
+                    for (const ce of chainTargets) {
+                        if (ce.dead || ce === hitE) continue;
+                        const cdx = ce.x - hitE.x;
+                        const cdy = ce.y - hitE.y;
+                        const cd = cdx * cdx + cdy * cdy;
+                        if (cd < minD) { minD = cd; nearestE = ce; }
+                    }
+                    if (nearestE) {
+                        const cdx = nearestE.x - hitE.x;
+                        const cdy = nearestE.y - hitE.y;
+                        const cDist = Math.sqrt(cdx * cdx + cdy * cdy) || 1;
+                        const chainDmg = Math.floor((d.damage || this.player.damage) * (_daggerMods.chainThrowDmgMult || 0.50));
+                        const chain = new PlayerProjectile(
+                            hitE.x, hitE.y,
+                            cdx / cDist, cdy / cDist,
+                            d.speed || 400, chainDmg,
+                            d.radius || 5, d.color || '#aaa',
+                            200, d.knockback || 3,
+                            { _isChainThrow: true, owner: this.player, critBonus: d.critBonus || 0 },
+                        );
+                        this.playerProjectiles.push(chain);
+                    }
+                }
+            }
+
             // ── Explosive Daggers: AoE explosion on dagger death ──
             if (d.dead && d.pendingExplosion) {
                 const exp = d.pendingExplosion;
@@ -4619,7 +5036,53 @@ export class Game {
             showToast(`Shield absorbed! (${this.metaBoosterShieldCharges} left)`, '#00bcd4', '🛡️');
         }
 
-        // Detect player damage — apply meta damage reduction
+        // Detect player damage — apply meta damage reduction + node DR
+        if (this.player.hp < hpBefore) {
+            // ── Last Stand (global node) — below threshold, reduce damage taken ──
+            if (_globalMods.lastStand && (this.player.hp / this.player.maxHp) < (_globalMods.lastStandThreshold || 0.20)) {
+                const rawDmg = hpBefore - this.player.hp;
+                const reduced = Math.floor(rawDmg * (1 - (_globalMods.lastStandDRMult || 0.80)));
+                this.player.hp = Math.min(hpBefore, this.player.hp + reduced);
+            }
+            // ── Battle Hardened (global node) — flat % damage reduction ──
+            if (_globalMods.damageTakenMult && _globalMods.damageTakenMult < 1) {
+                const rawDmg = hpBefore - this.player.hp;
+                const reduced = rawDmg - Math.ceil(rawDmg * _globalMods.damageTakenMult);
+                this.player.hp = Math.min(hpBefore, this.player.hp + reduced);
+            }
+            // ── Impact Armor (melee node) — stacking DR from melee hits ──
+            if (this.player._impactArmorStacks > 0) {
+                const rawDmg = hpBefore - this.player.hp;
+                const dr = Math.min(this.player._impactArmorStacks * 0.03, 0.15);
+                const reduced = Math.floor(rawDmg * dr);
+                this.player.hp = Math.min(hpBefore, this.player.hp + reduced);
+            }
+            // ── Fortify (shockwave node) — DR after using shockwave ──
+            if (this.player._fortifyDR > 0 && this.player._fortifyTimer > 0) {
+                const rawDmg = hpBefore - this.player.hp;
+                const reduced = Math.floor(rawDmg * this.player._fortifyDR);
+                this.player.hp = Math.min(hpBefore, this.player.hp + reduced);
+            }
+            // ── Ice Armor (freeze pulse node) — DR after using freeze pulse ──
+            if (this.player._iceArmorDR > 0 && this.player._iceArmorTimer > 0) {
+                const rawDmg = hpBefore - this.player.hp;
+                const reduced = Math.floor(rawDmg * this.player._iceArmorDR);
+                this.player.hp = Math.min(hpBefore, this.player.hp + reduced);
+            }
+            // ── Evasion (global node) — chance to dodge damage entirely ──
+            if (_globalMods.dodgeChance && Math.random() < _globalMods.dodgeChance) {
+                this.player.hp = hpBefore; // undo damage
+                this.player.invulnTimer = 200; // brief i-frames
+                if (this.particles) this.particles.dashBurst(this.player.x, this.player.y);
+            } else if (this.player._nodeShield && this.player._nodeShield > 0) {
+                // ── Siphon Shield (global node) — absorb damage with shield ──
+                const dmgTaken = hpBefore - this.player.hp;
+                const absorbed = Math.min(dmgTaken, this.player._nodeShield);
+                this.player._nodeShield -= absorbed;
+                this.player.hp = Math.min(hpBefore, this.player.hp + absorbed);
+            }
+        }
+
         if (this.player.hp < hpBefore) {
             Audio.playPlayerHurt();
             this.particles.playerDamage(this.player.x, this.player.y);
@@ -4655,6 +5118,26 @@ export class Game {
                     }
                     if (nearest) nearest.takeDamage(5, 0, 0);
                 }
+            }
+
+            // ── Thorns (global node) — reflect % of damage taken to nearby enemies ──
+            if (_globalMods.thornsPct) {
+                const dmgTaken = hpBefore - this.player.hp;
+                const reflectDmg = Math.max(1, Math.floor(dmgTaken * _globalMods.thornsPct));
+                const thornTargets = this.enemies;
+                for (const e of thornTargets) {
+                    if (e.dead) continue;
+                    const dx = e.x - this.player.x;
+                    const dy = e.y - this.player.y;
+                    if (dx * dx + dy * dy <= 100 * 100) {
+                        e.takeDamage(reflectDmg, 0, 0);
+                    }
+                }
+            }
+
+            // ── Riposte (melee node) — after taking damage, next melee crits ──
+            if (_meleeMods.riposte) {
+                this.player._riposteTimer = _meleeMods.riposteWindow || 3000;
             }
         } else if (shieldBefore && !this.player.phaseShieldActive) {
             Audio.playShieldBlock();
@@ -4882,8 +5365,20 @@ export class Game {
 
         // Death (only in real game)
         if (!this.trainingMode && this.player.hp <= 0) {
+            // ── Second Life (global node) — revive once per run ──
+            const _slMods = UpgradeEngine.getCombatMods().global || {};
+            if (_slMods.secondLife && !this.player._secondLifeUsed) {
+                this.player._secondLifeUsed = true;
+                const healPct = _slMods.secondLifeHealPct || 0.30;
+                this.player.hp = Math.max(1, Math.floor(this.player.maxHp * healPct));
+                this.player.invulnTimer = 2000; // generous i-frames
+                Audio.playLevelUp();
+                this.particles.levelUp(this.player.x, this.player.y);
+                triggerShake(12, 0.90);
+                showBigToast('✝️ SECOND LIFE! ✝️', '#ffd600', '✝️');
+            }
             // Meta booster: Panic Button — revive once
-            if (this.metaBoosterPanicAvailable) {
+            else if (this.metaBoosterPanicAvailable) {
                 this.metaBoosterPanicAvailable = false;
                 this.player.hp = Math.floor(this.player.maxHp * 0.5);
                 this.player.invulnTimer = 1500; // generous i-frames after revive

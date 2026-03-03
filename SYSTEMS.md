@@ -485,16 +485,175 @@ Gewichte skalieren dynamisch mit dem aktuellen Stage. Höhere Stages verschieben
 | 🔮 **Glass Cannon** | **Legendary** | 1 | +25% aller DMG, aber -15% Max HP |
 | ⚡ **Overcharge** | **Epic** | 1 | +15% Ability-DMG, -10% Ability-CD |
 
-### Node-Zählung nach Rarität
+---
 
-| Rarität | Anzahl |
-|---------|--------|
-| Common | 23 |
-| Uncommon | 27 |
-| Rare | 12 |
-| Epic | 14 |
-| Legendary | 4 |
-| **Gesamt** | **80** |
+### 🆕 Neue Nodes (Erweiterung — ~70+ neue Nodes)
+
+> Diese Nodes wurden als massive Content-Erweiterung hinzugefügt. Sie erweitern bestehende Kategorien, fügen neue Synergien hinzu und ermöglichen deutlich mehr Build-Vielfalt.
+
+#### Neue Melee-Nodes (+10)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| ⚔️ **Iron Fists** | Common | 2 | +15% Melee-DMG pro Stack | Basis-DMG-Boost für alle Melee-Builds |
+| 💀 **Executioner's Mark** | Rare | 1 | +40% DMG gegen Feinde unter 25% HP | Exzellent mit Berserker/Last Stand |
+| ❄️ **Frozen Strike** | Uncommon | 1 | +25% DMG gegen gefrorene Feinde | Stark mit Freeze Pulse + Brittle |
+| ⚡ **Momentum Strike** | Rare | 1 | +40% DMG nach Dash (1.5s Fenster) | Synergie mit Dash-Nodes |
+| 🔄 **Riposte** | Uncommon | 1 | Nach Schaden: nächster Melee critted auto (3s) | Defensiv-offensiv Hybrid |
+| 🛡️ **Impact Armor** | Uncommon | 1 | Melee-Hits geben DR-Stacks (3% pro, max 15%, 5s) | Tank-Build |
+| ♻️ **Relentless** | Rare | 1 | Melee-Kills resetten Attack-CD sofort | Cleave + Kill Nova Synergie |
+| 💥 **Crit Momentum** | Uncommon | 1 | Crits geben +8% Speed für 3s | Speed-Build + Crit-Builds |
+| 😤 **Berserker Frenzy** | Rare | 1 | Unter 40% HP: +30% Attack Speed | Last Stand + Berserker Synergie |
+| 🌪️ **Tempest Blade** | **Legendary** | 1 | Jeder 4. Melee-Hit: Wirbelwind-AoE (r100, ×0.60) | Whirlwind + Quick Strikes |
+
+#### Neue Dagger-Nodes (+7)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| ❄️ **Frozen Tips** | Uncommon | 1 | Dolche frieren Feinde 0.4s ein | Freeze Pulse + Brittle + Frozen Strike |
+| 🎯 **Assassin's Mark** | Uncommon | 1 | +30% Dagger-DMG gegen Feinde unter 30% HP | Executioner-Build |
+| ⏩ **Barrage** | Rare | 1 | Doppelte Wurfrate, -15% DMG pro Dolch | Quantität über Qualität |
+| 👻 **Spectral Daggers** | **Epic** | 1 | Dolche durchdringen Wände | Homing + Positioning frei |
+| 🌧️ **Rain of Knives** | **Legendary** | 1 | Alle 8s: 8 Dolche in alle Richtungen (×0.30 DMG) | Passives AoE-DPS |
+| 🔗 **Chain Throw** | Rare | 1 | Treffer feuern Extra-Dolch auf nächsten Feind (×0.50) | Multi-Target DPS |
+| 🩸 **Serrated Daggers** | Uncommon | 1 | Dolche verursachen Bleed (3 DPS, 1.5s) | Elemental Mastery Synergie |
+| 🧲 **Magnetic Daggers** | Uncommon | 1 | Dolche ziehen Feinde leicht zum Einschlagsort | Crowd Control |
+| 💨 **Rapid Fire** | Common | 2 | -20% Dagger-CD pro Stack | Basis-Geschwindigkeits-Boost |
+
+#### Neue Dash-Nodes (+6)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 👻 **Phase Strike** | Rare | 1 | Dash durch Feinde schadet ihnen (×0.35 DMG) | Aggressives Dashen |
+| 🔥 **Afterburn** | Uncommon | 1 | Feinde nahe Dash-Pfad nehmen Schaden | AoE Dash |
+| 👤 **Shadow Step** | Rare | 1 | 0.5s Unverwundbarkeit nach Dash-Ende | Defensiv + Shadow Synergien |
+| ⚡ **Momentum Strike** | Rare | 1 | Dash → nächster Melee +40% (1.5s) | Dash → Melee Combo |
+| 🗡️ **Assassin's Path** | **Epic** | 1 | Dash-Ende feuert automatisch einen Dolch | Dagger + Dash Hybrid |
+| 💨 **Tailwind** | Common | 2 | +10% Speed für 3s nach Dash | Speed-Build |
+
+#### Neue Shockwave-Nodes (+3)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 🌊 **Tremor** | Uncommon | 1 | Shockwave verlangsamt getroffene Feinde 1.5s | Crowd Control |
+| 🛡️ **Fortify** | Rare | 1 | Shockwave gibt 15% DR für 3s | Defensiv-Play |
+| 🔥 **Scorched Earth** | Rare | 1 | Shockwave hinterlässt Feuerzone (3 DPS, 3s) | Elemental Mastery |
+
+#### Neue Blade Storm-Nodes (+4)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 💨 **Eye of the Storm** | Uncommon | 1 | +20% Bewegungsspeed während Storm | Aggressives Positionieren |
+| 🌀 **Vacuum Vortex** | Rare | 1 | Storm zieht Feinde nach innen | Damage Amplifier + Gravity |
+| ❄️ **Frozen Blades** | Uncommon | 1 | Storm verlangsamt Feinde 30% | CC + Frozen Strike Synergie |
+| ⚔️ **Razor Storm** | Common | 2 | +20% Storm Tick-DMG pro Stack | Basis-Schaden-Boost |
+
+#### Neue Gravity Pull-Nodes (+4)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 💀 **Crushing Gravity** | Uncommon | 1 | Gezogene Feinde nehmen 3 DPS | DoT während Pull |
+| ⏱️ **Extended Pull** | Common | 2 | +0.3s Pull-Dauer | Mehr Pull + mehr DPS |
+| ⚫ **Gravity Crush** | Rare | 1 | Eng gruppierte Feinde nehmen +20% DMG | Singularity-Synergie |
+| 🌑 **Intense Field** | Common | 2 | +20% Pull-Kraft | Stärkerer Pull = bessere Gruppierung |
+
+#### Neue Freeze Pulse-Nodes (+4)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 🥶 **Frostbite** | Uncommon | 1 | Gefrorene Feinde nehmen 4 Cold DPS | DoT auf Freeze |
+| 🛡️ **Ice Armor** | Rare | 1 | Freeze gibt 20% DR für 3s | Defensiv-Play |
+| ❄️ **Glacial Force** | Common | 2 | +25% Freeze Pulse DMG | Basis-Schaden-Boost |
+| 💎 **Brittle** | Rare | 1 | Gefrorene Feinde nehmen +50% Crit-DMG | Crit-Build + Freeze Synergie |
+
+#### Neue Explosive Strikes-Nodes (+3)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 💫 **Concussive Blast** | Uncommon | 1 | Explosionen verlangsamen Feinde 1s | CC-Synergie |
+| 🧛 **Pyromaniac** | Rare | 1 | Heile 10% des Explosions-Schadens | Sustain-Build |
+| 💣 **Cluster Bombs** | **Epic** | 1 | Explosionen spawnen 3 Mini-Bomben | Massive AoE-Ketten |
+
+#### Neue Chain Lightning-Nodes (+4)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 🔥 **Electro-Burn** | Uncommon | 1 | Jeder Blitz-Sprung verursacht Burn (3 DPS, 1.5s) | Elemental Mastery |
+| 💥 **Arc Splash** | Rare | 1 | Jeder Blitz-Sprung macht kleines AoE (r40, ×0.15) | Mehr AoE |
+| ⚡ **Forked Lightning** | **Epic** | 1 | Jeder Sprung trifft bis zu 2 Feinde | Double-Hit Pro Sprung |
+| 🔮 **Energize** | Rare | 1 | Blitz-Sprünge reduzieren Ability-CDs (-0.3s) | Ability + Proc Hybrid |
+
+#### Neue Heavy Crit-Nodes (+4)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 🧛 **Vampiric Crits** | Uncommon | 1 | Crits heilen 8% des DMG | Sustain + Crit-Build |
+| 💫 **Crippling Crits** | Uncommon | 1 | Crits verlangsamen 1.5s (50%) | CC + Crit |
+| 💀 **Coup de Grâce** | Rare | 1 | Crits auf Feinde unter 15% HP: sofort-kill | Execute-Build |
+| 💥 **Crit Nova** | **Epic** | 1 | Alle 4 Crits: Schockwelle (r80, ×0.50 DMG) | Crit-Stacking Build |
+
+#### Neue Global-Nodes (+17)
+
+| Node | Rarität | Max | Effekt | Synergien |
+|------|---------|-----|--------|-----------|
+| 🛡️ **Battle Hardened** | Common | 2 | -5% erlittener Schaden pro Stack | Universeller Tank-Node |
+| 👻 **Evasion** | Rare | 1 | 8% Dodge-Chance (komplett ausweichen) | Defensiv-RNG |
+| ✨ **Siphon Shield** | Rare | 1 | Kill gibt 3 HP Shield (max 15, zerfällt) | Kill-basierter Schutz |
+| 🌵 **Thorns** | Uncommon | 1 | Reflect 15% des erlittenen Schadens (r100) | Tank-Reflect-Build |
+| 💀 **Second Life** | **Legendary** | 1 | Einmal pro Run: Tödlicher Schaden → 1 HP + Invuln | Ultimative Sicherheit |
+| 🏃 **Adrenaline Rush** | Uncommon | 1 | Kills geben +5% Speed (max +25%, 5s) | Kill-Rush-Build |
+| 💀 **Soul Collector** | Rare | 1 | +2 DMG pro Kill im Raum (reset pro Raum) | Schneeball-Effekt |
+| ⚔️ **Rampage** | Rare | 1 | 3 Kills in 5s: +15% Speed + +10% DMG (5s) | Kill-Streak-Build |
+| 🧛 **Bloodthirst** | Uncommon | 1 | Kills heilen 2 HP | Sustain |
+| 🛡️ **Shield on Kill** | Uncommon | 1 | Kills geben 2 Shield (max 10) | Kill-Schutz |
+| ⚔️ **Blade Dance** | Uncommon | 1 | Melee-Kill → nächster Dagger +40% DMG | Melee→Dagger Kombo |
+| 🔥 **Aura of Decay** | **Epic** | 1 | Nahe Feinde nehmen 2 DPS passiv (r80) | Passiver AoE-Schaden |
+| 🗡️ **Berserker's Soul** | **Legendary** | 1 | Weniger HP = mehr DMG (bis +30%) | Risiko-Reward |
+| 🔥 **Last Stand** | **Epic** | 1 | Unter 20% HP: +35% DMG, -80% DR | Clutch-Comeback-Build |
+| 📖 **Scavenger** | Common | 2 | +15% XP + Coin pro Stack | Progression-Boost |
+| 💀 **Executioner** | Uncommon | 1 | +20% DMG gegen Feinde unter 30% HP | Universeller Execute |
+| ⚙️ **War Machine** | Rare | 2 | +8% DMG, +5% AS, -5% Max HP pro Stack | Glass Cannon+ |
+
+#### Synergy-Nodes (+12) — Cross-Kategorie-Nodes
+
+| Node | Rarität | Max | Effekt | Kategorie-Überbrückung |
+|------|---------|-----|--------|------------------------|
+| 🔥 **Burning Blades** | Uncommon | 1 | +20% Dagger-DMG gegen brennende Feinde | Dagger + Fire (Burn/Explosive) |
+| 🌩️ **Storm Caller** | **Epic** | 1 | Ability-Use boostet Proc-Chance +10% (5s) | Ability + Proc |
+| 🔄 **Combo Master** | Rare | 1 | Abwechselnde Melee/Dagger: +20% DMG | Melee + Dagger |
+| 🌈 **Elemental Mastery** | Rare | 1 | Status-Effekte dealen +25% mehr DMG | Burn/Freeze/Slow Universal |
+| ⚙️ **War Machine** | Rare | 2 | +8% DMG, +5% AS, -5% Max HP | Aggressiv-Build |
+| ⚔️ **Blitz Strike** | Rare | 1 | Dash durch Feinde auto-melee'd sie | Dash + Melee |
+| 📡 **Proc Amplifier** | Rare | 2 | +5% Proc-Chance für alle Procs | Universeller Proc-Boost |
+| 🔮 **Ability Echo** | **Legendary** | 1 | 15% Chance: Ability kostet kein CD | Ability-Spam |
+
+### 🔗 Synergy-Übersicht (Build-Pfade)
+
+Die neuen Nodes ermöglichen folgende kohärente Build-Pfade:
+
+| Build | Kern-Nodes | Beschreibung |
+|-------|------------|--------------|
+| **🔥 Burn Master** | Scorching Wave + Shredding Blades + Electro-Burn + Elemental Mastery + Burning Blades | Maximiere DoT-Schaden durch Burn auf allen Kanälen |
+| **❄️ Frozen Executioner** | Freeze Pulse + Frostbite + Brittle + Frozen Strike + Absolute Zero | Freeze → massiver Burst-DMG auf gefrorene Feinde |
+| **🗡️ Dagger Storm** | Barrage + Rapid Fire + Chain Throw + Rain of Knives + Spectral | Maximale Dagger-Frequenz und Coverage |
+| **💀 Kill Snowball** | Soul Collector + Rampage + Adrenaline + Bloodthirst + Shield on Kill | Kills stärken dich exponentiell |
+| **🛡️ Immortal Tank** | Battle Hardened + Impact Armor + Fortify + Ice Armor + Second Life | Maximale Damage Reduction |
+| **⚡ Crit Assassin** | Heavy Crit + Crit Momentum + Vampiric Crits + Coup de Grâce + Brittle | Crits heilen, beschleunigen und exekutieren |
+| **🌀 Combo Striker** | Combo Master + Blade Dance + Momentum Strike + Riposte + Relentless | Fließender Wechsel zwischen Melee/Dagger/Dash |
+| **💥 Ability Nuker** | Storm Caller + Ability Echo + Overcharge + Chain Reaction + Void Explosion | Ability-Spam mit Proc-Boost |
+| **🌊 AoE Cleaner** | Cleave + Kill Nova + Whirlwind + Blade Eruption + Vacuum Vortex | Maximal AoE-Schaden |
+| **🐍 DoT Specialist** | Serrated Edge + Serrated Daggers + Burning Blades + Electro-Burn + Aura of Decay | Passive Damage-over-Time überall |
+
+### Node-Zählung nach Rarität (Updated)
+
+| Rarität | Original | Neu | Gesamt |
+|---------|----------|-----|--------|
+| Common | 23 | ~18 | ~41 |
+| Uncommon | 27 | ~28 | ~55 |
+| Rare | 12 | ~18 | ~30 |
+| Epic | 14 | ~10 | ~24 |
+| Legendary | 4 | ~5 | ~9 |
+| **Gesamt** | **80** | **~79** | **~159** |
 
 ---
 

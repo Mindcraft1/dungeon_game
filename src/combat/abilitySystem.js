@@ -77,6 +77,17 @@ export class AbilitySystem {
         const cdMult = (abilityMods.cooldownMult || 1) * (globalMods.cooldownMult || 1);
         this.cooldowns.set(id, def.cooldownSec * cdMult);
 
+        // ── Ability Echo (global node) — chance to refund cooldown ──
+        if (globalMods.abilityEchoChance && Math.random() < globalMods.abilityEchoChance) {
+            this.cooldowns.set(id, 0);
+        }
+
+        // ── Storm Caller (synergy node) — ability use boosts proc chance ──
+        if (globalMods.stormCaller && context.player) {
+            context.player._stormCallerTimer = globalMods.stormCallerDuration || 5000;
+            context.player._stormCallerProcBonus = globalMods.stormCallerProcBonus || 0.10;
+        }
+
         // If ability returns a persistent state object, store it
         if (result && typeof result === 'object' && result.active) {
             // Store mods in state so onUpdate can access them
@@ -168,5 +179,18 @@ export class AbilitySystem {
         this.slots.fill(null);
         this.cooldowns.clear();
         this.activeStates.clear();
+    }
+
+    /**
+     * Reduce all ability cooldowns by a flat amount (seconds).
+     * Used by procs like Energize (chain_lightning).
+     * @param {number} amount – seconds to reduce
+     */
+    reduceCooldowns(amount) {
+        for (const [id, cd] of this.cooldowns.entries()) {
+            if (cd > 0) {
+                this.cooldowns.set(id, Math.max(0, cd - amount));
+            }
+        }
     }
 }

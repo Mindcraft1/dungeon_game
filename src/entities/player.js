@@ -68,6 +68,7 @@ export class Player {
 
         // ── Melee tracking (for Earthquake Slam, Chain Fury, Razor Orbit) ──
         this.meleeHitCounter = 0;         // for quake every Nth hit
+        this.meleeSwingParity = 0;        // alternates 0/1 for sword slash direction
         this.chainKillDmgTimer = 0;       // ms remaining of chain fury buff
         this.chainKillDmgActive = false;
 
@@ -426,12 +427,29 @@ export class Player {
         this._currentArcMult = (mods.arcMult || 1) * this.weaponArcMult * this.talentArcMult;
         const effectiveArc = ATTACK_ARC * this._currentArcMult;
 
+        // Berserker Frenzy: low HP grants attack speed
+        if (mods.lowHpAttackSpeed && this.hp / this.maxHp < (mods.lowHpThreshold || 0.50)) {
+            this.attackTimer *= (mods.lowHpSpeedMult || 0.75);
+        }
+
         // Damage calculation (includes Berserker rage bonus + weapon)
         let dmg = Math.floor(this.getEffectiveDamage() * this.weaponDamageMult);
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
         // Global damage multiplier from nodes
         if (globalMods.damageMult) dmg = Math.floor(dmg * globalMods.damageMult);
+        // Melee-specific damage multiplier from nodes (Iron Fists, etc.)
+        if (mods.damageMult) dmg = Math.floor(dmg * mods.damageMult);
+        // Berserker's Soul: lower HP = more damage (linear scale)
+        if (globalMods.berserkerSoul) {
+            const hpRatio = this.hp / this.maxHp;
+            const bonus = (1 - hpRatio) * (globalMods.berserkerSoulMaxBonus || 0.30);
+            dmg = Math.floor(dmg * (1 + bonus));
+        }
+        // Last Stand: below threshold → big damage boost
+        if (globalMods.lastStand && (this.hp / this.maxHp) < (globalMods.lastStandThreshold || 0.20)) {
+            dmg = Math.floor(dmg * (globalMods.lastStandDmgMult || 1.35));
+        }
 
         // Crushing Blow: one-time 3× nuke
         let kbMult = 1;
@@ -492,6 +510,28 @@ export class Player {
             if (this.talentExecutionerMult > 1 && enemy.hp / enemy.maxHp < 0.30) {
                 finalDmg = Math.floor(finalDmg * this.talentExecutionerMult);
             }
+            // Melee Executioner's Mark: +DMG to low-HP enemies
+            if (mods.executeMult && enemy.hp / enemy.maxHp < (mods.executeThreshold || 0.30)) {
+                finalDmg = Math.floor(finalDmg * mods.executeMult);
+            }
+            // Global Executioner: +DMG to low-HP enemies
+            if (globalMods.executeMult && enemy.hp / enemy.maxHp < (globalMods.executeThreshold || 0.25)) {
+                finalDmg = Math.floor(finalDmg * globalMods.executeMult);
+            }
+            // Frozen Strike (synergy): +DMG vs frozen/slowed enemies
+            if (globalMods.frozenStrikeMult && enemy._status && (enemy._status.frozenUntil > 0 || enemy._status.slowUntil > 0)) {
+                finalDmg = Math.floor(finalDmg * globalMods.frozenStrikeMult);
+            }
+            // Momentum Strike: first melee after dash does +DMG
+            if (this._momentumStrikeReady) {
+                finalDmg = Math.floor(finalDmg * (this._momentumStrikeMult || 1.40));
+                this._momentumStrikeReady = false;
+            }
+            // Riposte: guaranteed crit after taking damage (handled via extra damage)
+            if (this._riposteTimer > 0 && mods.riposte) {
+                finalDmg = Math.floor(finalDmg * 1.5);
+                this._riposteTimer = 0; // consume
+            }
 
             enemy.takeDamage(finalDmg, kbX, kbY);
             hitEnemies.push(enemy);
@@ -517,25 +557,60 @@ export class Player {
      * @param {object} [mods] - combatMods.dagger from UpgradeEngine (optional)
      * @param {object} [globalMods] - combatMods.global from UpgradeEngine (optional)
      */
-    tryThrow(mods = {}, globalMods = {}) {
-        if (this.daggerCooldown > 0) return null;
+    tryThrow(mods = {}, globalMods = {}, overrides = null) {
+        // For auto-rain, skip cooldown check and use override values
+        const isAutoRain = overrides && overrides.overrideDirX !== undefined;
+        if (!isAutoRain && this.daggerCooldown > 0) return null;
 
-        // Cooldown (may be reduced by Speed Surge buff + global node)
-        const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
-        const globalCdMult = (globalMods.cooldownMult || 1);
-        this.daggerCooldown = getVal('daggerCooldown', DAGGER_COOLDOWN) * cdMult * globalCdMult;
+        // Cooldown (may be reduced by Speed Surge buff + global node + dagger node)
+        // Auto-rain daggers don't affect normal cooldown
+        if (!isAutoRain) {
+            const cdMult = this.hasBuff(PICKUP_SPEED_SURGE) ? BUFF_SPEED_SURGE_CD_MULT : 1;
+            const globalCdMult = (globalMods.cooldownMult || 1);
+            const daggerCdMult = (mods.cooldownMult || 1);
+            this.daggerCooldown = getVal('daggerCooldown', DAGGER_COOLDOWN) * cdMult * globalCdMult * daggerCdMult;
+        }
 
-        // Direction (facing)
-        const len = Math.sqrt(this.facingX * this.facingX + this.facingY * this.facingY);
-        const dirX = len > 0 ? this.facingX / len : 1;
-        const dirY = len > 0 ? this.facingY / len : 0;
+        // Direction (facing or overridden)
+        let dirX, dirY;
+        if (isAutoRain) {
+            dirX = overrides.overrideDirX;
+            dirY = overrides.overrideDirY;
+        } else {
+            const len = Math.sqrt(this.facingX * this.facingX + this.facingY * this.facingY);
+            dirX = len > 0 ? this.facingX / len : 1;
+            dirY = len > 0 ? this.facingY / len : 0;
+        }
 
         // Damage: base = player damage × DAGGER_DAMAGE_MULT, with buff multipliers
-        let dmg = Math.floor(this.getEffectiveDamage() * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
+        let dmg = isAutoRain && overrides.overrideDmg
+            ? overrides.overrideDmg
+            : Math.floor(this.getEffectiveDamage() * getVal('daggerDamageMult', DAGGER_DAMAGE_MULT));
         if (this.hasBuff(PICKUP_RAGE_SHARD))    dmg = Math.floor(dmg * BUFF_RAGE_DAMAGE_MULT);
         if (this.hasBuff(PICKUP_PIERCING_SHOT))  dmg = Math.floor(dmg * BUFF_PIERCING_DAMAGE_MULT);
         // Global damage multiplier from nodes
         if (globalMods.damageMult) dmg = Math.floor(dmg * globalMods.damageMult);
+        // Dagger-specific damage multiplier from nodes (Dagger Mastery, etc.)
+        if (mods.damageMult) dmg = Math.floor(dmg * mods.damageMult);
+        // Blade Dance (synergy): melee kill boosts next dagger throw
+        if (this._bladeDanceReady && this._bladeDanceMult > 1) {
+            dmg = Math.floor(dmg * this._bladeDanceMult);
+            this._bladeDanceReady = false;
+        }
+        // Combo Master (synergy): alternating attack types gives bonus
+        if (globalMods.comboMaster && this._lastAttackType === 'melee') {
+            dmg = Math.floor(dmg * (globalMods.comboMasterMult || 1.20));
+        }
+        // Berserker's Soul: lower HP = more damage
+        if (globalMods.berserkerSoul) {
+            const hpRatio = this.hp / this.maxHp;
+            const bonus = (1 - hpRatio) * (globalMods.berserkerSoulMaxBonus || 0.30);
+            dmg = Math.floor(dmg * (1 + bonus));
+        }
+        // Last Stand: below threshold → big damage boost
+        if (globalMods.lastStand && (this.hp / this.maxHp) < (globalMods.lastStandThreshold || 0.20)) {
+            dmg = Math.floor(dmg * (globalMods.lastStandDmgMult || 1.35));
+        }
 
         // Crushing Blow: one-time 3× nuke on ranged too
         let kbMult = 1;
@@ -607,6 +682,7 @@ export class Player {
                     venomSlow: mods.venomSlow || false,
                     venomSlowFactor: mods.venomSlowFactor || 1,
                     venomSlowDuration: mods.venomSlowDuration || 0,
+                    phaseThrough: mods.phaseThrough || false,
                 });
             }
         } else {
@@ -645,6 +721,7 @@ export class Player {
                     venomSlow: mods.venomSlow || false,
                     venomSlowFactor: mods.venomSlowFactor || 1,
                     venomSlowDuration: mods.venomSlowDuration || 0,
+                    phaseThrough: mods.phaseThrough || false,
                 });
             }
         }
@@ -884,6 +961,14 @@ export class Player {
         if (!this.dashing && (this.onTar || this.tarLingerTimer > 0)) spd *= HAZARD_TAR_SLOW;
         // Momentum node: speed stacks from recent kills
         if (this.momentumStacks > 0) spd *= (1 + this.momentumStacks * 0.05);
+        // Adrenaline Rush: kill speed stacks
+        if (this._adrenalineStacks > 0) spd *= (1 + this._adrenalineStacks * 0.05);
+        // Rampage: temporary speed buff
+        if (this._rampageSpeedMult > 1) spd *= this._rampageSpeedMult;
+        // Crit Momentum: brief speed buff after crit
+        if (this._critMomentumTimer > 0) spd *= (1 + (this._critMomentumSpeed || 0.08));
+        // Bladestorm: speed buff while blade storm active
+        if (this._bladestormSpeedMult > 1) spd *= this._bladestormSpeedMult;
         return spd;
     }
 
@@ -897,6 +982,14 @@ export class Player {
         // Chain Fury: kill grants +50% DMG for 2s
         if (this.chainKillDmgActive) {
             dmg = Math.floor(dmg * 1.5);
+        }
+        // Soul Collector: stacking +DMG per room kill
+        if (this._soulCollectorBonus > 0) {
+            dmg = Math.floor(dmg * (1 + this._soulCollectorBonus));
+        }
+        // Rampage: temporary +DMG buff after kill streaks
+        if (this._rampageDmgMult > 1) {
+            dmg = Math.floor(dmg * this._rampageDmgMult);
         }
         return dmg;
     }

@@ -4,6 +4,14 @@
 // ────────────────────────────────────────────────────────────
 
 /**
+ * Global status damage multiplier (set by Elemental Mastery node).
+ * Multiplies all burn DPS and freeze pulse damage. Set from game.js each frame.
+ */
+let _statusDmgMult = 1;
+export function setStatusDmgMult(mult) { _statusDmgMult = mult; }
+export function getStatusDmgMult() { return _statusDmgMult; }
+
+/**
  * Initialize status effect state on an enemy.
  * Call once when an enemy is created (or lazily on first status application).
  * @param {object} enemy
@@ -50,7 +58,9 @@ export function applySlow(enemy, durationMs, factor = 0.5) {
 export function applyBurn(enemy, durationMs, dps) {
     initStatus(enemy);
     enemy._status.burnUntil = Math.max(enemy._status.burnUntil, durationMs);
-    enemy._status.burnDps = Math.max(enemy._status.burnDps, dps);
+    // Elemental Mastery: scale burn DPS by global status damage multiplier
+    const scaledDps = dps * _statusDmgMult;
+    enemy._status.burnDps = Math.max(enemy._status.burnDps, scaledDps);
 }
 
 /**
