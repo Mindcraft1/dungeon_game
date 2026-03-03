@@ -9,6 +9,7 @@ import * as MetaStore from './metaStore.js';
 import { PERK_DEFINITIONS, PERK_IDS, getPerkLevel, getNextCost, canUpgrade, isMaxed } from './metaPerks.js';
 import { RELIC_DEFINITIONS, RELIC_IDS, isRelicUnlocked, getUnlockedRelicCount, RELIC_COUNT } from './relics.js';
 import { getUnlockedRunUpgradeIds, RUN_UPGRADE_DEFINITIONS, RUN_UPGRADE_UNLOCK_THRESHOLDS } from './rewardSystem.js';
+import { t } from '../i18n.js';
 
 // ── Tab constants ──
 export const META_TAB_PERKS  = 0;
@@ -47,12 +48,12 @@ export function renderMetaMenu(ctx, activeTab, perkCursor, fromGameOver = false,
     // ── Title ──
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 24px monospace';
-    ctx.fillText('META PROGRESS', CANVAS_WIDTH / 2, 36);
+    ctx.fillText(t('metaMenu.title'), CANVAS_WIDTH / 2, 36);
 
     // Core Shards display
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText(`◆ Core Shards: ${shards}`, CANVAS_WIDTH / 2, 58);
+    ctx.fillText(t('metaMenu.shards', { n: shards }), CANVAS_WIDTH / 2, 58);
 
     // ── Run Summary (game over only) ──
     if (fromGameOver && runRewards) {
@@ -61,7 +62,7 @@ export function renderMetaMenu(ctx, activeTab, perkCursor, fromGameOver = false,
 
     // ── Tab bar ──
     const tabY = fromGameOver ? 130 : 78;
-    const tabLabels = ['PERKS', 'RELICS', 'STATS'];
+    const tabLabels = [t('metaMenu.perks'), t('metaMenu.relics'), t('metaMenu.stats')];
     const tabColors = ['#ffd700', '#bb86fc', '#4fc3f7'];
     const tabW = 100;
     const tabStartX = CANVAS_WIDTH / 2 - (tabW * META_TAB_COUNT) / 2;
@@ -89,7 +90,7 @@ export function renderMetaMenu(ctx, activeTab, perkCursor, fromGameOver = false,
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('A/D = Tab  ·  W/S = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
+    ctx.fillText(t('metaMenu.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
 
     ctx.textAlign = 'left';
 }
@@ -103,18 +104,18 @@ function _renderRunSummary(ctx, rw) {
     ctx.textAlign = 'center';
 
     const parts = [];
-    if (rw.bossesDefeatedThisRun > 0) parts.push(`Bosses: ${rw.bossesDefeatedThisRun}`);
-    parts.push(`Shards: +${rw.coreShardsGainedThisRun}`);
+    if (rw.bossesDefeatedThisRun > 0) parts.push(`${t('metaMenu.bosses')}: ${rw.bossesDefeatedThisRun}`);
+    parts.push(`${t('metaMenu.shardsLabel')}: +${rw.coreShardsGainedThisRun}`);
     if (rw.relicUnlockedThisRun) {
         const relic = RELIC_DEFINITIONS[rw.relicUnlockedThisRun];
-        parts.push(`Relic: ${relic ? relic.name : rw.relicUnlockedThisRun}`);
+        parts.push(`${t('metaMenu.relic')}: ${relic ? relic.name : rw.relicUnlockedThisRun}`);
     }
     if (rw.runUpgradeUnlockedThisRun) {
         const upg = RUN_UPGRADE_DEFINITIONS[rw.runUpgradeUnlockedThisRun];
-        parts.push(`New: ${upg ? upg.name : rw.runUpgradeUnlockedThisRun}`);
+        parts.push(`${t('metaMenu.new')}: ${upg ? upg.name : rw.runUpgradeUnlockedThisRun}`);
     }
 
-    ctx.fillText(`Run Summary:  ${parts.join('  ·  ')}`, CANVAS_WIDTH / 2, y);
+    ctx.fillText(`${t('metaMenu.runSummary')}  ${parts.join('  ·  ')}`, CANVAS_WIDTH / 2, y);
 }
 
 // ── Perks Tab ──
@@ -190,7 +191,7 @@ function _renderRelicsTab(ctx, startY) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText(`Relics Unlocked: ${getUnlockedRelicCount()} / ${RELIC_COUNT}`, CANVAS_WIDTH / 2, startY + 10);
+    ctx.fillText(t('metaMenu.relicsUnlocked', { n: getUnlockedRelicCount(), total: RELIC_COUNT }), CANVAS_WIDTH / 2, startY + 10);
 
     const cols = 4;
     const cellW = 110;
@@ -254,14 +255,14 @@ function _renderRelicsTab(ctx, startY) {
 
     ctx.fillStyle = '#888';
     ctx.font = 'bold 11px monospace';
-    ctx.fillText(`Run Upgrades (${upgrades.length}/${totalUpgrades})`, CANVAS_WIDTH / 2, ugY);
+    ctx.fillText(t('metaMenu.runUpgrades', { n: upgrades.length, total: totalUpgrades }), CANVAS_WIDTH / 2, ugY);
 
     // Show next unlock threshold
     if (upgrades.length < totalUpgrades) {
         const nextThreshold = RUN_UPGRADE_UNLOCK_THRESHOLDS[upgrades.length];
         ctx.fillStyle = '#666';
         ctx.font = '9px monospace';
-        ctx.fillText(`Next unlock at ${nextThreshold} boss kills (you have ${totalBossKills})`, CANVAS_WIDTH / 2, ugY + 14);
+        ctx.fillText(t('metaMenu.nextUnlock', { threshold: nextThreshold, current: totalBossKills }), CANVAS_WIDTH / 2, ugY + 14);
     }
 
     if (upgrades.length > 0) {
@@ -275,7 +276,7 @@ function _renderRelicsTab(ctx, startY) {
     } else {
         ctx.fillStyle = '#555';
         ctx.font = '9px monospace';
-        ctx.fillText('Defeat bosses to unlock run upgrades!', CANVAS_WIDTH / 2, ugY + 30);
+        ctx.fillText(t('metaMenu.defeatBosses'), CANVAS_WIDTH / 2, ugY + 30);
     }
 
     ctx.textAlign = 'left';
@@ -286,12 +287,12 @@ function _renderRelicsTab(ctx, startY) {
 function _renderStatsTab(ctx, state, startY) {
     const s = state.stats;
     const lines = [
-        { label: 'Runs Played',      value: `${s.runsPlayed}`,        color: '#4fc3f7' },
-        { label: 'Bosses Killed',     value: `${s.bossesKilledTotal}`, color: '#ff5722' },
-        { label: 'Highest Stage',     value: `${s.highestStage}`,      color: '#ffd700' },
-        { label: 'Total Core Shards', value: `${state.totalCoreShards}`, color: '#ffd700' },
-        { label: 'Shards Spent',      value: `${state.spentCoreShards}`, color: '#888' },
-        { label: 'Relics Found',      value: `${getUnlockedRelicCount()} / ${RELIC_COUNT}`, color: '#bb86fc' },
+        { label: t('metaMenu.statRuns'),      value: `${s.runsPlayed}`,        color: '#4fc3f7' },
+        { label: t('metaMenu.statBosses'),     value: `${s.bossesKilledTotal}`, color: '#ff5722' },
+        { label: t('metaMenu.statHighest'),     value: `${s.highestStage}`,      color: '#ffd700' },
+        { label: t('metaMenu.statTotalShards'), value: `${state.totalCoreShards}`, color: '#ffd700' },
+        { label: t('metaMenu.statSpent'),      value: `${state.spentCoreShards}`, color: '#888' },
+        { label: t('metaMenu.statRelics'),      value: `${getUnlockedRelicCount()} / ${RELIC_COUNT}`, color: '#bb86fc' },
     ];
 
     const panelW = 340;

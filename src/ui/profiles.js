@@ -2,6 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { PLAYER_COLORS, getColorById, PLAYER_HATS, getHatById, DEFAULT_HAT_ID } from '../cosmetics.js';
 import { CLASS_DEFINITIONS, getClassById, renderClassIcon } from '../classes.js';
 import * as AchievementStore from '../achievements/achievementStore.js';
+import { t } from '../i18n.js';
 
 const MAX_PROFILES = 6;
 const MAX_NAME_LEN = 12;
@@ -40,11 +41,11 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // Title
     ctx.fillStyle = '#4fc3f7';
     ctx.font = 'bold 32px monospace';
-    ctx.fillText('CHARACTERS', CANVAS_WIDTH / 2, 70);
+    ctx.fillText(t('profiles.title'), CANVAS_WIDTH / 2, 70);
 
     ctx.fillStyle = '#555';
     ctx.font = '12px monospace';
-    ctx.fillText('Select who is playing', CANVAS_WIDTH / 2, 95);
+    ctx.fillText(t('profiles.subtitle'), CANVAS_WIDTH / 2, 95);
 
     // ── Profile list ──
     const startY = 140;
@@ -75,7 +76,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
             ctx.fillStyle = '#27ae60';
             ctx.font = 'bold 11px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText('● ACTIVE', bx + 12, y + 16);
+            ctx.fillText(t('profiles.active'), bx + 12, y + 16);
             ctx.textAlign = 'center';
         }
 
@@ -118,7 +119,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         ctx.fillText(p.name, CANVAS_WIDTH / 2 + 10, y + (isActive ? 32 : 24));
 
         // Highscore
-        const hs = p.highscore > 0 ? `★ Stage ${p.highscore}` : 'No runs yet';
+        const hs = p.highscore > 0 ? t('profiles.bestStage', { n: p.highscore }) : t('profiles.noRuns');
         ctx.fillStyle = p.highscore > 0 ? '#ffd700' : '#555';
         ctx.font = '11px monospace';
         ctx.fillText(hs, CANVAS_WIDTH / 2, y + (isActive ? 44 : 38));
@@ -141,7 +142,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
 
         ctx.fillStyle = selected ? '#ffd700' : '#555';
         ctx.font = 'bold 16px monospace';
-        ctx.fillText('+ NEW CHARACTER', CANVAS_WIDTH / 2, y + 28);
+        ctx.fillText(t('profiles.newChar'), CANVAS_WIDTH / 2, y + 28);
     }
 
     // ── Name creation overlay ──
@@ -188,7 +189,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
     // ── Controls hint ──
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  ENTER/Click = Select  ·  C = Color  ·  H = Hat  ·  X = Delete  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText(t('profiles.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
@@ -212,11 +213,11 @@ function _renderCreateOverlay(ctx, name) {
 
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('NEW CHARACTER', CANVAS_WIDTH / 2, by + 35);
+    ctx.fillText(t('profiles.newCharTitle'), CANVAS_WIDTH / 2, by + 35);
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText('Type a name:', CANVAS_WIDTH / 2, by + 60);
+    ctx.fillText(t('profiles.typeName'), CANVAS_WIDTH / 2, by + 60);
 
     // Name field
     const fieldW = 240;
@@ -244,7 +245,7 @@ function _renderCreateOverlay(ctx, name) {
     // Hints
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('ENTER = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+    ctx.fillText(t('profiles.confirmCancel'), CANVAS_WIDTH / 2, by + bh - 16);
 
     ctx.textAlign = 'left';
 }
@@ -259,11 +260,11 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
     // Title
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 24px monospace';
-    ctx.fillText('CHOOSE YOUR CLASS', CANVAS_WIDTH / 2, 80);
+    ctx.fillText(t('profiles.chooseClass'), CANVAS_WIDTH / 2, 80);
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText(`for "${name}"`, CANVAS_WIDTH / 2, 105);
+    ctx.fillText(t('profiles.forName', { name }), CANVAS_WIDTH / 2, 105);
 
     // ── Class cards ──
     const cardW = 170;
@@ -368,7 +369,7 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
         const passiveY = statsY + 65;
         ctx.fillStyle = selected ? '#ffd700' : '#888';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('PASSIVE', midX, passiveY);
+        ctx.fillText(t('profiles.passive'), midX, passiveY);
 
         ctx.fillStyle = selected ? '#ddd' : '#666';
         ctx.font = '10px monospace';
@@ -401,7 +402,7 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
     // ── Hints ──
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('A/D or Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+    ctx.fillText(t('profiles.classControls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
@@ -425,7 +426,7 @@ function _renderDeleteOverlay(ctx, name) {
 
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 18px monospace';
-    ctx.fillText('DELETE CHARACTER?', CANVAS_WIDTH / 2, by + 35);
+    ctx.fillText(t('profiles.deleteTitle'), CANVAS_WIDTH / 2, by + 35);
 
     ctx.fillStyle = '#fff';
     ctx.font = '16px monospace';
@@ -433,11 +434,11 @@ function _renderDeleteOverlay(ctx, name) {
 
     ctx.fillStyle = '#e74c3c';
     ctx.font = '11px monospace';
-    ctx.fillText('All progress will be permanently lost!', CANVAS_WIDTH / 2, by + 80);
+    ctx.fillText(t('profiles.deleteWarning'), CANVAS_WIDTH / 2, by + 80);
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText('ENTER/Click = Delete  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 18);
+    ctx.fillText(t('profiles.deleteControls'), CANVAS_WIDTH / 2, by + bh - 18);
 
     ctx.textAlign = 'left';
 }
@@ -463,11 +464,11 @@ function _renderColorPickerOverlay(ctx, profile, cursor) {
     // Title
     ctx.fillStyle = '#4fc3f7';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('CHOOSE COLOR', CANVAS_WIDTH / 2, by + 32);
+    ctx.fillText(t('profiles.chooseColor'), CANVAS_WIDTH / 2, by + 32);
 
     ctx.fillStyle = '#666';
     ctx.font = '11px monospace';
-    ctx.fillText(`for "${profile.name}"`, CANVAS_WIDTH / 2, by + 50);
+    ctx.fillText(t('profiles.forName', { name: profile.name }), CANVAS_WIDTH / 2, by + 50);
 
     // ── Color swatch grid ──
     const cols = 4;
@@ -555,7 +556,7 @@ function _renderColorPickerOverlay(ctx, profile, cursor) {
     // ── Hints ──
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+    ctx.fillText(t('profiles.pickerControls'), CANVAS_WIDTH / 2, by + bh - 16);
 
     ctx.textAlign = 'left';
 }
@@ -581,11 +582,11 @@ function _renderHatPickerOverlay(ctx, profile, cursor) {
     // Title
     ctx.fillStyle = '#ce93d8';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('CHOOSE HAT', CANVAS_WIDTH / 2, by + 32);
+    ctx.fillText(t('profiles.chooseHat'), CANVAS_WIDTH / 2, by + 32);
 
     ctx.fillStyle = '#666';
     ctx.font = '11px monospace';
-    ctx.fillText(`for "${profile.name}"`, CANVAS_WIDTH / 2, by + 50);
+    ctx.fillText(t('profiles.forName', { name: profile.name }), CANVAS_WIDTH / 2, by + 50);
 
     // ── Hat swatch grid ──
     const cols = 4;
@@ -710,13 +711,13 @@ function _renderHatPickerOverlay(ctx, profile, cursor) {
     } else if (selectedUnlocked && selectedHat.id !== 'none') {
         ctx.fillStyle = '#4caf50';
         ctx.font = '11px monospace';
-        ctx.fillText('✓ Unlocked', pvx, pvy + 56);
+        ctx.fillText(t('profiles.unlocked'), pvx, pvy + 56);
     }
 
     // ── Hints ──
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER/Click = Confirm  ·  ESC/RMB = Cancel', CANVAS_WIDTH / 2, by + bh - 16);
+    ctx.fillText(t('profiles.pickerControls'), CANVAS_WIDTH / 2, by + bh - 16);
 
     ctx.textAlign = 'left';
 }

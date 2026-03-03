@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, RUN_SHOP_ITEMS, RUN_SHOP_ITEM_IDS, SHOP_FORGE_TOKEN_COST } from '../constants.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the in-run shop overlay.
@@ -38,17 +39,17 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
     // Title
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText('SHOP', CANVAS_WIDTH / 2, py + 34);
+    ctx.fillText(t('runShop.title'), CANVAS_WIDTH / 2, py + 34);
 
     // Coins display
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText(`🪙 Coins: ${coins}`, CANVAS_WIDTH / 2, py + 56);
+    ctx.fillText(t('runShop.coins', { n: coins }), CANVAS_WIDTH / 2, py + 56);
 
     // Stage info
     ctx.fillStyle = '#888';
     ctx.font = '11px monospace';
-    ctx.fillText(`Stage ${stage}`, CANVAS_WIDTH / 2, py + 72);
+    ctx.fillText(t('hud.stage', { n: stage }), CANVAS_WIDTH / 2, py + 72);
 
     // Item list
     const itemStartY = py + 92;
@@ -111,11 +112,11 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
         if (selected && canAfford) {
             ctx.fillStyle = '#4caf50';
             ctx.font = 'bold 10px monospace';
-            ctx.fillText('[ENTER] Buy', rowX + rowW - 10, iy + 36);
+            ctx.fillText(t('runShop.buy'), rowX + rowW - 10, iy + 36);
         } else if (selected && !canAfford) {
             ctx.fillStyle = '#e74c3c';
             ctx.font = '10px monospace';
-            ctx.fillText('Not enough coins', rowX + rowW - 10, iy + 36);
+            ctx.fillText(t('runShop.notEnough'), rowX + rowW - 10, iy + 36);
         }
 
         // Number key hint
@@ -151,10 +152,10 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
         ctx.textAlign = 'left';
         ctx.fillStyle = selected ? '#ff9800' : '#aaa';
         ctx.font = 'bold 13px monospace';
-        ctx.fillText('🔨 Forge Token', rowX + 24, iy + 20);
+        ctx.fillText(t('runShop.forgeToken'), rowX + 24, iy + 20);
         ctx.fillStyle = selected ? '#ccc' : '#777';
         ctx.font = '11px monospace';
-        ctx.fillText(`Pick an upgrade from a chosen category (owned: ${forgeTokenCount})`, rowX + 24, iy + 36);
+        ctx.fillText(t('runShop.forgeDesc', { n: forgeTokenCount }), rowX + 24, iy + 36);
         ctx.textAlign = 'right';
         ctx.fillStyle = canAfford ? '#ffd700' : '#666';
         ctx.font = 'bold 12px monospace';
@@ -162,11 +163,11 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
         if (selected && canAfford) {
             ctx.fillStyle = '#4caf50';
             ctx.font = 'bold 10px monospace';
-            ctx.fillText('[ENTER] Buy', rowX + rowW - 10, iy + 36);
+            ctx.fillText(t('runShop.buy'), rowX + rowW - 10, iy + 36);
         } else if (selected && !canAfford) {
             ctx.fillStyle = '#e74c3c';
             ctx.font = '10px monospace';
-            ctx.fillText('Not enough coins', rowX + rowW - 10, iy + 36);
+            ctx.fillText(t('runShop.notEnough'), rowX + rowW - 10, iy + 36);
         }
         extraRows = 1;
     }
@@ -188,12 +189,12 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
     ctx.fillStyle = contSelected ? '#4fc3f7' : '#666';
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('CONTINUE', CANVAS_WIDTH / 2, contY + 22);
+    ctx.fillText(t('runShop.continue'), CANVAS_WIDTH / 2, contY + 22);
 
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Continue', CANVAS_WIDTH / 2, py + panelH - 12);
+    ctx.fillText(t('runShop.controls'), CANVAS_WIDTH / 2, py + panelH - 12);
 
     ctx.textAlign = 'left';
 }

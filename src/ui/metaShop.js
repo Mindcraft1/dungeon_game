@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, META_BOOSTERS, META_BOOSTER_IDS } from '../constants.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the Meta-Shop screen.
@@ -34,17 +35,17 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
     // Title
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 24px monospace';
-    ctx.fillText('BOOSTER SHOP', CANVAS_WIDTH / 2, 36);
+    ctx.fillText(t('metaShop.title'), CANVAS_WIDTH / 2, 36);
 
     // Shards display
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText(`◆ Core Shards: ${availableShards}`, CANVAS_WIDTH / 2, 56);
+    ctx.fillText(t('metaShop.shards', { n: availableShards }), CANVAS_WIDTH / 2, 56);
 
     // Subtitle
     ctx.fillStyle = '#888';
     ctx.font = '11px monospace';
-    ctx.fillText('Choose 1 booster for your next run (purchased immediately)', CANVAS_WIDTH / 2, 72);
+    ctx.fillText(t('metaShop.subtitle'), CANVAS_WIDTH / 2, 72);
 
     // Active selection banner
     let bannerH = 0;
@@ -57,7 +58,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
         ctx.strokeRect(CANVAS_WIDTH / 2 - 250, 80, 500, 22);
         ctx.fillStyle = '#4caf50';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(`✓ Selected: ${booster ? booster.name : selectedBoosterId}`, CANVAS_WIDTH / 2, 95);
+        ctx.fillText(t('metaShop.selected', { name: booster ? booster.name : selectedBoosterId }), CANVAS_WIDTH / 2, 95);
         bannerH = 28;
     }
 
@@ -174,7 +175,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
             if (isOwned) {
                 ctx.fillStyle = '#4caf50';
                 ctx.font = 'bold 12px monospace';
-                ctx.fillText('✓ OWNED', cx + cardW - 10, cy + cardH - 10);
+                ctx.fillText(t('metaShop.owned'), cx + cardW - 10, cy + cardH - 10);
             } else {
                 ctx.fillStyle = canAfford ? '#ffd700' : '#666';
                 ctx.font = 'bold 12px monospace';
@@ -186,17 +187,17 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
                 ctx.fillStyle = '#4caf50';
                 ctx.font = 'bold 10px monospace';
                 ctx.textAlign = 'right';
-                ctx.fillText('[ENTER] Buy', cx + cardW - 10, cy + cardH - 24);
+                ctx.fillText(t('runShop.buy'), cx + cardW - 10, cy + cardH - 24);
             } else if (selected && !canAfford && !isOwned && !selectedBoosterId && !isLocked) {
                 ctx.fillStyle = '#e74c3c';
                 ctx.font = '10px monospace';
                 ctx.textAlign = 'right';
-                ctx.fillText('Not enough shards', cx + cardW - 10, cy + cardH - 24);
+                ctx.fillText(t('metaShop.notEnoughShards'), cx + cardW - 10, cy + cardH - 24);
             } else if (selected && selectedBoosterId && !isOwned) {
                 ctx.fillStyle = '#ff9800';
                 ctx.font = '10px monospace';
                 ctx.textAlign = 'right';
-                ctx.fillText('Already have a booster', cx + cardW - 10, cy + cardH - 24);
+                ctx.fillText(t('metaShop.alreadyHave'), cx + cardW - 10, cy + cardH - 24);
             }
         }
     });
@@ -215,14 +216,14 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
         ctx.fillStyle = clearSelected ? '#ff9800' : '#666';
         ctx.font = 'bold 13px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('CLEAR SELECTION (refund)', CANVAS_WIDTH / 2, clearY + 20);
+        ctx.fillText(t('metaShop.clearSelection'), CANVAS_WIDTH / 2, clearY + 20);
     }
 
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('W/A/S/D = Select  ·  ENTER/Click = Buy  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
+    ctx.fillText(t('metaShop.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 16);
 
     ctx.textAlign = 'left';
 }

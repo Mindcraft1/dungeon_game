@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { t } from '../i18n.js';
 
 /**
  * @typedef {Object} StatModifiers
@@ -115,7 +116,7 @@ export function renderBuffSummary(ctx, mods) {
     ctx.fillStyle = '#888';
     ctx.font = 'bold 8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('MODIFIERS', px + 6, py + 10);
+    ctx.fillText(t('buffSummary.title'), px + 6, py + 10);
 
     // ── Stat lines ──
     let y = py + headerH + 4;

@@ -4,6 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIME
          PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
        } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
+import { t } from '../i18n.js';
 
 /**
  * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo, coins).
@@ -82,7 +83,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillText(`LVL ${player.level}`, pad, infoY);
     if (trainingMode) {
         ctx.fillStyle = '#aaa';
-        ctx.fillText('TRAINING', pad + 76, infoY);
+        ctx.fillText(t('hud.training'), pad + 76, infoY);
     } else if (biomeName) {
         ctx.fillStyle = biomeColor || '#aaa';
         ctx.fillText(`${biomeName}`, pad + 76, infoY);
@@ -90,17 +91,17 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
         ctx.fillText(`${stage}`, pad + 76 + ctx.measureText(`${biomeName} `).width, infoY);
     } else {
         ctx.fillStyle = '#aaa';
-        ctx.fillText(`Stage ${stage}`, pad + 76, infoY);
+        ctx.fillText(t('hud.stage', { n: stage }), pad + 76, infoY);
     }
 
     if (enemiesAlive > 0) {
         ctx.fillStyle = isBossRoom ? '#ff6600' : '#e74c3c';
         ctx.font = '11px monospace';
-        ctx.fillText(isBossRoom ? 'BOSS FIGHT!' : `Enemies: ${enemiesAlive}`, pad, infoY + 16);
+        ctx.fillText(isBossRoom ? t('hud.bossFight') : t('hud.enemies', { n: enemiesAlive }), pad, infoY + 16);
     } else {
         ctx.fillStyle = '#27ae60';
         ctx.font = '11px monospace';
-        ctx.fillText('Door open!', pad, infoY + 16);
+        ctx.fillText(t('hud.doorOpen'), pad, infoY + 16);
     }
 
     // ── Dash cooldown bar ──
@@ -121,7 +122,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillStyle = dashReady ? '#4fc3f7' : '#666';
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(dashReady ? 'DASH ✓' : 'DASH', pad + dashBarW + 4, dashBarY + 5);
+    ctx.fillText(dashReady ? t('hud.dashReady') : t('hud.dash'), pad + dashBarW + 4, dashBarY + 5);
 
     // ── Dagger cooldown bar ──
     const daggerBarY = dashBarY + dashBarH + 4;
@@ -141,7 +142,7 @@ export function renderHUD(ctx, player, stage, enemiesAlive, trainingMode = false
     ctx.fillStyle = daggerReady ? '#ffa726' : '#666';
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(daggerReady ? 'DAGGER ✓' : 'DAGGER', pad + daggerBarW + 4, daggerBarY + 5);
+    ctx.fillText(daggerReady ? t('hud.daggerReady') : t('hud.dagger'), pad + daggerBarW + 4, daggerBarY + 5);
 
     // ── Coins, Shield, Bomb indicators (below dagger bar) ──
     if (!trainingMode) {
@@ -263,7 +264,7 @@ function _renderActiveBuffs(ctx, player, pad) {
  */
 function _renderCombo(ctx, comboCount, comboTier, comboMultiplier, comboTimer) {
     const TIER_COLORS = ['#aaa', '#ffd700', '#ff9800', '#e040fb', '#00e5ff'];
-    const TIER_NAMES  = ['', 'Nice!', 'Combo!', 'Rampage!', 'UNSTOPPABLE!'];
+    const TIER_NAMES  = ['', t('hud.comboNice'), t('hud.combo'), t('hud.comboRampage'), t('hud.comboUnstoppable')];
     const tier = Math.min(comboTier, 4);
     const color = TIER_COLORS[tier];
 
@@ -284,7 +285,7 @@ function _renderCombo(ctx, comboCount, comboTier, comboMultiplier, comboTimer) {
     ctx.textAlign = 'left';
     ctx.fillStyle = color;
     ctx.font = 'bold 16px monospace';
-    ctx.fillText(`${comboCount}× Kill`, x + 10, y + 18);
+    ctx.fillText(t('hud.killChain', { n: comboCount }), x + 10, y + 18);
 
     // Tier name + multiplier
     if (tier >= 1) {
@@ -391,7 +392,7 @@ export function renderBossHPBar(ctx, boss) {
     if (boss.phase === 2) {
         ctx.fillStyle = '#ff4444';
         ctx.font = 'bold 9px monospace';
-        ctx.fillText('⚡ PHASE 2 ⚡', CANVAS_WIDTH / 2, by + barH + 10);
+        ctx.fillText(t('hud.phase2'), CANVAS_WIDTH / 2, by + barH + 10);
     }
 
     ctx.textAlign = 'left';

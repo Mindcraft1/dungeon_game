@@ -78,6 +78,7 @@ import { RUN_UPGRADE_DEFINITIONS, getUnlockedRunUpgradeIds } from './meta/reward
 import { PERK_IDS, upgradePerk, canUpgrade, isMaxed as isPerkMaxed } from './meta/metaPerks.js';
 import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
 import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from './meta/uiRewardsToast.js';
+import { t, getLang, toggleLang } from './i18n.js';
 import { getAvailableShards } from './meta/metaState.js';
 import { renderMetaShop } from './ui/metaShop.js';
 import { renderRunShop } from './ui/runShop.js';
@@ -5486,7 +5487,7 @@ export class Game {
     }
 
     _updateSettings() {
-        const count = 6; // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=MouseAim, 5=Back
+        const count = 7; // 0=SFX, 1=Music, 2=Rooms, 3=DmgNumbers, 4=MouseAim, 5=Language, 6=Back
 
         if (wasPressed('KeyW') || wasPressed('ArrowUp')) {
             this.settingsCursor = (this.settingsCursor - 1 + count) % count;
@@ -5511,7 +5512,7 @@ export class Game {
         const leftRight = wasPressed('ArrowLeft') || wasPressed('ArrowRight')
                        || wasPressed('KeyA') || wasPressed('KeyD');
 
-        if (toggle || (leftRight && this.settingsCursor < 5)) {
+        if (toggle || (leftRight && this.settingsCursor < 6)) {
             Audio.playMenuSelect();
             if (this.settingsCursor === 0) {
                 // Toggle SFX mute
@@ -5533,6 +5534,9 @@ export class Game {
                 this.mouseAimEnabled = !this.mouseAimEnabled;
                 this._saveMouseAimSetting();
             } else if (this.settingsCursor === 5) {
+                // Toggle language
+                toggleLang();
+            } else if (this.settingsCursor === 6) {
                 // Back to previous screen
                 this.state = this._settingsReturnState;
             }
@@ -6370,7 +6374,7 @@ export class Game {
         // Locked-door hint (real game only)
         if (!this.trainingMode && this.door.locked && this.door.isPlayerNear(this.player)) {
             const anyBossAlive = this._allBosses().length > 0;
-            const lockText = anyBossAlive ? 'DEFEAT THE BOSS' : 'LOCKED';
+            const lockText = anyBossAlive ? t('tooltip.defeatBoss') : t('tooltip.locked');
             this._renderTooltip(
                 this.door.x + this.door.width / 2,
                 this.door.y - 14,
@@ -6383,7 +6387,7 @@ export class Game {
             this._renderTooltip(
                 this.door.x + this.door.width / 2,
                 this.door.y - 14,
-                'EXIT (or ESC)', '#27ae60',
+                t('tooltip.exit'), '#27ae60',
             );
         }
 
@@ -6413,10 +6417,10 @@ export class Game {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 20px monospace';
-            ctx.fillText(`🪙 ${this.runCoins} Coins`, CANVAS_WIDTH / 2, 30);
+            ctx.fillText(t('reward.coins', { n: this.runCoins }), CANVAS_WIDTH / 2, 30);
             ctx.fillStyle = '#aaa';
             ctx.font = '12px monospace';
-            ctx.fillText('Walk to rewards · Space to claim · Door to continue', CANVAS_WIDTH / 2, 48);
+            ctx.fillText(t('reward.walkHint'), CANVAS_WIDTH / 2, 48);
             ctx.restore();
         }
 
@@ -6456,7 +6460,7 @@ export class Game {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#f44336';
             ctx.font = 'bold 18px monospace';
-            ctx.fillText(`⚔️ TRIAL — Survive: ${secs}s`, CANVAS_WIDTH / 2, 74);
+            ctx.fillText(t('banner.trial', { n: secs }), CANVAS_WIDTH / 2, 74);
             ctx.restore();
         }
 
@@ -6466,7 +6470,7 @@ export class Game {
             ctx.textAlign = 'right';
             ctx.font = '11px monospace';
             ctx.fillStyle = '#2196f3';
-            ctx.fillText(`🔄 Reroll ×${this.rerollTokenCount}`, CANVAS_WIDTH - 10, 108);
+            ctx.fillText(t('banner.reroll', { n: this.rerollTokenCount }), CANVAS_WIDTH - 10, 108);
             ctx.restore();
         }
 
@@ -6567,7 +6571,7 @@ export class Game {
             ctx.font = 'bold 14px monospace';
             ctx.textAlign = 'center';
             ctx.fillText(
-                `Enemies respawn in ${(remaining / 1000).toFixed(1)}s`,
+                t('banner.respawn', { n: (remaining / 1000).toFixed(1) }),
                 CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2,
             );
             ctx.textAlign = 'left';
@@ -6596,7 +6600,7 @@ export class Game {
                 ctx.font = 'bold 13px monospace';
                 const pulse = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
                 ctx.globalAlpha = pulse;
-                ctx.fillText(`🌟 ${this.talentState.points} Talent point${this.talentState.points > 1 ? 's' : ''} available! (T)`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 130);
+                ctx.fillText(t('banner.talentPoint', { n: this.talentState.points, s: this.talentState.points > 1 ? (getLang() === 'de' ? 'e' : 's') : '' }), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 130);
                 ctx.restore();
             }
         } else if (this.state === STATE_GAME_OVER) {
@@ -6652,7 +6656,7 @@ export class Game {
         // Subtitle
         ctx.fillStyle = '#888';
         ctx.font = '11px monospace';
-        ctx.fillText(`Stage ${this.stage}`, CANVAS_WIDTH / 2, cy + 20);
+        ctx.fillText(t('hud.stage', { n: this.stage }), CANVAS_WIDTH / 2, cy + 20);
 
         ctx.restore();
     }
@@ -6683,13 +6687,13 @@ export class Game {
         ctx.font = 'bold 26px monospace';
         ctx.shadowColor = '#ff4444';
         ctx.shadowBlur = 16;
-        ctx.fillText('⚔ SECOND WAVE ⚔', CANVAS_WIDTH / 2, cy + 4);
+        ctx.fillText(t('banner.secondWave'), CANVAS_WIDTH / 2, cy + 4);
         ctx.shadowBlur = 0;
 
         // Subtitle
         ctx.fillStyle = '#cc8888';
         ctx.font = '12px monospace';
-        ctx.fillText('More enemies incoming!', CANVAS_WIDTH / 2, cy + 22);
+        ctx.fillText(t('banner.secondWaveDesc'), CANVAS_WIDTH / 2, cy + 22);
 
         ctx.restore();
     }
@@ -6723,19 +6727,19 @@ export class Game {
         const leftCx = bx + leftW / 2;
         ctx.fillStyle = '#4fc3f7';
         ctx.font = 'bold 28px monospace';
-        ctx.fillText('PAUSED', leftCx, by + 45);
+        ctx.fillText(t('pause.title'), leftCx, by + 45);
 
         // Stage info
         ctx.fillStyle = '#888';
         ctx.font = '12px monospace';
         const biomeLabel = this.currentBiome ? `${this.currentBiome.name} · ` : '';
-        ctx.fillText(`${biomeLabel}Stage ${this.stage}  ·  Level ${this.player.level}`, leftCx, by + 67);
+        ctx.fillText(t('pause.info', { biome: biomeLabel, stage: this.stage, level: this.player.level }), leftCx, by + 67);
 
         // Options
         const options = [
-            { label: 'RESUME', color: '#4fc3f7' },
-            { label: 'SETTINGS', color: '#e0e0e0' },
-            { label: 'BACK TO MENU', color: '#e74c3c' },
+            { label: t('pause.resume'), color: '#4fc3f7' },
+            { label: t('pause.settings'), color: '#e0e0e0' },
+            { label: t('pause.quit'), color: '#e74c3c' },
         ];
 
         const startY = by + 105;
@@ -6769,7 +6773,7 @@ export class Game {
         // Hint
         ctx.fillStyle = '#444';
         ctx.font = '10px monospace';
-        ctx.fillText('P = Quick Resume', leftCx, by + panelH - 14);
+        ctx.fillText(t('pause.quickResume'), leftCx, by + panelH - 14);
 
         // ── Right panel: Active Effects ──
         if (effects.length > 0) {
@@ -6788,7 +6792,7 @@ export class Game {
             ctx.fillStyle = '#4fc3f7';
             ctx.font = 'bold 11px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('ACTIVE EFFECTS', rightX + rightW / 2, by + 22);
+            ctx.fillText(t('pause.effects'), rightX + rightW / 2, by + 22);
 
             // ── Render categorized effects with clipping ──
             ctx.save();
@@ -6850,7 +6854,7 @@ export class Game {
                 ctx.fillStyle = '#555';
                 ctx.font = '8px monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText('…more effects', rightX + rightW / 2, by + panelH - 6);
+                ctx.fillText(t('pause.moreEffects'), rightX + rightW / 2, by + panelH - 6);
             }
         }
 
@@ -6884,11 +6888,11 @@ export class Game {
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('TRAINING MODE', CANVAS_WIDTH / 2, by + 15);
+        ctx.fillText(t('banner.training'), CANVAS_WIDTH / 2, by + 15);
 
         ctx.fillStyle = '#888';
         ctx.font = '10px monospace';
-        ctx.fillText('ESC = Back to menu  |  Door = Exit', CANVAS_WIDTH / 2, by - 6);
+        ctx.fillText(t('banner.trainingHint'), CANVAS_WIDTH / 2, by - 6);
         ctx.textAlign = 'left';
     }
 
@@ -6913,8 +6917,8 @@ export class Game {
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         const hint = this.trainingMode
-            ? 'WASD=Move  SPACE/LMB=Attack  N/MMB=Throw  M/RMB=Dash  Q/E=Ability  ESC=Exit'
-            : 'WASD=Move  SPACE/LMB=Attack  N/MMB=Throw  M/RMB=Dash  Q/E=Ability  P=Pause';
+            ? t('controls.training')
+            : t('controls.playing');
         ctx.fillText(hint, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         ctx.textAlign = 'left';
         ctx.restore();
@@ -6929,15 +6933,15 @@ export class Game {
 
         let y = 10;
 
-        for (const t of this._achievementToasts) {
-            const fadeMs = t.maxTimer * 0.3;
-            const alpha = t.timer < fadeMs
-                ? t.timer / fadeMs
-                : Math.min(1, (t.maxTimer - t.timer) / 400);
+        for (const toast of this._achievementToasts) {
+            const fadeMs = toast.maxTimer * 0.3;
+            const alpha = toast.timer < fadeMs
+                ? toast.timer / fadeMs
+                : Math.min(1, (toast.maxTimer - toast.timer) / 400);
 
             ctx.globalAlpha = alpha;
 
-            const display = `${t.icon}  ACHIEVEMENT: ${t.text}`;
+            const display = t('banner.achievement', { icon: toast.icon, text: toast.text });
             const w = display.length * 8 + 32;
             const h = 30;
             const x = CANVAS_WIDTH / 2 - w / 2;
@@ -6973,12 +6977,12 @@ export class Game {
     /** Persistent badges in top-right for active toggle cheats */
     _renderCheatBadges(ctx) {
         const cheats = [];
-        if (this.cheats.godmode)    cheats.push({ label: 'GOD',     color: '#ffd700' });
-        if (this.cheats.onehitkill) cheats.push({ label: '1HIT',    color: '#ff4444' });
-        if (this.cheats.xpboost)    cheats.push({ label: 'XP×10',   color: '#bb86fc' });
-        if (DevTools.hasOverrides()) cheats.push({ label: '🛠️ DEV',  color: '#4fc3f7' });
+        if (this.cheats.godmode)    cheats.push({ label: t('cheat.god'),     color: '#ffd700' });
+        if (this.cheats.onehitkill) cheats.push({ label: t('cheat.oneHit'),    color: '#ff4444' });
+        if (this.cheats.xpboost)    cheats.push({ label: t('cheat.xpBoost'),   color: '#bb86fc' });
+        if (DevTools.hasOverrides()) cheats.push({ label: t('cheat.dev'),  color: '#4fc3f7' });
         // Always show "NO PROGRESS" badge when cheats have been used this run
-        if (this.cheatsUsedThisRun) cheats.push({ label: '⛔ NO PROGRESS', color: '#ff6666' });
+        if (this.cheatsUsedThisRun) cheats.push({ label: t('cheat.noProgress'), color: '#ff6666' });
         if (cheats.length === 0) return;
 
         ctx.save();

@@ -1,4 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the training configuration screen.
@@ -33,19 +34,19 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 28px monospace';
-    ctx.fillText('TRAINING CONFIG', cx, 90);
+    ctx.fillText(t('trainingConfig.title'), cx, 90);
 
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText('Choose your training setup', cx, 112);
+    ctx.fillText(t('trainingConfig.subtitle'), cx, 112);
 
     // ── Options ──
     const options = [
-        { label: 'ROOM',    value: roomName,                       color: '#4fc3f7' },
-        { label: 'ENEMIES', value: enemyLabel,                     color: '#e74c3c' },
-        { label: 'COUNT',   value: `${enemyCount}`,                color: '#2ecc71' },
-        { label: 'DAMAGE',  value: damageOn ? 'ON' : 'OFF',        color: damageOn ? '#f44336' : '#4caf50' },
-        { label: 'DROPS',   value: dropsOn ? 'ON' : 'OFF',         color: dropsOn ? '#ffd700' : '#888' },
+        { label: t('trainingConfig.room'),    value: roomName,                       color: '#4fc3f7' },
+        { label: t('trainingConfig.enemies'), value: enemyLabel,                     color: '#e74c3c' },
+        { label: t('trainingConfig.count'),   value: `${enemyCount}`,                color: '#2ecc71' },
+        { label: t('trainingConfig.damage'),  value: damageOn ? t('trainingConfig.on') : t('trainingConfig.off'),        color: damageOn ? '#f44336' : '#4caf50' },
+        { label: t('trainingConfig.drops'),   value: dropsOn ? t('trainingConfig.on') : t('trainingConfig.off'),         color: dropsOn ? '#ffd700' : '#888' },
     ];
 
     const startY = 140;
@@ -120,7 +121,7 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
     ctx.textAlign = 'center';
     ctx.fillStyle = btnSelected ? '#ffd700' : '#666';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('START', cx, btnY + 30);
+    ctx.fillText(t('trainingConfig.start'), cx, btnY + 30);
 
     // ── Enemy type preview icons (between ENEMIES and COUNT rows) ──
     _renderEnemyPreview(ctx, cx, rowYs[1] + boxH + 6, enemyLabel);
@@ -129,7 +130,7 @@ export function renderTrainingConfig(ctx, cursor, roomIndex, roomName, enemyLabe
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate   A/D = Change   ENTER/Click = Start   ESC/RMB = Back', cx, CANVAS_HEIGHT - 30);
+    ctx.fillText(t('trainingConfig.controls'), cx, CANVAS_HEIGHT - 30);
     ctx.textAlign = 'left';
 }
 

@@ -3,6 +3,7 @@ import {
     BRANCH_ORDER, BRANCH_META,
     getNodesForBranch, canUpgradeNode, getSpentPoints,
 } from '../talents.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the talent tree overlay.
@@ -33,14 +34,14 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
     // ── Title ──
     ctx.fillStyle = '#ffd740';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText('TALENT TREE', CANVAS_WIDTH / 2, py + 32);
+    ctx.fillText(t('talents.title'), CANVAS_WIDTH / 2, py + 32);
 
     // ── Points info ──
     const spent = getSpentPoints(talentState);
     const total = spent + talentState.points;
     ctx.fillStyle = talentState.points > 0 ? '#ffd740' : '#888';
     ctx.font = '13px monospace';
-    ctx.fillText(`Points: ${talentState.points} available  (${spent}/${total} spent)`, CANVAS_WIDTH / 2, py + 54);
+    ctx.fillText(t('talents.points', { avail: talentState.points, spent, total }), CANVAS_WIDTH / 2, py + 54);
 
     // ── Three columns ──
     const colW = pw / 3;
@@ -171,27 +172,27 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
         if (canUp) {
             ctx.fillStyle = '#ffd740';
             ctx.font = '10px monospace';
-            ctx.fillText('Press ENTER to upgrade', CANVAS_WIDTH / 2, detY + 44);
+            ctx.fillText(t('talents.upgradeHint'), CANVAS_WIDTH / 2, detY + 44);
         } else if (rank >= hoveredNode.maxRank) {
             ctx.fillStyle = '#4caf50';
             ctx.font = '10px monospace';
-            ctx.fillText('MAX RANK', CANVAS_WIDTH / 2, detY + 44);
+            ctx.fillText(t('talents.maxRank'), CANVAS_WIDTH / 2, detY + 44);
         } else if (talentState.points <= 0) {
             ctx.fillStyle = '#666';
             ctx.font = '10px monospace';
-            ctx.fillText('No points available', CANVAS_WIDTH / 2, detY + 44);
+            ctx.fillText(t('talents.noPoints'), CANVAS_WIDTH / 2, detY + 44);
         } else {
             // Tier locked
             ctx.fillStyle = '#f44336';
             ctx.font = '10px monospace';
-            ctx.fillText('Requires previous tier', CANVAS_WIDTH / 2, detY + 44);
+            ctx.fillText(t('talents.requiresPrev'), CANVAS_WIDTH / 2, detY + 44);
         }
     }
 
     // ── Controls hint ──
     ctx.fillStyle = '#555';
     ctx.font = '10px monospace';
-    ctx.fillText('WASD/Arrows = Navigate  ·  ENTER = Upgrade  ·  T/ESC = Close', CANVAS_WIDTH / 2, py + ph - 8);
+    ctx.fillText(t('talents.controls'), CANVAS_WIDTH / 2, py + ph - 8);
 
     ctx.textAlign = 'left';
 }

@@ -1,4 +1,5 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { t, getLang } from '../i18n.js';
 
 /**
  * Draw the settings screen.
@@ -35,59 +36,70 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     ctx.shadowBlur = 15 * glow;
     ctx.fillStyle = '#e0e0e0';
     ctx.font = 'bold 36px monospace';
-    ctx.fillText('SETTINGS', CANVAS_WIDTH / 2, 110);
+    ctx.fillText(t('settings.title'), CANVAS_WIDTH / 2, 110);
     ctx.restore();
 
     // Subtitle
     ctx.fillStyle = '#666';
     ctx.font = '13px monospace';
-    ctx.fillText('Configure audio, controls & gameplay', CANVAS_WIDTH / 2, 140);
+    ctx.fillText(t('settings.subtitle'), CANVAS_WIDTH / 2, 140);
+
+    const _on = t('on');
+    const _off = t('off');
+    const langLabel = getLang() === 'de' ? 'DEUTSCH' : 'ENGLISH';
 
     // ── Settings items ──
     const items = [
         {
-            label: 'SOUND EFFECTS',
-            value: sfxMuted ? 'OFF' : 'ON',
+            label: t('settings.sfx'),
+            value: sfxMuted ? _off : _on,
             valueColor: sfxMuted ? '#e74c3c' : '#4caf50',
             color: '#4fc3f7',
-            desc: 'Toggle game sound effects',
+            desc: t('settings.sfx.desc'),
         },
         {
-            label: 'MUSIC',
-            value: musicEnabled ? 'ON' : 'OFF',
+            label: t('settings.music'),
+            value: musicEnabled ? _on : _off,
             valueColor: musicEnabled ? '#4caf50' : '#e74c3c',
             color: '#bb86fc',
-            desc: 'Toggle background music',
+            desc: t('settings.music.desc'),
         },
         {
-            label: 'ROOMS',
-            value: proceduralRooms ? 'PROCEDURAL' : 'PREDEFINED',
+            label: t('settings.rooms'),
+            value: proceduralRooms ? t('settings.rooms.procedural') : t('settings.rooms.predefined'),
             valueColor: proceduralRooms ? '#ff9800' : '#4caf50',
             color: '#ff9800',
             desc: proceduralRooms
-                ? 'Rooms are randomly generated each run'
-                : 'Rooms use handcrafted layouts',
+                ? t('settings.rooms.desc.proc')
+                : t('settings.rooms.desc.pre'),
         },
         {
-            label: 'DAMAGE NUMBERS',
-            value: showDamageNumbers ? 'ON' : 'OFF',
+            label: t('settings.dmgNumbers'),
+            value: showDamageNumbers ? _on : _off,
             valueColor: showDamageNumbers ? '#4caf50' : '#e74c3c',
             color: '#f06292',
-            desc: 'Show floating damage numbers on hit',
+            desc: t('settings.dmgNumbers.desc'),
         },
         {
-            label: 'MOUSE AIM',
-            value: mouseAimEnabled ? 'ON' : 'OFF',
+            label: t('settings.mouseAim'),
+            value: mouseAimEnabled ? _on : _off,
             valueColor: mouseAimEnabled ? '#4caf50' : '#e74c3c',
             color: '#64ffda',
-            desc: 'Aim toward mouse cursor (LMB=Attack, RMB=Dash, MMB=Dagger)',
+            desc: t('settings.mouseAim.desc'),
         },
         {
-            label: 'BACK',
+            label: t('settings.language'),
+            value: langLabel,
+            valueColor: '#4fc3f7',
+            color: '#ce93d8',
+            desc: t('settings.language.desc'),
+        },
+        {
+            label: t('back'),
             value: '',
             valueColor: '',
             color: '#888',
-            desc: fromPause ? 'Return to game' : 'Return to main menu',
+            desc: fromPause ? t('settings.back.desc.pause') : t('settings.back.desc.menu'),
         },
     ];
 
@@ -143,24 +155,24 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
 
     ctx.fillStyle = '#555';
     ctx.font = 'bold 12px monospace';
-    ctx.fillText('─── KEY BINDINGS ───', CANVAS_WIDTH / 2, keysY);
+    ctx.fillText(t('settings.keys.title'), CANVAS_WIDTH / 2, keysY);
 
     const bindingsLeft = [
-        ['WASD / Arrows', 'Move'],
-        ['SPACE / LMB', 'Melee Attack'],
-        ['M / RMB', 'Dash / Roll'],
-        ['N / MMB', 'Throw Dagger'],
-        ['Q / E', 'Abilities 1 & 2'],
-        ['B', 'Use Bomb'],
+        ['WASD / Arrows', t('settings.keys.move')],
+        ['SPACE / LMB', t('settings.keys.attack')],
+        ['M / RMB', t('settings.keys.dash')],
+        ['N / MMB', t('settings.keys.dagger')],
+        ['Q / E', t('settings.keys.abilities')],
+        ['B', t('settings.keys.bomb')],
     ];
 
     const bindingsRight = [
-        ['T', 'Talent Tree'],
-        ['P / ESC', 'Pause'],
-        ['R', 'Reroll (Level-Up)'],
-        ['G', 'Meta Menu (Game Over)'],
-        ['1-3', 'Quick Pick (Level-Up)'],
-        ['X', 'Delete (Profiles)'],
+        ['T', t('settings.keys.talents')],
+        ['P / ESC', t('settings.keys.pause')],
+        ['R', t('settings.keys.reroll')],
+        ['G', t('settings.keys.metaMenu')],
+        ['1-3', t('settings.keys.quickPick')],
+        ['X', t('settings.keys.delete')],
     ];
 
     ctx.font = '10px monospace';
@@ -201,7 +213,7 @@ export function renderSettings(ctx, cursor, sfxMuted, musicEnabled, proceduralRo
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S to navigate  ·  ENTER/Click to toggle  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 12);
+    ctx.fillText(t('settings.hint'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 12);
 
     ctx.textAlign = 'left';
 }

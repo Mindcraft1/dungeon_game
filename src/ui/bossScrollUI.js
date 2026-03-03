@@ -4,6 +4,7 @@
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the boss scroll choice overlay.
@@ -39,11 +40,11 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
     // Title
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText('📜 ANCIENT SCROLL', CANVAS_WIDTH / 2, py + 38);
+    ctx.fillText(t('bossScroll.title'), CANVAS_WIDTH / 2, py + 38);
 
     ctx.fillStyle = '#aaa';
     ctx.font = '12px monospace';
-    ctx.fillText('Choose one permanent unlock:', CANVAS_WIDTH / 2, py + 60);
+    ctx.fillText(t('bossScroll.subtitle'), CANVAS_WIDTH / 2, py + 60);
 
     // Choices
     const startY = py + 90;
@@ -63,7 +64,7 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
         }
 
         // Type label
-        const typeLabel = choice.type === 'ability' ? 'ABILITY' : choice.type === 'proc' ? 'PASSIVE' : 'NODE';
+        const typeLabel = choice.type === 'ability' ? t('bossScroll.ability') : choice.type === 'proc' ? t('bossScroll.passive') : t('bossScroll.node');
 
         ctx.fillStyle = selected ? choice.color : '#888';
         ctx.font = selected ? 'bold 15px monospace' : '14px monospace';
@@ -97,7 +98,7 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
     // Controls
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S Navigate · ENTER/Click Confirm', CANVAS_WIDTH / 2, py + panelH - 16);
+    ctx.fillText(t('bossScroll.controls'), CANVAS_WIDTH / 2, py + panelH - 16);
 
     ctx.textAlign = 'left';
 }

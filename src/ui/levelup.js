@@ -2,6 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL,
     PERF_TIER_COLORS, PERF_TIER_ICONS, PERF_TIER_BRONZE } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
+import { t } from '../i18n.js';
 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
@@ -59,7 +60,7 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     const tierIcon  = PERF_TIER_ICONS[performanceTier]  || '🎁';
     ctx.fillStyle = tierColor;
     ctx.font = 'bold 24px monospace';
-    ctx.fillText(`${tierIcon} ROOM REWARD`, CANVAS_WIDTH / 2, by + 40);
+    ctx.fillText(`${tierIcon} ${t('levelup.title')}`, CANVAS_WIDTH / 2, by + 40);
 
     const tierLabel = performanceTier.charAt(0).toUpperCase() + performanceTier.slice(1);
     ctx.fillStyle = '#aaa';
@@ -134,10 +135,10 @@ export function renderLevelUpOverlay(ctx, player, selectedIndex = 0, choices = n
     ctx.font = '11px monospace';
     if (spaceConfirmReady) {
         ctx.fillStyle = '#ffd700';
-        ctx.fillText('Press SPACE again to confirm', CANVAS_WIDTH / 2, by + bh - 16);
+        ctx.fillText(t('levelup.confirmHint'), CANVAS_WIDTH / 2, by + bh - 16);
     } else {
-        const rerollHint = rerollTokenCount > 0 ? `  ·  R to Reroll (${rerollTokenCount})` : '';
-        ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm' + rerollHint, CANVAS_WIDTH / 2, by + bh - 16);
+        const rerollHint = rerollTokenCount > 0 ? `  \u00b7  ${t('levelup.reroll', { n: rerollTokenCount })}` : '';
+        ctx.fillText(t('levelup.selectHint') + rerollHint, CANVAS_WIDTH / 2, by + bh - 16);
     }
     ctx.textAlign = 'left';
 }
@@ -162,11 +163,11 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
     // Title
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 36px monospace';
-    ctx.fillText('GAME OVER', cx, 65);
+    ctx.fillText(t('gameover.title'), cx, 65);
 
     ctx.fillStyle = '#aaa';
     ctx.font = '16px monospace';
-    ctx.fillText(`Stage ${stage}  ·  Level ${level}`, cx, 95);
+    ctx.fillText(t('gameover.info', { stage: stage, level: level }), cx, 95);
 
     // Run summary (meta rewards)
     let summaryY = 122;
@@ -175,19 +176,19 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
 
         if (runRewards.bossesDefeatedThisRun > 0) {
             ctx.fillStyle = '#ff5722';
-            ctx.fillText(`Bosses Defeated: ${runRewards.bossesDefeatedThisRun}`, cx, summaryY);
+            ctx.fillText(t('gameover.bosses', { n: runRewards.bossesDefeatedThisRun }), cx, summaryY);
             summaryY += 17;
         }
 
         if (runRewards.coreShardsGainedThisRun > 0) {
             ctx.fillStyle = '#ffd700';
-            ctx.fillText(`◆ Core Shards Gained: +${runRewards.coreShardsGainedThisRun}`, cx, summaryY);
+            ctx.fillText(t('gameover.shards', { n: runRewards.coreShardsGainedThisRun }), cx, summaryY);
             summaryY += 17;
         }
 
         if (runRewards.relicUnlockedThisRun) {
             ctx.fillStyle = '#bb86fc';
-            ctx.fillText(`Relic Unlocked!`, cx, summaryY);
+            ctx.fillText(t('gameover.relicUnlocked'), cx, summaryY);
             summaryY += 17;
         }
     }
@@ -197,7 +198,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         summaryY += 4;
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('── UNLOCKED THIS RUN ──', cx, summaryY);
+        ctx.fillText(t('gameover.unlockedThisRun'), cx, summaryY);
         summaryY += 14;
 
         for (const u of runUnlocks) {
@@ -226,7 +227,7 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         ctx.fillStyle = '#888';
         ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('ACTIVE EFFECTS AT DEATH', cx, panelTop + 8);
+        ctx.fillText(t('gameover.activeEffects'), cx, panelTop + 8);
 
         // Clip for effects
         ctx.save();
@@ -341,11 +342,11 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
     ctx.textAlign = 'center';
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Press ENTER or Click for menu', cx, CANVAS_HEIGHT - 28);
+    ctx.fillText(t('gameover.menuHint'), cx, CANVAS_HEIGHT - 28);
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('G = Meta Progress', cx, CANVAS_HEIGHT - 12);
+    ctx.fillText(t('gameover.metaHint'), cx, CANVAS_HEIGHT - 12);
 
     ctx.textAlign = 'left';
 }
@@ -362,19 +363,19 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
     const unlockLines = [];
     if (bossReward) {
         if (bossReward.shardsGained > 0)
-            unlockLines.push({ text: `◆ +${bossReward.shardsGained} Core Shards`, color: '#ffd700' });
+            unlockLines.push({ text: t('boss.shardsGained', { n: bossReward.shardsGained }), color: '#ffd700' });
         if (bossReward.relicId && relicDefs && relicDefs[bossReward.relicId]) {
             const r = relicDefs[bossReward.relicId];
-            unlockLines.push({ text: `${r.icon} Relic Unlocked: ${r.name}`, color: r.color });
+            unlockLines.push({ text: `${r.icon} ${t('boss.relicUnlocked', { name: r.name })}`, color: r.color });
         }
         if (bossReward.runUpgradeId && upgradeDefs && upgradeDefs[bossReward.runUpgradeId]) {
             const u = upgradeDefs[bossReward.runUpgradeId];
-            unlockLines.push({ text: `${u.icon} New Upgrade: ${u.name}`, color: u.color });
+            unlockLines.push({ text: `${u.icon} ${t('boss.newUpgrade', { name: u.name })}`, color: u.color });
         }
         if (bossReward.combatUnlock) {
             const cu = bossReward.combatUnlock;
-            const label = cu.type === 'ability' ? 'Ability' : 'Passive';
-            unlockLines.push({ text: `${cu.icon} ${label} Unlocked: ${cu.name}`, color: cu.color });
+            const label = cu.type === 'ability' ? t('boss.ability') : t('boss.passive');
+            unlockLines.push({ text: `${cu.icon} ${t('boss.combatUnlock', { label, name: cu.name })}`, color: cu.color });
         }
     }
     const extraH = unlockLines.length * 22 + (unlockLines.length > 0 ? 16 : 0);
@@ -405,7 +406,7 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
     // Title
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 26px monospace';
-    ctx.fillText('BOSS DEFEATED!', CANVAS_WIDTH / 2, by + 42);
+    ctx.fillText(t('boss.defeated'), CANVAS_WIDTH / 2, by + 42);
 
     // Boss name
     ctx.fillStyle = bossColor;
@@ -415,7 +416,7 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
     // Subtitle
     ctx.fillStyle = '#4caf50';
     ctx.font = '12px monospace';
-    ctx.fillText('✦ Full Heal + Choose Permanent Reward ✦', CANVAS_WIDTH / 2, by + 94);
+    ctx.fillText(t('boss.rewardSubtitle'), CANVAS_WIDTH / 2, by + 94);
 
     // Unlock info
     if (unlockLines.length > 0) {
@@ -430,9 +431,9 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
 
     // Reward options
     const opts = [
-        { key: '1', text: `+${rewardHP} Max HP  (permanent)`, color: '#4caf50' },
-        { key: '2', text: `+${rewardDamage} Damage  (permanent)`, color: '#f44336' },
-        { key: '3', text: `+${rewardSpeed} Speed  (permanent)`, color: '#2196f3' },
+        { key: '1', text: t('boss.rewardHP', { n: rewardHP }), color: '#4caf50' },
+        { key: '2', text: t('boss.rewardDamage', { n: rewardDamage }), color: '#f44336' },
+        { key: '3', text: t('boss.rewardSpeed', { n: rewardSpeed }), color: '#2196f3' },
     ];
     const startY = by + 132 + extraH;
     const rowH = 46;
@@ -461,6 +462,6 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
 
     ctx.fillStyle = '#555';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S to select  ·  Click / ENTER / 1-3 to confirm', CANVAS_WIDTH / 2, by + bh - 18);
+    ctx.fillText(t('levelup.selectHint'), CANVAS_WIDTH / 2, by + bh - 18);
     ctx.textAlign = 'left';
 }

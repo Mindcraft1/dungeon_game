@@ -1,6 +1,7 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { getClassById } from '../classes.js';
 import { renderMenuParticles } from './menuParticles.js';
+import { t } from '../i18n.js';
 
 /**
  * Draw the main menu screen.
@@ -38,19 +39,19 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     ctx.shadowBlur = 20 * glow;
     ctx.fillStyle = '#4fc3f7';
     ctx.font = 'bold 48px monospace';
-    ctx.fillText('DUNGEON ROOMS', CANVAS_WIDTH / 2, 180);
+    ctx.fillText(t('menu.title'), CANVAS_WIDTH / 2, 180);
     ctx.restore();
 
     // Subtitle
     ctx.fillStyle = '#666';
     ctx.font = '14px monospace';
-    ctx.fillText('Clear every room. Level up. Survive.', CANVAS_WIDTH / 2, 220);
+    ctx.fillText(t('menu.subtitle'), CANVAS_WIDTH / 2, 220);
 
     // Active character + Highscore line
     if (profileName) {
         ctx.fillStyle = '#81c784';
         ctx.font = 'bold 13px monospace';
-        const hsText = highscore > 0 ? `  ·  ★ Best: Stage ${highscore}` : '';
+        const hsText = highscore > 0 ? `  ·  ${t('menu.best', { n: highscore })}` : '';
         ctx.fillText(`♦ ${profileName}${hsText}`, CANVAS_WIDTH / 2, 250);
 
         // Class indicator
@@ -63,19 +64,19 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     } else if (highscore > 0) {
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 14px monospace';
-        ctx.fillText(`★ Highscore: Stage ${highscore}`, CANVAS_WIDTH / 2, 250);
+        ctx.fillText(t('menu.highscore', { n: highscore }), CANVAS_WIDTH / 2, 250);
     }
 
     // Menu options
     const boosterHint = selectedBooster ? `  ·  ✓ ${selectedBooster}` : '';
     const options = [
-        { label: 'START GAME', desc: 'Fight through dungeon rooms', color: '#4fc3f7' },
-        { label: 'META PROGRESS', desc: `Perks, Relics & Stats  ·  ◆ ${coreShards}`, color: '#bb86fc' },
-        { label: 'SHOP', desc: `Boosters for your next run${boosterHint}`, color: '#ffd700' },
-        { label: 'ACHIEVEMENTS', desc: 'View your trophies & milestones', color: '#ffab40' },
-        { label: 'CHARACTERS', desc: 'Create & switch player profiles', color: '#81c784' },
-        { label: 'TRAINING', desc: 'Practice without taking damage', color: '#ffd700' },
-        { label: 'SETTINGS', desc: 'Audio, controls & preferences', color: '#e0e0e0' },
+        { label: t('menu.start'), desc: t('menu.startDesc'), color: '#4fc3f7' },
+        { label: t('menu.meta'), desc: `${t('menu.metaDesc')}  ·  ◆ ${coreShards}`, color: '#bb86fc' },
+        { label: t('menu.shop'), desc: `${t('menu.shopDesc')}${boosterHint}`, color: '#ffd700' },
+        { label: t('menu.achievements'), desc: t('menu.achievementsDesc'), color: '#ffab40' },
+        { label: t('menu.characters'), desc: t('menu.charactersDesc'), color: '#81c784' },
+        { label: t('menu.training'), desc: t('menu.trainingDesc'), color: '#ffd700' },
+        { label: t('menu.settings'), desc: t('menu.settingsDesc'), color: '#e0e0e0' },
     ];
 
     const startY = 290;
@@ -117,7 +118,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
     // Controls hint
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
-    ctx.fillText('W/S or ↑/↓ to select  ·  ENTER or Click to confirm', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
+    ctx.fillText(t('menu.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
 
     ctx.textAlign = 'left';
 }

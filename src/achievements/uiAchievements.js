@@ -7,6 +7,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { ACHIEVEMENTS, TIER_INFO, TIER_ORDER } from './achievementsList.js';
 import * as Store from './achievementStore.js';
 import { getDisplayProgress } from './achievementEngine.js';
+import { t } from '../i18n.js';
 
 const PAGE_SIZE = 7;  // visible rows
 
@@ -36,18 +37,18 @@ export function renderAchievements(ctx, cursor, filterIndex) {
     // Title
     ctx.fillStyle = '#e040fb';
     ctx.font = 'bold 28px monospace';
-    ctx.fillText('ACHIEVEMENTS', CANVAS_WIDTH / 2, 45);
+    ctx.fillText(t('achievements.title'), CANVAS_WIDTH / 2, 45);
 
     // Unlocked count
     const total = ACHIEVEMENTS.length;
     const unlocked = Store.getUnlockedCount();
     ctx.fillStyle = '#888';
     ctx.font = '12px monospace';
-    ctx.fillText(`${unlocked} / ${total} Unlocked`, CANVAS_WIDTH / 2, 65);
+    ctx.fillText(t('achievements.unlocked', { n: unlocked, total }), CANVAS_WIDTH / 2, 65);
 
     // ── Tab filters ──
-    const filterLabels = ['All', ...TIER_ORDER.map(t => TIER_INFO[t].label)];
-    const filterColors = ['#aaa', ...TIER_ORDER.map(t => TIER_INFO[t].color)];
+    const filterLabels = [t('achievements.all'), ...TIER_ORDER.map(ti => TIER_INFO[ti].label)];
+    const filterColors = ['#aaa', ...TIER_ORDER.map(ti => TIER_INFO[ti].color)];
     const tabY = 84;
     const tabSpacing = 120;
     const tabStartX = CANVAS_WIDTH / 2 - (filterLabels.length - 1) * tabSpacing / 2;
@@ -69,7 +70,7 @@ export function renderAchievements(ctx, cursor, filterIndex) {
     if (filtered.length === 0) {
         ctx.fillStyle = '#555';
         ctx.font = '14px monospace';
-        ctx.fillText('No achievements in this category.', CANVAS_WIDTH / 2, 220);
+        ctx.fillText(t('achievements.none'), CANVAS_WIDTH / 2, 220);
         _renderHints(ctx);
         return;
     }
@@ -201,5 +202,5 @@ function _renderHints(ctx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S = Navigate  ·  A/D/Click = Filter  ·  ESC/RMB = Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
+    ctx.fillText(t('achievements.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 25);
 }

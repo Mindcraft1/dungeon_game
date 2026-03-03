@@ -12,6 +12,7 @@ import {
 } from '../combat/combatUnlocks.js';
 import { getUnlockSummary } from '../unlocks/unlockMap.js';
 import { WEAPON_ORDER, WEAPON_DEFINITIONS, isWeaponUnlocked } from '../weapons.js';
+import { t } from '../i18n.js';
 
 /**
  * Render the loadout selection screen.
@@ -49,12 +50,12 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.shadowBlur = 15 * glow;
     ctx.fillStyle = '#ff9800';
     ctx.font = 'bold 28px monospace';
-    ctx.fillText('⚔  LOADOUT  ⚔', CANVAS_WIDTH / 2, 38);
+    ctx.fillText(t('loadout.title'), CANVAS_WIDTH / 2, 38);
     ctx.restore();
 
     ctx.fillStyle = '#666';
     ctx.font = '11px monospace';
-    ctx.fillText(forTraining ? 'Choose abilities & passives for training' : 'Choose abilities & passives for your run', CANVAS_WIDTH / 2, 56);
+    ctx.fillText(forTraining ? t('loadout.subtitleTraining') : t('loadout.subtitle'), CANVAS_WIDTH / 2, 56);
 
     // ── Current loadout summary strip ──
     _renderSummaryStrip(ctx, selectedAbilities, selectedProcs, selectedWeaponId);
@@ -66,7 +67,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = '#4fc3f7';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('── ACTIVE ABILITIES ──  (max 2)', CANVAS_WIDTH / 2, 156);
+    ctx.fillText(t('loadout.activeAbilities'), CANVAS_WIDTH / 2, 156);
 
     const abilityStartY = 174;
     const itemSpacing = 34;
@@ -88,7 +89,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = '#ff9800';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('── PASSIVE EFFECTS ──  (max 2)', CANVAS_WIDTH / 2, procHeaderY);
+    ctx.fillText(t('loadout.passiveEffects'), CANVAS_WIDTH / 2, procHeaderY);
 
     const procStartY = procHeaderY + 22;
 
@@ -131,12 +132,12 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = isStartCursor ? (canStart ? '#4caf50' : '#ef5350') : '#555';
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(forTraining ? '▶  START TRAINING' : '▶  START RUN', CANVAS_WIDTH / 2, startY + 6);
+    ctx.fillText(forTraining ? t('loadout.startTraining') : t('loadout.startRun'), CANVAS_WIDTH / 2, startY + 6);
 
     if (!canStart) {
         ctx.fillStyle = '#ef5350';
         ctx.font = '11px monospace';
-        ctx.fillText('Select at least 1 ability', CANVAS_WIDTH / 2, startY + 24);
+        ctx.fillText(t('loadout.selectAbility'), CANVAS_WIDTH / 2, startY + 24);
     }
 
     // ── Reject flash overlay ──
@@ -150,7 +151,7 @@ export function renderLoadoutScreen(ctx, cursor, selectedAbilities, selectedProc
     ctx.fillStyle = '#444';
     ctx.font = '12px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('W/S Navigate  ·  A/D Weapon  ·  Click/SPACE Select  ·  ENTER Start  ·  ESC/RMB Back', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
+    ctx.fillText(t('loadout.controls'), CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
 
     ctx.textAlign = 'left';
 }
@@ -211,7 +212,7 @@ function _renderWeaponSelector(ctx, selectedWeaponId, highscore) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff9800';
     ctx.font = 'bold 12px monospace';
-    ctx.fillText('── WEAPON ──  (A/D to change)', centerX, y - 14);
+    ctx.fillText(t('loadout.weapon'), centerX, y - 14);
 
     // Draw weapon cards side by side
     const cardW = 160;
@@ -278,7 +279,7 @@ function _renderWeaponSelector(ctx, selectedWeaponId, highscore) {
             ctx.fillText(`🔒 ${def.name}`, midX, y + 12);
             ctx.fillStyle = '#383838';
             ctx.font = '9px monospace';
-            ctx.fillText(`Reach Stage ${def.unlock.value}`, midX, y + 26);
+            ctx.fillText(t('loadout.reachStage', { n: def.unlock.value }), midX, y + 26);
         }
     }
 }

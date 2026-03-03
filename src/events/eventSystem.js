@@ -13,6 +13,7 @@ import {
 } from '../constants.js';
 import * as UpgradeEngine from '../upgrades/upgradeEngine.js';
 import { drawRarityBadge } from '../ui/rarityBadge.js';
+import { t } from '../i18n.js';
 
 // ── Event Definitions ──
 
@@ -272,25 +273,27 @@ export function renderEvent(ctx, eventState) {
     // Title
     ctx.fillStyle = def.color;
     ctx.font = 'bold 22px monospace';
-    ctx.fillText(`${def.icon}  ${def.name}`, CANVAS_WIDTH / 2, py + 36);
+    const eName = t(`event.name.${def.id}`) !== `event.name.${def.id}` ? t(`event.name.${def.id}`) : def.name;
+    ctx.fillText(`${def.icon}  ${eName}`, CANVAS_WIDTH / 2, py + 36);
 
     // Description
     ctx.fillStyle = '#aaa';
     ctx.font = '12px monospace';
-    ctx.fillText(def.desc, CANVAS_WIDTH / 2, py + 58);
+    const eDesc = t(`event.desc.${def.id}`) !== `event.desc.${def.id}` ? t(`event.desc.${def.id}`) : def.desc;
+    ctx.fillText(eDesc, CANVAS_WIDTH / 2, py + 58);
 
     // Phase-specific rendering
     if (phase === 'empty') {
         ctx.fillStyle = '#666';
         ctx.font = '14px monospace';
-        ctx.fillText('Nothing to modify.', CANVAS_WIDTH / 2, py + 100);
-        ctx.fillText('Press ENTER to continue', CANVAS_WIDTH / 2, py + 130);
+        ctx.fillText(t('event.nothing'), CANVAS_WIDTH / 2, py + 100);
+        ctx.fillText(t('event.pressEnter'), CANVAS_WIDTH / 2, py + 130);
     } else if (phase === 'category') {
         // Forge: show category choices
         const cats = eventState.categories || [];
         ctx.fillStyle = '#ccc';
         ctx.font = '13px monospace';
-        ctx.fillText('Choose a category to upgrade:', CANVAS_WIDTH / 2, py + 80);
+        ctx.fillText(t('event.chooseCategory'), CANVAS_WIDTH / 2, py + 80);
 
         const startY = py + 110;
         const rowH = 36;
@@ -348,7 +351,7 @@ export function renderEvent(ctx, eventState) {
         // Library: show applied nodes to remove
         ctx.fillStyle = '#ccc';
         ctx.font = '13px monospace';
-        ctx.fillText('Choose an upgrade to replace:', CANVAS_WIDTH / 2, py + 80);
+        ctx.fillText(t('event.chooseReplace'), CANVAS_WIDTH / 2, py + 80);
 
         const nodes = eventState.appliedNodes || [];
         const startY = py + 110;
@@ -378,42 +381,42 @@ export function renderEvent(ctx, eventState) {
         const skipSelected = cursor === nodes.length;
         ctx.fillStyle = skipSelected ? '#aaa' : '#555';
         ctx.font = skipSelected ? 'bold 13px monospace' : '12px monospace';
-        ctx.fillText('Skip', CANVAS_WIDTH / 2, skipY + 4);
+        ctx.fillText(t('event.skip'), CANVAS_WIDTH / 2, skipY + 4);
     } else if (phase === 'challenge') {
         // Trial countdown (rendered as HUD banner during gameplay, not here)
         const secs = Math.ceil((eventState.timeRemaining || 0) / 1000);
         ctx.fillStyle = '#f44336';
         ctx.font = 'bold 28px monospace';
-        ctx.fillText(`Survive: ${secs}s`, CANVAS_WIDTH / 2, py + 120);
+        ctx.fillText(t('event.survive', { secs }), CANVAS_WIDTH / 2, py + 120);
         ctx.fillStyle = '#aaa';
         ctx.font = '13px monospace';
-        ctx.fillText('Defeat the enemies or survive the timer!', CANVAS_WIDTH / 2, py + 160);
+        ctx.fillText(t('event.defeatOrSurvive'), CANVAS_WIDTH / 2, py + 160);
     } else if (phase === 'result') {
         // Show result
         const r = eventState.result;
         if (r && r.nodeApplied) {
             ctx.fillStyle = '#4caf50';
             ctx.font = 'bold 16px monospace';
-            ctx.fillText(`✦ ${r.nodeApplied.icon} ${r.nodeApplied.name} applied!`, CANVAS_WIDTH / 2, py + 110);
+            ctx.fillText(t('event.applied', { icon: r.nodeApplied.icon, name: r.nodeApplied.name }), CANVAS_WIDTH / 2, py + 110);
         } else if (r && r.skipped) {
             ctx.fillStyle = '#888';
             ctx.font = '14px monospace';
-            ctx.fillText('Skipped.', CANVAS_WIDTH / 2, py + 110);
+            ctx.fillText(t('event.skipped'), CANVAS_WIDTH / 2, py + 110);
         } else if (r && r.tokenGranted) {
             ctx.fillStyle = '#ff9800';
             ctx.font = 'bold 16px monospace';
-            ctx.fillText(`✦ ${r.tokenGranted} Token acquired!`, CANVAS_WIDTH / 2, py + 110);
+            ctx.fillText(t('event.tokenAcquired', { name: r.tokenGranted }), CANVAS_WIDTH / 2, py + 110);
         }
 
         ctx.fillStyle = '#666';
         ctx.font = '13px monospace';
-        ctx.fillText('Press ENTER to continue', CANVAS_WIDTH / 2, py + 150);
+        ctx.fillText(t('event.pressEnter'), CANVAS_WIDTH / 2, py + 150);
     }
 
     // Controls hint at bottom
     ctx.fillStyle = '#444';
     ctx.font = '11px monospace';
-    ctx.fillText('W/S Navigate · ENTER/Click Select · ESC/RMB Skip', CANVAS_WIDTH / 2, py + panelH - 14);
+    ctx.fillText(t('event.hint'), CANVAS_WIDTH / 2, py + panelH - 14);
 
     ctx.textAlign = 'left';
 }
