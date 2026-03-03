@@ -7,7 +7,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { ACHIEVEMENTS, TIER_INFO, TIER_ORDER } from './achievementsList.js';
 import * as Store from './achievementStore.js';
 import { getDisplayProgress } from './achievementEngine.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 const PAGE_SIZE = 7;  // visible rows
 
@@ -146,12 +146,12 @@ function _renderRow(ctx, ach, y, isSelected, isUnlocked) {
     const nameX = rx + 50;
     ctx.font = 'bold 14px monospace';
     ctx.fillStyle = isUnlocked ? tierInfo.color : '#555';
-    ctx.fillText(isUnlocked ? ach.name : ach.name, nameX, y + 22);
+    ctx.fillText(isUnlocked ? td(ach) : td(ach), nameX, y + 22);
 
     // Description
     ctx.font = '11px monospace';
     ctx.fillStyle = isUnlocked ? '#aaa' : '#444';
-    ctx.fillText(ach.description, nameX, y + 38);
+    ctx.fillText(td(ach, 'description'), nameX, y + 38);
 
     // Tier badge
     ctx.textAlign = 'right';

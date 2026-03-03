@@ -4,7 +4,7 @@
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Render the boss scroll choice overlay.
@@ -68,13 +68,13 @@ export function renderBossScrollOverlay(ctx, choices, cursor) {
 
         ctx.fillStyle = selected ? choice.color : '#888';
         ctx.font = selected ? 'bold 15px monospace' : '14px monospace';
-        ctx.fillText(`${choice.icon}  ${choice.name}`, CANVAS_WIDTH / 2, y + 2);
+        ctx.fillText(`${choice.icon}  ${td(choice) || choice.name}`, CANVAS_WIDTH / 2, y + 2);
 
         // Description
         if (choice.desc) {
             ctx.fillStyle = selected ? '#ccc' : '#666';
             ctx.font = '11px monospace';
-            ctx.fillText(choice.desc, CANVAS_WIDTH / 2, y + 18);
+            ctx.fillText(td(choice, 'desc') || choice.desc, CANVAS_WIDTH / 2, y + 18);
         }
 
         // Type tag and rarity badge

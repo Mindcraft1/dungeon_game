@@ -6,6 +6,7 @@
 import { NODE_DEFINITIONS, NODE_IDS, getNode, createDefaultCombatMods } from './nodes.js';
 import { NODE_RARITY_COMMON, NODE_RARITY_UNCOMMON, NODE_RARITY_RARE, NODE_RARITY_EPIC, NODE_RARITY_LEGENDARY, PERF_RARITY_SHIFT, PERF_TIER_BRONZE } from '../constants.js';
 import * as MetaStore from '../meta/metaStore.js';
+import { t, td } from '../i18n.js';
 
 // ── Rarity base weights for random selection ──
 const BASE_RARITY_WEIGHTS = {
@@ -298,7 +299,7 @@ export function buildLevelUpChoices(context, player) {
             type: 'node',
             id: def.id,
             nodeId: def.id,
-            label: `${def.icon} ${def.name}: ${def.desc}`,
+            label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
             color: def.color,
             rarity: def.rarity,
         });
@@ -324,7 +325,7 @@ export function buildLevelUpChoices(context, player) {
                 type: 'node',
                 id: def.id,
                 nodeId: def.id,
-                label: `${def.icon} ${def.name}: ${def.desc}`,
+                label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
                 color: def.color,
                 rarity: def.rarity,
             });
@@ -359,9 +360,9 @@ function _getBaseStatChoices(player) {
     const spdGain = 15 + Math.floor(lvl * 0.5);
     const dmgGain = 8  + Math.floor(lvl * 1.5);
     return [
-        { type: 'base', id: 'hp', label: `+${hpGain} Max HP (heal +${Math.floor(hpGain * 0.6)})`, color: '#4caf50', icon: '❤️' },
-        { type: 'base', id: 'speed', label: `+${spdGain} Speed`, color: '#2196f3', icon: '👢' },
-        { type: 'base', id: 'damage', label: `+${dmgGain} Damage`, color: '#f44336', icon: '⚔️' },
+        { type: 'base', id: 'hp', label: t('levelup.hp', { n: hpGain, heal: Math.floor(hpGain * 0.6) }), color: '#4caf50', icon: '❤️' },
+        { type: 'base', id: 'speed', label: t('levelup.speed', { n: spdGain }), color: '#2196f3', icon: '👢' },
+        { type: 'base', id: 'damage', label: t('levelup.damage', { n: dmgGain }), color: '#f44336', icon: '⚔️' },
     ];
 }
 
@@ -397,7 +398,7 @@ export function buildRewardChoices(context, player, perfTier = PERF_TIER_BRONZE)
             type: 'node',
             id: def.id,
             nodeId: def.id,
-            label: `${def.icon} ${def.name}: ${def.desc}`,
+            label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
             color: def.color,
             rarity: def.rarity,
         });
@@ -422,7 +423,7 @@ export function buildRewardChoices(context, player, perfTier = PERF_TIER_BRONZE)
                 type: 'node',
                 id: def.id,
                 nodeId: def.id,
-                label: `${def.icon} ${def.name}: ${def.desc}`,
+                label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
                 color: def.color,
                 rarity: def.rarity,
             });

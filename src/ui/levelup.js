@@ -2,7 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, UPGRADE_HP, UPGRADE_SPEED, UPGRADE_DAMAGE,
     UPGRADE_HP_PER_LEVEL, UPGRADE_SPEED_PER_LEVEL, UPGRADE_DAMAGE_PER_LEVEL,
     PERF_TIER_COLORS, PERF_TIER_ICONS, PERF_TIER_BRONZE } from '../constants.js';
 import { drawRarityBadge } from './rarityBadge.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Draw the Level-Up overlay (game is paused while visible).
@@ -204,7 +204,8 @@ export function renderGameOverOverlay(ctx, stage, level, runRewards = null, acti
         for (const u of runUnlocks) {
             ctx.fillStyle = u.color;
             ctx.font = '10px monospace';
-            ctx.fillText(`${u.icon} ${u.type}: ${u.name}`, cx, summaryY);
+            const uType = u.type === 'ability' ? t('unlock.ability') : u.type === 'proc' ? t('unlock.passive') : t('unlock.node');
+            ctx.fillText(`${u.icon} ${uType}: ${td(u)}`, cx, summaryY);
             summaryY += 14;
         }
     }
@@ -366,16 +367,16 @@ export function renderBossVictoryOverlay(ctx, bossName, bossColor, selectedIndex
             unlockLines.push({ text: t('boss.shardsGained', { n: bossReward.shardsGained }), color: '#ffd700' });
         if (bossReward.relicId && relicDefs && relicDefs[bossReward.relicId]) {
             const r = relicDefs[bossReward.relicId];
-            unlockLines.push({ text: `${r.icon} ${t('boss.relicUnlocked', { name: r.name })}`, color: r.color });
+            unlockLines.push({ text: `${r.icon} ${t('boss.relicUnlocked', { name: td(r) })}`, color: r.color });
         }
         if (bossReward.runUpgradeId && upgradeDefs && upgradeDefs[bossReward.runUpgradeId]) {
             const u = upgradeDefs[bossReward.runUpgradeId];
-            unlockLines.push({ text: `${u.icon} ${t('boss.newUpgrade', { name: u.name })}`, color: u.color });
+            unlockLines.push({ text: `${u.icon} ${t('boss.newUpgrade', { name: td(u) })}`, color: u.color });
         }
         if (bossReward.combatUnlock) {
             const cu = bossReward.combatUnlock;
             const label = cu.type === 'ability' ? t('boss.ability') : t('boss.passive');
-            unlockLines.push({ text: `${cu.icon} ${t('boss.combatUnlock', { label, name: cu.name })}`, color: cu.color });
+            unlockLines.push({ text: `${cu.icon} ${t('boss.combatUnlock', { label, name: td(cu) })}`, color: cu.color });
         }
     }
     const extraH = unlockLines.length * 22 + (unlockLines.length > 0 ? 16 : 0);

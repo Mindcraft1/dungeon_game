@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { TILE_SIZE, CANVAS_WIDTH } from '../constants.js';
+import { t, td, tdId } from '../i18n.js';
 
 const INTERACT_RADIUS = 36;   // how close the player must be to buy
 const BOB_SPEED = 2.5;        // floating bob frequency
@@ -61,7 +62,7 @@ export class ShopItem {
             ctx.fillStyle = '#666';
             ctx.font = 'bold 12px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('SOLD', this.x, this.y + 4);
+            ctx.fillText(t('entity.sold'), this.x, this.y + 4);
             ctx.restore();
             return;
         }
@@ -95,7 +96,7 @@ export class ShopItem {
         // Name (below price)
         ctx.font = '9px monospace';
         ctx.fillStyle = '#ccc';
-        ctx.fillText(this.name, this.x, bobY + 24);
+        ctx.fillText(tdId(this.id) || this.name, this.x, bobY + 24);
 
         // Interaction prompt when nearby
         if (this.nearby) {
@@ -112,7 +113,7 @@ export class ShopItem {
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 10px monospace';
             ctx.textBaseline = 'bottom';
-            ctx.fillText('[SPACE] Buy', this.x, bobY - 26);
+            ctx.fillText(t('entity.buy'), this.x, bobY - 26);
             ctx.globalAlpha = 1;
         }
 
@@ -143,10 +144,10 @@ export class ShopItem {
         // Item name + desc
         ctx.fillStyle = this.color;
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(`${this.icon} ${this.name}`, tx, ty - 6);
+        ctx.fillText(`${this.icon} ${tdId(this.id) || this.name}`, tx, ty - 6);
         ctx.fillStyle = '#aaa';
         ctx.font = '10px monospace';
-        ctx.fillText(this.desc, tx, ty + 10);
+        ctx.fillText(tdId(this.id, 'desc') || this.desc, tx, ty + 10);
 
         ctx.restore();
     }

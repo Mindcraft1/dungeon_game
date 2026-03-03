@@ -18,6 +18,7 @@ import {
     CANVAS_HEIGHT,
 } from '../../constants.js';
 import { registerRoomType } from '../roomRegistry.js';
+import { t } from '../../i18n.js';
 
 // ── Per-room darkness state (module-scoped, reset in onEnter) ──
 let _active = false;
@@ -194,7 +195,7 @@ registerRoomType(ROOM_TYPE_DARKNESS, {
             ctx.font = 'bold 20px monospace';
             ctx.shadowColor = '#8866cc';
             ctx.shadowBlur = 14;
-            ctx.fillText('🌑  The darkness surrounds you…', CANVAS_WIDTH / 2, cy + 4);
+            ctx.fillText(t('room.darkness'), CANVAS_WIDTH / 2, cy + 4);
             ctx.shadowBlur = 0;
 
             ctx.restore();

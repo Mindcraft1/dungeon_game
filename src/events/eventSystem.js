@@ -13,7 +13,7 @@ import {
 } from '../constants.js';
 import * as UpgradeEngine from '../upgrades/upgradeEngine.js';
 import { drawRarityBadge } from '../ui/rarityBadge.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 // ── Event Definitions ──
 
@@ -131,7 +131,7 @@ export function createEventState(eventType, context) {
             base.choices = [];
             if (rareNodes.length > 0) {
                 base.choices.push({
-                    label: `${rareNodes[0].icon} ${rareNodes[0].name} (${rareNodes[0].desc}) — Curse: -10% Max HP`,
+                    label: `${rareNodes[0].icon} ${td(rareNodes[0])} (${td(rareNodes[0], 'desc')}) — ${t('event.curse')}: -10% Max HP`,
                     nodeId: rareNodes[0].id,
                     color: rareNodes[0].color,
                     rarity: rareNodes[0].rarity,
@@ -141,7 +141,7 @@ export function createEventState(eventType, context) {
             }
             if (commonNodes.length > 0) {
                 base.choices.push({
-                    label: `${commonNodes[0].icon} ${commonNodes[0].name} (${commonNodes[0].desc})`,
+                    label: `${commonNodes[0].icon} ${td(commonNodes[0])} (${td(commonNodes[0], 'desc')})`,
                     nodeId: commonNodes[0].id,
                     color: commonNodes[0].color,
                     rarity: commonNodes[0].rarity,
@@ -183,7 +183,7 @@ export function createEventState(eventType, context) {
             base.choices = [];
             if (randomNode.length > 0) {
                 base.choices.push({
-                    label: `🎲 Random: ${randomNode[0].icon} ${randomNode[0].name}`,
+                    label: `🎲 ${t('event.random')}: ${randomNode[0].icon} ${td(randomNode[0])}`,
                     nodeId: randomNode[0].id,
                     color: randomNode[0].color,
                     rarity: randomNode[0].rarity,
@@ -368,7 +368,7 @@ export function renderEvent(ctx, eventState) {
             }
             ctx.fillStyle = selected ? node.color : '#888';
             ctx.font = selected ? 'bold 13px monospace' : '12px monospace';
-            ctx.fillText(`${node.icon} ${node.name}`, CANVAS_WIDTH / 2, y + 4);
+            ctx.fillText(`${node.icon} ${td(node) || node.name}`, CANVAS_WIDTH / 2, y + 4);
 
             // Rarity badge
             if (node.rarity) {

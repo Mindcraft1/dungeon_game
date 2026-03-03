@@ -4,6 +4,7 @@
 // ────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
+import { td } from '../i18n.js';
 
 // ── Proc Trigger Notification Queue ──
 const _procNotifs = [];   // { text, color, icon, timer, maxTimer }
@@ -119,7 +120,7 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
                 ctx.fillStyle = onCooldown ? '#666' : info.color;
                 ctx.font = '7px monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText(info.name, sx + slotSize / 2, sy + slotSize + 9);
+                ctx.fillText(td(info), sx + slotSize / 2, sy + slotSize + 9);
                 ctx.restore();
             }
 
@@ -165,7 +166,7 @@ export function renderAbilityBar(ctx, abilitySystem, procSystem) {
             ctx.font = '9px monospace';
             ctx.textAlign = 'left';
             // Truncate name to fit: max ~9 chars
-            let displayName = info.name;
+            let displayName = td(info);
             if (displayName.length > 10) displayName = displayName.slice(0, 9) + '…';
             ctx.fillText(`${info.icon} ${displayName}`, px + 6, procY + 15);
             ctx.restore();

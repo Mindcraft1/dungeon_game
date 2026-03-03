@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * @typedef {Object} StatModifiers
@@ -157,7 +157,7 @@ export function renderBuffSummary(ctx, mods) {
             ctx.fillStyle = sp.color;
             ctx.font = '8px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`${sp.icon} ${sp.name}`, px + 5, y + 7);
+            ctx.fillText(`${sp.icon} ${td(sp) || sp.name}`, px + 5, y + 7);
             y += specialH;
         }
     }

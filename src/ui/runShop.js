@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, RUN_SHOP_ITEMS, RUN_SHOP_ITEM_IDS, SHOP_FORGE_TOKEN_COST } from '../constants.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Render the in-run shop overlay.
@@ -88,12 +88,12 @@ export function renderRunShop(ctx, cursor, coins, stage, shieldCharges = 0, bomb
         ctx.textAlign = 'left';
         ctx.fillStyle = selected ? item.color : '#aaa';
         ctx.font = 'bold 13px monospace';
-        ctx.fillText(`${item.icon} ${item.name}`, rowX + 24, iy + 20);
+        ctx.fillText(`${item.icon} ${td(item)}`, rowX + 24, iy + 20);
 
         // Description
         ctx.fillStyle = selected ? '#ccc' : '#777';
         ctx.font = '11px monospace';
-        let desc = item.desc;
+        let desc = td(item, 'desc');
         // Add extra info for contextual items
         if (id === 'run_item_repair_armor') {
             desc += ` (current: ${shieldCharges})`;

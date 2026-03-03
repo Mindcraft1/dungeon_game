@@ -1,7 +1,7 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { getClassById } from '../classes.js';
 import { renderMenuParticles } from './menuParticles.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Draw the main menu screen.
@@ -59,7 +59,7 @@ export function renderMenu(ctx, selectedIndex, highscore = 0, profileName = null
             const cls = getClassById(classId);
             ctx.fillStyle = cls.color;
             ctx.font = '11px monospace';
-            ctx.fillText(`⬟ ${cls.name}`, CANVAS_WIDTH / 2, 267);
+            ctx.fillText(`⬟ ${td(cls)}`, CANVAS_WIDTH / 2, 267);
         }
     } else if (highscore > 0) {
         ctx.fillStyle = '#ffd700';

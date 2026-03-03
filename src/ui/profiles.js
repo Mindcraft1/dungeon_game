@@ -2,7 +2,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants.js';
 import { PLAYER_COLORS, getColorById, PLAYER_HATS, getHatById, DEFAULT_HAT_ID } from '../cosmetics.js';
 import { CLASS_DEFINITIONS, getClassById, renderClassIcon } from '../classes.js';
 import * as AchievementStore from '../achievements/achievementStore.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 const MAX_PROFILES = 6;
 const MAX_NAME_LEN = 12;
@@ -110,7 +110,7 @@ export function renderProfiles(ctx, profiles, activeIndex, cursorIndex, isCreati
         ctx.fillStyle = cls.color;
         ctx.font = '9px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(cls.name, classIconX + 12, classIconY + 3);
+        ctx.fillText(td(cls), classIconX + 12, classIconY + 3);
         ctx.textAlign = 'center';
 
         // Name (shifted right to make room for swatch)
@@ -326,12 +326,12 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
         // Class name
         ctx.fillStyle = selected ? cls.color : '#aaa';
         ctx.font = 'bold 18px monospace';
-        ctx.fillText(cls.name, midX, iconY + iconR + 26);
+        ctx.fillText(td(cls), midX, iconY + iconR + 26);
 
         // Description (word-wrapped)
         ctx.fillStyle = selected ? '#ccc' : '#666';
         ctx.font = '11px monospace';
-        const descWords = cls.desc.split(' ');
+        const descWords = td(cls, 'desc').split(' ');
         let descLine = '';
         let descY = iconY + iconR + 46;
         for (const w of descWords) {
@@ -375,7 +375,7 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
         ctx.font = '10px monospace';
 
         // Word-wrap passive description
-        const words = cls.passive.desc.split(' ');
+        const words = td(cls, 'passive').split(' ');
         let line = '';
         let lineY = passiveY + 16;
         for (const word of words) {

@@ -11,6 +11,7 @@ import {
     PERF_TIER_ICONS,
     PERF_TIER_BRONZE,
 } from '../constants.js';
+import { t } from '../i18n.js';
 
 export class RewardOrb {
     /**
@@ -124,7 +125,7 @@ export class RewardOrb {
         ctx.font = `bold ${Math.round(10 * spawnScale)}px monospace`;
         ctx.fillStyle = this.color;
         ctx.globalAlpha = 0.7 * spawnProgress;
-        ctx.fillText('REWARD', this.x, this.y + bobY + r + 14);
+        ctx.fillText(t('entity.reward'), this.x, this.y + bobY + r + 14);
 
         ctx.restore();
     }

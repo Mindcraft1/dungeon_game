@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, META_BOOSTERS, META_BOOSTER_IDS } from '../constants.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Render the Meta-Shop screen.
@@ -58,7 +58,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
         ctx.strokeRect(CANVAS_WIDTH / 2 - 250, 80, 500, 22);
         ctx.fillStyle = '#4caf50';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(t('metaShop.selected', { name: booster ? booster.name : selectedBoosterId }), CANVAS_WIDTH / 2, 95);
+        ctx.fillText(t('metaShop.selected', { name: booster ? td(booster) : selectedBoosterId }), CANVAS_WIDTH / 2, 95);
         bannerH = 28;
     }
 
@@ -115,7 +115,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
             const unlockReq = booster.unlock;
             if (unlockReq) {
                 const current = stats[unlockReq.stat] || 0;
-                ctx.fillText(unlockReq.label, cx + cardW / 2, cy + cardH / 2 + 8);
+                ctx.fillText(td(booster, 'unlock'), cx + cardW / 2, cy + cardH / 2 + 8);
                 // Progress bar
                 const pct = Math.min(1, current / unlockReq.value);
                 const barW = cardW - 60;
@@ -135,7 +135,7 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
             ctx.textAlign = 'left';
             ctx.fillStyle = '#444';
             ctx.font = 'bold 12px monospace';
-            ctx.fillText(`? ${booster.name}`, cx + 12, cy + 18);
+            ctx.fillText(`? ${td(booster)}`, cx + 12, cy + 18);
         } else {
             // ── Unlocked card ──
             // Selection arrow
@@ -150,12 +150,12 @@ export function renderMetaShop(ctx, cursor, availableShards, selectedBoosterId, 
             ctx.textAlign = 'left';
             ctx.fillStyle = selected ? booster.color : '#aaa';
             ctx.font = 'bold 13px monospace';
-            ctx.fillText(`${booster.icon} ${booster.name}`, cx + 22, cy + 22);
+            ctx.fillText(`${booster.icon} ${td(booster)}`, cx + 22, cy + 22);
 
             // Description
             ctx.fillStyle = selected ? '#ccc' : '#777';
             ctx.font = '11px monospace';
-            const words = booster.desc.split(' ');
+            const words = td(booster, 'desc').split(' ');
             let line = '';
             let lineY = cy + 40;
             for (const word of words) {

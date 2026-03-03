@@ -16,6 +16,7 @@ import {
     CANVAS_HEIGHT,
 } from '../../constants.js';
 import { registerRoomType } from '../roomRegistry.js';
+import { t } from '../../i18n.js';
 
 let _bannerTimer = 0;
 
@@ -44,10 +45,10 @@ registerRoomType(ROOM_TYPE_SHOP, {
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 28px monospace';
-            ctx.fillText('� REWARDS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 6);
+            ctx.fillText(t('room.rewards'), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 6);
             ctx.fillStyle = '#ccc';
             ctx.font = '13px monospace';
-            ctx.fillText('Claim your rewards · Door to continue', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
+            ctx.fillText(t('room.rewardsHint'), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
             ctx.restore();
         }
     },

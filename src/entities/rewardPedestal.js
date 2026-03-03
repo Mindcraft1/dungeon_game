@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { TILE_SIZE, CANVAS_WIDTH } from '../constants.js';
+import { td } from '../i18n.js';
 
 const INTERACT_RADIUS = 34;
 const BOB_SPEED = 2.0;
@@ -84,7 +85,7 @@ export class RewardPedestal {
         ctx.font = 'bold 9px monospace';
         ctx.fillStyle = baseColor;
         ctx.textBaseline = 'top';
-        ctx.fillText(this.data.name, this.x, bobY + 12);
+        ctx.fillText(td(this.data) || this.data.name, this.x, bobY + 12);
 
         // "Claimed" checkmark
         if (this.claimed) {
@@ -135,12 +136,12 @@ export class RewardPedestal {
         // Title
         ctx.fillStyle = this.data.color || '#ffd700';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(`${this.data.icon} ${this.data.name}`, tx, ty - 8);
+        ctx.fillText(`${this.data.icon} ${td(this.data) || this.data.name}`, tx, ty - 8);
 
         // Description
         ctx.fillStyle = '#aaa';
         ctx.font = '10px monospace';
-        ctx.fillText(this.data.desc, tx, ty + 10);
+        ctx.fillText(td(this.data, 'desc') || this.data.desc, tx, ty + 10);
 
         ctx.restore();
     }

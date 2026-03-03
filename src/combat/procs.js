@@ -13,6 +13,7 @@ import * as Impact from './impactSystem.js';
 import * as Audio from '../audio.js';
 import { applyBurn, applyFreeze, applySlow } from './statusEffects.js';
 import { showProcTrigger } from '../ui/uiAbilityBar.js';
+import { tdId } from '../i18n.js';
 
 export const PROC_DEFINITIONS = {
     explosive_strikes: {
@@ -57,7 +58,7 @@ export const PROC_DEFINITIONS = {
             Impact.shake(8, 0.88);
             Impact.screenFlash('#ff6d00', 0.3, 0.004);
             Audio.playProcExplosion();
-            showProcTrigger('Explosive Strikes', '🔥', '#ff6d00');
+            showProcTrigger(tdId('explosive_strikes') || 'Explosive Strikes', '🔥', '#ff6d00');
 
             if (particles) {
                 particles.procExplosion(target.x, target.y, effectiveRadius);
@@ -227,7 +228,7 @@ export const PROC_DEFINITIONS = {
             Impact.shake(6, 0.87);
             Impact.screenFlash('#ffeb3b', 0.25, 0.005);
             Audio.playChainLightning();
-            showProcTrigger('Chain Lightning', '⚡', '#ffeb3b');
+            showProcTrigger(tdId('chain_lightning') || 'Chain Lightning', '⚡', '#ffeb3b');
             if (particles && chainPositions.length > 1) {
                 particles.procChainLightning(chainPositions);
             }
@@ -326,7 +327,7 @@ export const PROC_DEFINITIONS = {
             Impact.flashEntity(target, 120);
             Impact.screenFlash('#ff1744', 0.35, 0.004);
             Audio.playCritImpact();
-            showProcTrigger('CRIT!', '💎', '#ff1744');
+            showProcTrigger(tdId('heavy_crit') || 'CRIT!', '💎', '#ff1744');
 
             if (particles) {
                 particles.procCritImpact(target.x, target.y);

@@ -12,7 +12,7 @@ import {
 } from '../combat/combatUnlocks.js';
 import { getUnlockSummary } from '../unlocks/unlockMap.js';
 import { WEAPON_ORDER, WEAPON_DEFINITIONS, isWeaponUnlocked } from '../weapons.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Render the loadout selection screen.
@@ -168,14 +168,14 @@ function _renderSummaryStrip(ctx, abilities, procs, weaponId) {
 
     // Weapon
     const wep = WEAPON_DEFINITIONS[weaponId] || WEAPON_DEFINITIONS.sword;
-    parts.push({ text: `${wep.icon} ${wep.name}`, color: wep.color });
+    parts.push({ text: `${wep.icon} ${td(wep)}`, color: wep.color });
 
     const slotLabels = ['Q', 'E'];
     for (let i = 0; i < 2; i++) {
         const id = abilities[i];
         if (id) {
             const def = ABILITY_DEFINITIONS[id];
-            parts.push({ text: `[${slotLabels[i]}] ${def.icon} ${def.name}`, color: def.color });
+            parts.push({ text: `[${slotLabels[i]}] ${def.icon} ${td(def)}`, color: def.color });
         } else {
             parts.push({ text: `[${slotLabels[i]}] —`, color: '#444' });
         }
@@ -186,7 +186,7 @@ function _renderSummaryStrip(ctx, abilities, procs, weaponId) {
         const id = procs[i];
         if (id) {
             const def = PROC_DEFINITIONS[id];
-            parts.push({ text: `[${procLabels[i]}] ${def.icon} ${def.name}`, color: def.color });
+            parts.push({ text: `[${procLabels[i]}] ${def.icon} ${td(def)}`, color: def.color });
         } else {
             parts.push({ text: `[${procLabels[i]}] —`, color: '#444' });
         }
@@ -249,7 +249,7 @@ function _renderWeaponSelector(ctx, selectedWeaponId, highscore) {
             // Icon + Name
             ctx.fillStyle = selected ? def.color : '#888';
             ctx.font = `${selected ? 'bold ' : ''}13px monospace`;
-            ctx.fillText(`${def.icon} ${def.name}`, midX, y + 12);
+            ctx.fillText(`${def.icon} ${td(def)}`, midX, y + 12);
 
             // Stat hint — compact ▲/▼ format so it fits in card
             ctx.fillStyle = selected ? '#aaa' : '#555';
@@ -276,7 +276,7 @@ function _renderWeaponSelector(ctx, selectedWeaponId, highscore) {
             // Locked
             ctx.fillStyle = '#444';
             ctx.font = '13px monospace';
-            ctx.fillText(`🔒 ${def.name}`, midX, y + 12);
+            ctx.fillText(`🔒 ${td(def)}`, midX, y + 12);
             ctx.fillStyle = '#383838';
             ctx.font = '9px monospace';
             ctx.fillText(t('loadout.reachStage', { n: def.unlock.value }), midX, y + 26);
@@ -310,13 +310,13 @@ function _renderRow(ctx, def, unlocked, selected, isCursor, y, meta, type, slotI
         // Icon + Name
         ctx.fillStyle = selected ? def.color : '#aaa';
         ctx.font = `${selected ? 'bold ' : ''}14px monospace`;
-        ctx.fillText(`${def.icon}  ${def.name}`, leftX + 12, y + 5);
+        ctx.fillText(`${def.icon}  ${td(def)}`, leftX + 12, y + 5);
 
         // Short description (only if cursor is here)
         if (isCursor) {
             ctx.fillStyle = '#666';
             ctx.font = '10px monospace';
-            ctx.fillText(def.desc, leftX + 12, y + 19);
+            ctx.fillText(td(def, 'desc'), leftX + 12, y + 19);
         }
 
         // Selection status
@@ -337,7 +337,7 @@ function _renderRow(ctx, def, unlocked, selected, isCursor, y, meta, type, slotI
         // Locked item
         ctx.fillStyle = '#444';
         ctx.font = '14px monospace';
-        const lockText = `🔒  ${def.name}`;
+        const lockText = `🔒  ${td(def)}`;
         ctx.fillText(lockText, leftX + 12, y + 5);
 
         // Unlock hint — positioned after the name with a gap

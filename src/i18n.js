@@ -6,8 +6,14 @@
 //   t('menu.title')                 → "DUNGEON ROOMS"
 //   t('hud.enemies', { n: 5 })      → "Enemies: 5"
 //
+//   import { td } from './i18n.js';
+//   td(weaponObj)                   → German name when lang=de
+//   td(weaponObj, 'desc')           → German desc when lang=de
+//
 // Placeholders use {name} syntax, replaced at runtime.
 // ─────────────────────────────────────────────────────────────
+
+import CONTENT_DE from './content_de.js';
 
 const STORAGE_KEY = 'dungeon_language';
 
@@ -45,6 +51,38 @@ export function t(key, params) {
         }
     }
     return str;
+}
+
+/**
+ * Translate a data-driven object's field (name, desc, effect, passive, etc.).
+ * Looks up the object's `id` in CONTENT_DE when language is German.
+ * Falls back to the original English value on the object.
+ *
+ *   td(weaponObj)            → translated name
+ *   td(weaponObj, 'desc')    → translated desc
+ *   td(nodeObj, 'effect')    → translated effect
+ */
+export function td(obj, field = 'name') {
+    if (!obj) return '';
+    if (_lang === 'de') {
+        const entry = CONTENT_DE[obj.id];
+        if (entry && entry[field] !== undefined) return entry[field];
+    }
+    return obj[field] ?? '';
+}
+
+/**
+ * Translate a data-driven object by raw id string + field.
+ * Useful when you only have the id, not the full object.
+ *
+ *   tdId('sword', 'name')   → 'Schwert' when de
+ */
+export function tdId(id, field = 'name', fallback = '') {
+    if (_lang === 'de') {
+        const entry = CONTENT_DE[id];
+        if (entry && entry[field] !== undefined) return entry[field];
+    }
+    return fallback;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -529,6 +567,26 @@ const EN = {
 
     // Cheat alias
     'cheat.xpBoost': 'XP×10',
+
+    // ── Unlock toasts ──
+    'unlock.ability': 'Ability',
+    'unlock.passive': 'Passive',
+    'unlock.node': 'Node',
+    'unlock.achievement': 'Achievement Unlock',
+
+    // ── Events ──
+    'event.skipKeep': 'Skip (keep removal)',
+
+    // ── Entity Chrome ──
+    'entity.sold': 'SOLD',
+    'entity.buy': '[SPACE] Buy',
+    'entity.heal': 'Heal',
+    'entity.empty': 'Empty',
+    'entity.healPrompt': '[SPACE] Heal',
+    'entity.reward': 'REWARD',
+    'room.rewards': '🏆 REWARDS',
+    'room.rewardsHint': 'Claim your rewards · Door to continue',
+    'room.darkness': '🌑  The darkness surrounds you…',
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -1013,4 +1071,24 @@ const DE = {
 
     // Cheat-Alias
     'cheat.xpBoost': 'EP×10',
+
+    // ── Freischalt-Toasts ──
+    'unlock.ability': 'Fähigkeit',
+    'unlock.passive': 'Passiv',
+    'unlock.node': 'Knoten',
+    'unlock.achievement': 'Erfolg freigeschaltet',
+
+    // ── Events ──
+    'event.skipKeep': 'Überspringen (Entfernung behalten)',
+
+    // ── Entität-Chrome ──
+    'entity.sold': 'VERKAUFT',
+    'entity.buy': '[LEERTASTE] Kaufen',
+    'entity.heal': 'Heilen',
+    'entity.empty': 'Leer',
+    'entity.healPrompt': '[LEERTASTE] Heilen',
+    'entity.reward': 'BELOHNUNG',
+    'room.rewards': '🏆 BELOHNUNGEN',
+    'room.rewardsHint': 'Belohnungen einsammeln · Tür zum Weitergehen',
+    'room.darkness': '🌑  Die Dunkelheit umgibt dich…',
 };

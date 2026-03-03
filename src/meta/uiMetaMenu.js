@@ -9,7 +9,7 @@ import * as MetaStore from './metaStore.js';
 import { PERK_DEFINITIONS, PERK_IDS, getPerkLevel, getNextCost, canUpgrade, isMaxed } from './metaPerks.js';
 import { RELIC_DEFINITIONS, RELIC_IDS, isRelicUnlocked, getUnlockedRelicCount, RELIC_COUNT } from './relics.js';
 import { getUnlockedRunUpgradeIds, RUN_UPGRADE_DEFINITIONS, RUN_UPGRADE_UNLOCK_THRESHOLDS } from './rewardSystem.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 // ── Tab constants ──
 export const META_TAB_PERKS  = 0;
@@ -108,11 +108,11 @@ function _renderRunSummary(ctx, rw) {
     parts.push(`${t('metaMenu.shardsLabel')}: +${rw.coreShardsGainedThisRun}`);
     if (rw.relicUnlockedThisRun) {
         const relic = RELIC_DEFINITIONS[rw.relicUnlockedThisRun];
-        parts.push(`${t('metaMenu.relic')}: ${relic ? relic.name : rw.relicUnlockedThisRun}`);
+        parts.push(`${t('metaMenu.relic')}: ${relic ? td(relic) : rw.relicUnlockedThisRun}`);
     }
     if (rw.runUpgradeUnlockedThisRun) {
         const upg = RUN_UPGRADE_DEFINITIONS[rw.runUpgradeUnlockedThisRun];
-        parts.push(`${t('metaMenu.new')}: ${upg ? upg.name : rw.runUpgradeUnlockedThisRun}`);
+        parts.push(`${t('metaMenu.new')}: ${upg ? td(upg) : rw.runUpgradeUnlockedThisRun}`);
     }
 
     ctx.fillText(`${t('metaMenu.runSummary')}  ${parts.join('  ·  ')}`, CANVAS_WIDTH / 2, y);
@@ -147,7 +147,7 @@ function _renderPerksTab(ctx, cursor, shards, startY) {
         ctx.textAlign = 'left';
         ctx.fillStyle = selected ? def.color : '#888';
         ctx.font = 'bold 15px monospace';
-        ctx.fillText(`${def.icon} ${def.name}`, panelX + 10, y + 20);
+        ctx.fillText(`${def.icon} ${td(def)}`, panelX + 10, y + 20);
 
         // Level pips
         const pipX = panelX + 140;
@@ -223,14 +223,14 @@ function _renderRelicsTab(ctx, startY) {
         // Name
         ctx.fillStyle = unlocked ? '#ddd' : '#555';
         ctx.font = '9px monospace';
-        ctx.fillText(unlocked ? def.name : '???', cx, cy + 42);
+        ctx.fillText(unlocked ? td(def) : '???', cx, cy + 42);
 
         // Description (word-wrapped)
         if (unlocked) {
             ctx.fillStyle = '#999';
             ctx.font = '8px monospace';
             const maxTextW = cellW - 16;
-            const words = def.desc.split(' ');
+            const words = td(def, 'desc').split(' ');
             let line = '';
             let lineY = cy + 56;
             for (let w = 0; w < words.length; w++) {
@@ -271,7 +271,7 @@ function _renderRelicsTab(ctx, startY) {
             const def = RUN_UPGRADE_DEFINITIONS[uid];
             if (!def) return;
             ctx.fillStyle = def.color;
-            ctx.fillText(`${def.icon} ${def.name}: ${def.desc}`, CANVAS_WIDTH / 2, ugY + 30 + i * 16);
+            ctx.fillText(`${def.icon} ${td(def)}: ${td(def, 'desc')}`, CANVAS_WIDTH / 2, ugY + 30 + i * 16);
         });
     } else {
         ctx.fillStyle = '#555';

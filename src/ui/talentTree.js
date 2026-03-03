@@ -3,7 +3,7 @@ import {
     BRANCH_ORDER, BRANCH_META,
     getNodesForBranch, canUpgradeNode, getSpentPoints,
 } from '../talents.js';
-import { t } from '../i18n.js';
+import { t, td } from '../i18n.js';
 
 /**
  * Render the talent tree overlay.
@@ -58,7 +58,7 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
         // Branch header
         ctx.fillStyle = meta.color;
         ctx.font = 'bold 14px monospace';
-        ctx.fillText(`${meta.icon} ${meta.name}`, cx, py + 74);
+        ctx.fillText(`${meta.icon} ${td(meta)}`, cx, py + 74);
 
         for (let ti = 0; ti < nodes.length; ti++) {
             const node = nodes[ti];
@@ -142,7 +142,7 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
             // ── Node name (right of pips) ──
             ctx.fillStyle = selected ? '#fff' : rank > 0 ? '#ccc' : '#777';
             ctx.font = '9px monospace';
-            ctx.fillText(node.name, cx, pipY + 12);
+            ctx.fillText(td(node), cx, pipY + 12);
         }
     }
 
@@ -161,12 +161,12 @@ export function renderTalentTree(ctx, talentState, cursorBranch, cursorTier, pla
         // Name + rank
         ctx.fillStyle = meta.color;
         ctx.font = 'bold 14px monospace';
-        ctx.fillText(`${hoveredNode.icon} ${hoveredNode.name}  (${rank}/${hoveredNode.maxRank})`, CANVAS_WIDTH / 2, detY + 14);
+        ctx.fillText(`${hoveredNode.icon} ${td(hoveredNode)}  (${rank}/${hoveredNode.maxRank})`, CANVAS_WIDTH / 2, detY + 14);
 
         // Description
         ctx.fillStyle = '#bbb';
         ctx.font = '11px monospace';
-        ctx.fillText(hoveredNode.desc, CANVAS_WIDTH / 2, detY + 31);
+        ctx.fillText(td(hoveredNode, 'desc'), CANVAS_WIDTH / 2, detY + 31);
 
         // Upgrade hint
         if (canUp) {

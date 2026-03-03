@@ -4,7 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, DASH_COOLDOWN, DAGGER_COOLDOWN, COMBO_TIME
          PERF_SILVER_THRESHOLD, PERF_GOLD_THRESHOLD, PERF_DIAMOND_THRESHOLD,
        } from '../constants.js';
 import { PICKUP_INFO } from '../entities/pickup.js';
-import { t } from '../i18n.js';
+import { t, td, tdId } from '../i18n.js';
 
 /**
  * Draw the in-game HUD (HP bar, XP bar, level, stage, enemies remaining, active buffs, combo, coins).
@@ -238,12 +238,12 @@ function _renderActiveBuffs(ctx, player, pad) {
         ctx.textAlign = 'left';
         ctx.fillStyle = info.color;
         ctx.font = 'bold 9px monospace';
-        ctx.fillText(info.name, textX, y + 12);
+        ctx.fillText(td(info), textX, y + 12);
 
         // Effect description
         ctx.fillStyle = '#ccc';
         ctx.font = '8px monospace';
-        ctx.fillText(info.effect, textX, y + 22);
+        ctx.fillText(td(info, 'effect'), textX, y + 22);
 
         // Timer bar at bottom of panel
         const ratio = Math.max(0, buff.remaining / buff.duration);
@@ -363,7 +363,7 @@ export function renderBossHPBar(ctx, boss) {
     ctx.textAlign = 'center';
     ctx.fillStyle = boss.color;
     ctx.font = 'bold 12px monospace';
-    ctx.fillText(boss.name.toUpperCase(), CANVAS_WIDTH / 2, by - 6);
+    ctx.fillText((tdId(boss.type) || boss.name).toUpperCase(), CANVAS_WIDTH / 2, by - 6);
 
     // HP bar background
     ctx.fillStyle = '#333';

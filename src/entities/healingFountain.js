@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { TILE_SIZE } from '../constants.js';
+import { t } from '../i18n.js';
 
 const INTERACT_RADIUS = 30;
 const WAVE_SPEED = 2.5;
@@ -95,7 +96,7 @@ export class HealingFountain {
         ctx.fillStyle = this.used ? '#555' : '#44ccff';
         ctx.textBaseline = 'top';
         ctx.textAlign = 'center';
-        ctx.fillText(this.used ? 'Empty' : 'Heal', this.x, this.y + 14);
+        ctx.fillText(this.used ? t('entity.empty') : t('entity.heal'), this.x, this.y + 14);
 
         // Interaction prompt
         if (this.nearby && !this.used) {
@@ -104,7 +105,7 @@ export class HealingFountain {
             ctx.fillStyle = '#44ccff';
             ctx.font = 'bold 10px monospace';
             ctx.textBaseline = 'bottom';
-            ctx.fillText('[SPACE] Heal', this.x, this.y - 20);
+            ctx.fillText(t('entity.healPrompt'), this.x, this.y - 20);
 
             ctx.globalAlpha = 0.6;
             ctx.strokeStyle = '#44ccff';

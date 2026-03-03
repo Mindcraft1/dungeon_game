@@ -78,7 +78,7 @@ import { RUN_UPGRADE_DEFINITIONS, getUnlockedRunUpgradeIds } from './meta/reward
 import { PERK_IDS, upgradePerk, canUpgrade, isMaxed as isPerkMaxed } from './meta/metaPerks.js';
 import { renderMetaMenu, META_TAB_PERKS, META_TAB_RELICS, META_TAB_STATS, META_TAB_COUNT } from './meta/uiMetaMenu.js';
 import { showToast, showBigToast, updateToasts, renderToasts, clearToasts } from './meta/uiRewardsToast.js';
-import { t, getLang, toggleLang } from './i18n.js';
+import { t, td, tdId, getLang, toggleLang } from './i18n.js';
 import { getAvailableShards } from './meta/metaState.js';
 import { renderMetaShop } from './ui/metaShop.js';
 import { renderRunShop } from './ui/runShop.js';
@@ -479,7 +479,7 @@ export class Game {
                     const nextBiomeStart = (curBiomeIdx + 1) * BOSS_STAGE_INTERVAL + 1;
                     this.stage = nextBiomeStart - 1; // nextRoom() will increment
                     this.nextRoom();
-                    const name = this.currentBiome ? this.currentBiome.name : 'Unknown';
+                    const name = this.currentBiome ? td(this.currentBiome) : 'Unknown';
                     this._cheatNotify(`JUMPED TO ${name.toUpperCase()}`, this.currentBiome?.nameColor ?? '#4fc3f7');
                 }
                 break;
@@ -512,7 +512,7 @@ export class Game {
         this.cheatBosses.push(b);
         Audio.playBossRoar();
 
-        this._cheatNotify(`SUMMONED ${b.name.toUpperCase()}`, b.color);
+        this._cheatNotify(`SUMMONED ${(tdId(b.type) || b.name).toUpperCase()}`, b.color);
     }
 
     /** All living bosses (real + cheat-summoned) */
@@ -532,7 +532,7 @@ export class Game {
     _onAchievementUnlock(def) {
         Audio.playAchievementUnlock();
         this._achievementToasts.push({
-            text: def.name,
+            text: td(def),
             icon: def.icon,
             color: '#e040fb',
             timer: 3500,
@@ -542,8 +542,8 @@ export class Game {
         // ── Process achievement → item unlock via unlockMap ──
         const unlocked = processAchUnlock(def.id);
         for (const u of unlocked) {
-            const tLabel = u.type === 'ability' ? 'Ability' : u.type === 'proc' ? 'Passive' : 'Node';
-            showBigToast(`Achievement Unlock: ${tLabel} ${u.name}`, u.color, u.icon);
+            const tLabel = u.type === 'ability' ? t('unlock.ability') : u.type === 'proc' ? t('unlock.passive') : t('unlock.node');
+            showBigToast(`${t('unlock.achievement')}: ${tLabel} ${td(u)}`, u.color, u.icon);
             Audio.playRelicUnlock();
         }
     }
@@ -1928,7 +1928,7 @@ export class Game {
             if (current >= value) {
                 meta.unlockedBoosters[id] = true;
                 anyNew = true;
-                showToast(`Shop unlocked: ${booster.name}!`, booster.color, booster.icon);
+                showToast(`Shop unlocked: ${td(booster)}!`, booster.color, booster.icon);
             }
         }
         if (anyNew) MetaStore.save();
@@ -2160,13 +2160,13 @@ export class Game {
         // ── Equipped Abilities ──
         for (const id of this.abilitySystem.getEquippedIds()) {
             const def = ABILITY_DEFINITIONS[id];
-            if (def) effects.push({ category: 'Abilities', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+            if (def) effects.push({ category: 'Abilities', icon: def.icon, name: td(def), desc: td(def, 'desc'), color: def.color });
         }
 
         // ── Equipped Procs (Passives) ──
         for (const id of this.procSystem.getEquippedIds()) {
             const def = PROC_DEFINITIONS[id];
-            if (def) effects.push({ category: 'Passives', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+            if (def) effects.push({ category: 'Passives', icon: def.icon, name: td(def), desc: td(def, 'desc'), color: def.color });
         }
 
         // ── Upgrade Nodes (from UpgradeEngine) ──
@@ -2176,34 +2176,34 @@ export class Game {
             const def = getNodeDef(nodeId);
             if (!def) continue;
             const stackLabel = stacks > 1 ? ` ×${stacks}` : '';
-            effects.push({ category: 'Upgrades', icon: def.icon, name: `${def.name}${stackLabel}`, desc: def.desc, color: def.color });
+            effects.push({ category: 'Upgrades', icon: def.icon, name: `${td(def)}${stackLabel}`, desc: td(def, 'desc'), color: def.color });
         }
 
         // ── Run Upgrades (level-up picks) ──
         for (const [id, active] of Object.entries(this.runUpgradesActive)) {
             if (!active) continue;
             const def = RUN_UPGRADE_DEFINITIONS[id];
-            if (def) effects.push({ category: 'Run Upgrades', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+            if (def) effects.push({ category: 'Run Upgrades', icon: def.icon, name: td(def), desc: td(def, 'desc'), color: def.color });
         }
 
         // ── Active Relics ──
         for (const id of RELIC_IDS) {
             if (isRelicUnlocked(id)) {
                 const def = RELIC_DEFINITIONS[id];
-                effects.push({ category: 'Relics', icon: def.icon, name: def.name, desc: def.desc, color: def.color });
+                effects.push({ category: 'Relics', icon: def.icon, name: td(def), desc: td(def, 'desc'), color: def.color });
             }
         }
 
         // ── Meta Booster ──
         if (this.activeMetaBoosterId) {
             const b = META_BOOSTERS[this.activeMetaBoosterId];
-            if (b) effects.push({ category: 'Booster', icon: b.icon, name: b.name, desc: b.desc || '', color: b.color });
+            if (b) effects.push({ category: 'Booster', icon: b.icon, name: td(b), desc: td(b, 'desc') || '', color: b.color });
         }
 
         // ── Biome Effect ──
         if (this.currentBiome && this.currentBiome.effect) {
             const b = this.currentBiome;
-            effects.push({ category: 'Biome', icon: '🌍', name: b.name, desc: b.effect || '', color: b.nameColor || '#888' });
+            effects.push({ category: 'Biome', icon: '🌍', name: td(b), desc: b.effect || '', color: b.nameColor || '#888' });
         }
 
         // ── Temporary Pickup Buffs ──
@@ -2212,7 +2212,7 @@ export class Game {
                 const info = PICKUP_INFO[buff.type];
                 if (info) {
                     const remaining = Math.ceil(buff.remaining / 1000);
-                    effects.push({ category: 'Pickups', icon: info.icon || '⬆', name: info.name || buff.type, desc: `${remaining}s remaining`, color: info.color || '#fff' });
+                    effects.push({ category: 'Pickups', icon: info.icon || '⬆', name: td(info) || info.name || buff.type, desc: `${remaining}s remaining`, color: info.color || '#fff' });
                 }
             }
         }
@@ -2228,8 +2228,8 @@ export class Game {
                 effects.push({
                     category: 'Talents',
                     icon: nodeDef.icon || '🌟',
-                    name: `${nodeDef.name}${rankLabel}`,
-                    desc: nodeDef.desc,
+                    name: `${td(nodeDef)}${rankLabel}`,
+                    desc: td(nodeDef, 'desc'),
                     color: branchColors[nodeDef.branch] || '#ffd700',
                 });
             }
@@ -2324,7 +2324,7 @@ export class Game {
                     state.spentCoreShards += booster.cost;
                     MetaStore.save();
                     this.purchasedMetaBoosterId = id;
-                    showToast(`Purchased: ${booster.name}!`, booster.color, booster.icon);
+                    showToast(`Purchased: ${td(booster)}!`, booster.color, booster.icon);
                     Audio.playMenuSelect();
                     achEmit('shop_purchase_meta_booster', { boosterId: id, costShards: booster.cost });
                 } else {
@@ -2438,7 +2438,7 @@ export class Game {
                 }
                 break;
         }
-        showToast(`Purchased: ${item.name}`, item.color, item.icon);
+        showToast(`Purchased: ${td(item)}`, item.color, item.icon);
     }
 
     /** Purchase forge token from the boss shop → immediately open Forge UI. */
@@ -2522,7 +2522,7 @@ export class Game {
                 }
                 break;
         }
-        showToast(`Purchased: ${item.name}`, item.color, item.icon);
+        showToast(`Purchased: ${td(item)}`, item.color, item.icon);
         this.particles.levelUp(shopItem.x, shopItem.y);
     }
 
@@ -2564,7 +2564,7 @@ export class Game {
             const result = applyBossScrollChoice(pedestal.data);
             if (result) {
                 const typeLabel = result.type === 'ability' ? 'Ability' : result.type === 'proc' ? 'Passive' : 'Node';
-                showBigToast(`${typeLabel} Unlocked: ${result.name}`, result.color, result.icon);
+                showBigToast(`${typeLabel} Unlocked: ${td(result)}`, result.color, result.icon);
                 Audio.playRelicUnlock();
             }
         }
@@ -2673,7 +2673,7 @@ export class Game {
             if (!cat) return;
             const context = this._getUpgradeContext();
             es.forgeNodeChoices = UpgradeEngine.buildForgeChoices(cat.id, context, 3).map(n => ({
-                id: n.id, label: `${n.icon} ${n.name}: ${n.desc}`, color: n.color, nodeId: n.id, rarity: n.rarity,
+                id: n.id, label: `${n.icon} ${td(n)}: ${td(n, 'desc')}`, color: n.color, nodeId: n.id, rarity: n.rarity,
             }));
             if (es.forgeNodeChoices.length === 0) {
                 es.phase = 'result';
@@ -2692,7 +2692,7 @@ export class Game {
                 this._syncUpgradeEffects();
                 const nDef = getNodeDef(pick.nodeId);
                 es.phase = 'result';
-                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? nDef.name : pick.nodeId, color: pick.color } };
+                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? td(nDef) : pick.nodeId, color: pick.color } };
             }
             return;
         }
@@ -2757,7 +2757,7 @@ export class Game {
                 }
                 const nDef = getNodeDef(choice.nodeId);
                 es.phase = 'result';
-                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? nDef.name : choice.nodeId, color: choice.color } };
+                es.result = { nodeApplied: { icon: nDef ? nDef.icon : '✦', name: nDef ? td(nDef) : choice.nodeId, color: choice.color } };
             } else if (choice.hpCost > 0 && choice.rareChoices) {
                 // Chaos: sacrifice HP for rare choices
                 const hpLoss = Math.floor(this.player.maxHp * choice.hpCost);
@@ -2765,7 +2765,7 @@ export class Game {
                 showToast(`Sacrificed ${hpLoss} HP`, '#e91e63', '💀');
                 // Show rare choices
                 es.choices = choice.rareChoices.map(n => ({
-                    label: `${n.icon} ${n.name}: ${n.desc}`,
+                    label: `${n.icon} ${td(n)}: ${td(n, 'desc')}`,
                     nodeId: n.id,
                     color: n.color,
                     rarity: n.rarity,
@@ -2796,12 +2796,12 @@ export class Game {
             const context = this._getUpgradeContext();
             const replacements = UpgradeEngine.pickRandomNodes('all', context, 3);
             es.choices = replacements.map(n => ({
-                label: `${n.icon} ${n.name}: ${n.desc}`,
+                label: `${n.icon} ${td(n)}: ${td(n, 'desc')}`,
                 nodeId: n.id,
                 color: n.color,
                 rarity: n.rarity,
             }));
-            es.choices.push({ label: 'Skip (keep removal)', nodeId: null, color: '#666' });
+            es.choices.push({ label: t('event.skipKeep'), nodeId: null, color: '#666' });
             es.phase = 'choosing';
             es.cursor = 0;
             return;
@@ -2838,7 +2838,7 @@ export class Game {
                 const result = applyBossScrollChoice(chosen);
                 if (result) {
                     const typeLabel = result.type === 'ability' ? 'Ability' : result.type === 'proc' ? 'Passive' : 'Node';
-                    showBigToast(`${typeLabel} Unlocked: ${result.name}`, result.color, result.icon);
+                    showBigToast(`${typeLabel} Unlocked: ${td(result)}`, result.color, result.icon);
                     Audio.playRelicUnlock();
                 }
             }
@@ -3404,7 +3404,7 @@ export class Game {
 
                 // Save boss reward data for the spatial reward room
                 this._rewardRoomBossData = {
-                    bossName: this.boss.name,
+                    bossName: tdId(this.boss.type) || this.boss.name,
                     bossColor: this.boss.color,
                 };
                 this._pendingRewardRoom = true;
@@ -4738,16 +4738,16 @@ export class Game {
                 // Toast for relic
                 if (reward.relicId) {
                     const relic = RELIC_DEFINITIONS[reward.relicId];
-                    showBigToast(`Relic Unlocked: ${relic.name}`, relic.color, relic.icon);
+                    showBigToast(`Relic Unlocked: ${td(relic)}`, relic.color, relic.icon);
                     Audio.playRelicUnlock();
                     achEmit('relic_unlocked', { relicId: reward.relicId });
-                    this.runUnlocksLog.push({ icon: relic.icon, name: relic.name, color: relic.color, type: 'Relic' });
+                    this.runUnlocksLog.push({ icon: relic.icon, name: td(relic), color: relic.color, type: 'Relic' });
                 }
                 // Toast for run upgrade unlock
                 if (reward.runUpgradeId) {
                     const upg = RUN_UPGRADE_DEFINITIONS[reward.runUpgradeId];
-                    showToast(`New Upgrade: ${upg.name}`, upg.color, upg.icon);
-                    this.runUnlocksLog.push({ icon: upg.icon, name: upg.name, color: upg.color, type: 'Upgrade' });
+                    showToast(`New Upgrade: ${td(upg)}`, upg.color, upg.icon);
+                    this.runUnlocksLog.push({ icon: upg.icon, name: td(upg), color: upg.color, type: 'Upgrade' });
                 }
             } else {
                 this.lastBossReward = { shardsGained: 0, relicId: null, runUpgradeId: null };
@@ -4759,10 +4759,10 @@ export class Game {
                 const combatUnlock = checkBossUnlocks(MetaStore.getState().stats.bossesKilledTotal);
                 if (combatUnlock) {
                     const label = combatUnlock.type === 'ability' ? 'Ability' : 'Passive';
-                    showBigToast(`${label} Unlocked: ${combatUnlock.name}`, combatUnlock.color, combatUnlock.icon);
+                    showBigToast(`${label} Unlocked: ${td(combatUnlock)}`, combatUnlock.color, combatUnlock.icon);
                     Audio.playRelicUnlock();
                     this.lastBossReward.combatUnlock = combatUnlock;
-                    this.runUnlocksLog.push({ icon: combatUnlock.icon, name: combatUnlock.name, color: combatUnlock.color, type: label });
+                    this.runUnlocksLog.push({ icon: combatUnlock.icon, name: td(combatUnlock), color: combatUnlock.color, type: label });
                 }
             }
 
@@ -4773,9 +4773,9 @@ export class Game {
                     const masteryUnlocks = processBiomeMasteryBossKill(this.currentBiome.id, this.stage);
                     for (const u of masteryUnlocks) {
                         const tLabel = u.type === 'ability' ? 'Ability' : u.type === 'proc' ? 'Passive' : 'Node';
-                        showBigToast(`Biome Mastery: ${tLabel} ${u.name}`, u.color, u.icon);
+                        showBigToast(`Biome Mastery: ${tLabel} ${td(u)}`, u.color, u.icon);
                         Audio.playRelicUnlock();
-                        this.runUnlocksLog.push({ icon: u.icon, name: u.name, color: u.color, type: `Mastery ${tLabel}` });
+                        this.runUnlocksLog.push({ icon: u.icon, name: td(u), color: u.color, type: `Mastery ${tLabel}` });
                     }
                 }
 
@@ -4789,9 +4789,9 @@ export class Game {
                 // Pity unlock check
                 const pity = checkPityUnlock(this.stage);
                 if (pity) {
-                    showBigToast(`Pity Unlock: ${pity.name}`, pity.color, pity.icon);
+                    showBigToast(`Pity Unlock: ${td(pity)}`, pity.color, pity.icon);
                     Audio.playRelicUnlock();
-                    this.runUnlocksLog.push({ icon: pity.icon, name: pity.name, color: pity.color, type: 'Pity Unlock' });
+                    this.runUnlocksLog.push({ icon: pity.icon, name: td(pity), color: pity.color, type: 'Pity Unlock' });
                 }
             }
 
@@ -5825,7 +5825,7 @@ export class Game {
                 choices.push({
                     type: 'runUpgrade',
                     id,
-                    label: `${def.icon} ${def.name}: ${def.desc}`,
+                    label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
                     color: def.color,
                 });
             }
@@ -5852,7 +5852,7 @@ export class Game {
                 choices.push({
                     type: 'runUpgrade',
                     id,
-                    label: `${def.icon} ${def.name}: ${def.desc}`,
+                    label: `${def.icon} ${td(def)}: ${td(def, 'desc')}`,
                     color: def.color,
                 });
             }
@@ -6395,7 +6395,7 @@ export class Game {
         const livingBosses = this._allBosses();
         alive += livingBosses.length;
         const isBossRoom = !!(this.boss) || this.cheatBosses.length > 0;
-        const biomeName  = this.currentBiome ? this.currentBiome.name : null;
+        const biomeName  = this.currentBiome ? td(this.currentBiome) : null;
         const biomeColor = this.currentBiome ? this.currentBiome.nameColor : null;
         renderHUD(ctx, this.player, this.stage, alive, this.trainingMode, this.muted,
                   this.comboCount, this.comboTier, this.comboMultiplier, this.comboTimer, isBossRoom,
@@ -6607,7 +6607,7 @@ export class Game {
             const runRewards = RewardSystem.getRunRewards();
             renderGameOverOverlay(ctx, this.stage, this.player.level, runRewards, this._gameOverEffects || null, this.runUnlocksLog.length > 0 ? this.runUnlocksLog : null);
         } else if (this.state === STATE_BOSS_VICTORY) {
-            renderBossVictoryOverlay(ctx, this.boss.name, this.boss.color,
+            renderBossVictoryOverlay(ctx, tdId(this.boss.type) || this.boss.name, this.boss.color,
                 this.bossRewardIndex, BOSS_REWARD_HP, BOSS_REWARD_DAMAGE, BOSS_REWARD_SPEED,
                 this.lastBossReward, RELIC_DEFINITIONS, RUN_UPGRADE_DEFINITIONS);
         } else if (this.state === STATE_SHOP_RUN) {
@@ -6650,7 +6650,7 @@ export class Game {
         ctx.font = 'bold 22px monospace';
         ctx.shadowColor = biome.nameColor;
         ctx.shadowBlur = 12;
-        ctx.fillText(biome.name.toUpperCase(), CANVAS_WIDTH / 2, cy + 2);
+        ctx.fillText(td(biome).toUpperCase(), CANVAS_WIDTH / 2, cy + 2);
         ctx.shadowBlur = 0;
 
         // Subtitle
@@ -6732,7 +6732,7 @@ export class Game {
         // Stage info
         ctx.fillStyle = '#888';
         ctx.font = '12px monospace';
-        const biomeLabel = this.currentBiome ? `${this.currentBiome.name} · ` : '';
+        const biomeLabel = this.currentBiome ? `${td(this.currentBiome)} · ` : '';
         ctx.fillText(t('pause.info', { biome: biomeLabel, stage: this.stage, level: this.player.level }), leftCx, by + 67);
 
         // Options
