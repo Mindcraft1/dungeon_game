@@ -375,7 +375,8 @@ function _renderClassPickerOverlay(ctx, name, cursor) {
         ctx.font = '10px monospace';
 
         // Word-wrap passive description
-        const words = td(cls, 'passive').split(' ');
+        const passiveText = td(cls, 'passive');
+        const words = (passiveText?.desc ?? passiveText ?? '').split(' ');
         let line = '';
         let lineY = passiveY + 16;
         for (const word of words) {
