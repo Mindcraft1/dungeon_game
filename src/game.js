@@ -3289,12 +3289,12 @@ export class Game {
         // Mouse hover on class cards
         const mp = getMousePos();
         if (mp && isMouseActive()) {
-            const cardW = 160;
-            const gap = 20;
+            const cardW = 170;
+            const gap = 12;
             const totalW = total * cardW + (total - 1) * gap;
             const startX = (800 - totalW) / 2;
-            const cardY = 200;
-            const cardH = 240;
+            const cardY = 120;
+            const cardH = 330;
             for (let i = 0; i < total; i++) {
                 const cx = startX + i * (cardW + gap);
                 if (mp.x >= cx && mp.x <= cx + cardW && mp.y >= cardY && mp.y <= cardY + cardH) {
